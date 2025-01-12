@@ -2,6 +2,8 @@
 # https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
 #
 # Binaries for programs and plugins
+.idea/
+.vscode/
 *.exe
 *.exe~
 *.dll
@@ -10,6 +12,7 @@
 
 # Test binary, built with `go test -c`
 *.test
+*_test.go
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
