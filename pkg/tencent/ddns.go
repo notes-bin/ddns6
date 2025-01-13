@@ -7,9 +7,35 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 )
+
+type Record struct {
+	RecordId  string
+	Value     string
+	Status    string
+	UpdatedOn time.Time
+	Name      string
+	Line      string
+	LineId    string
+	Type      string
+	TTL       int
+	DefaultNS bool
+}
+
+type Response struct {
+	RecordCountInfo struct{ TotalCount int }
+	RecordList      []Record
+}
+
+type dns struct {
+	Domain string
+	Name   string
+	Type   string
+	Addr   *net.IP
+}
 
 type Domain struct {
 	DomainName string `json:"domain_name"`
