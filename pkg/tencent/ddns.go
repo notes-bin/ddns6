@@ -25,11 +25,26 @@ type tencent struct {
 	secretKey string
 }
 
-var service = "dnspod"
+const (
+	service = "dnspod"
+	version = "2021-03-23"
+)
 
-var ErrGenerateSignature = errors.New("failed to generate signature")
+var (
+	ErrGenerateSignature     = errors.New("failed to generate signature")
+	ErrNotEmptyRequestParams = errors.New("not empty request params")
+)
+
+func New(secretId, secretKey string) *tencent {
+	return &tencent{
+		secretId:  secretId,
+		secretKey: secretKey,
+	}
+}
 
 func (tc *tencent) RecordList() {
+	opt := map[string]any{"Type": "ALL", "Keyword": "dnspod"}
+	tc.request(service, "DescribeDomainList", version, &opt, result)
 
 }
 func (tc *tencent) RecordCreate() {
@@ -43,10 +58,14 @@ func (tc *tencent) RecordDelete() {
 
 }
 
-func (tc *tencent) request(service, action, version string, params, result any) error {
-	jsonStr := make([]byte, 0)
-	if params != nil {
-		jsonStr, _ = json.Marshal(params)
+func (tc *tencent) request(service, action, version string, params, result *any) error {
+	if params == nil {
+		return ErrNotEmptyRequestParams
+	}
+
+	jsonStr, err := json.Marshal(params)
+	if err != nil {
+		return err
 	}
 	req, err := http.NewRequest("POST", fmt.Sprintf("https://%s.%s", service, endpoint), bytes.NewBuffer(jsonStr))
 	slog.Debug("create http request", "request", req, "error", err)
@@ -64,8 +83,11 @@ func (tc *tencent) request(service, action, version string, params, result any) 
 	defer resp.Body.Close()
 	slog.Debug("http response", "response", resp)
 
-	result, err = io.ReadAll(resp.Body)
+	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(raw, result); err != nil {
 		return err
 	}
 
