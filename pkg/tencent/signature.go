@@ -80,13 +80,13 @@ func signature(secretId, secretKey, service, action, version string, r *http.Req
 	r.Header.Set("X-TC-Timestamp", fmt.Sprintf("%d", timestamp))
 	r.Header.Set("X-TC-Version", version)
 
-	//		curl := fmt.Sprintf(`curl -X POST https://%s\
-	//	 -H "Authorization: %s"\
-	//	 -H "Content-Type: application/json; charset=utf-8"\
-	//	 -H "Host: %s" -H "X-TC-Action: %s"\
-	//	 -H "X-TC-Timestamp: %d"\
-	//	 -H "X-TC-Version: %s"\
-	//	 -d '%s'`, host, authorization, host, action, timestamp, version, payload)
-	//		fmt.Println(curl)
+	curl := fmt.Sprintf(`curl -X POST https://%s\
+		 -H "Authorization: %s"\
+		 -H "Content-Type: application/json; charset=utf-8"\
+		 -H "Host: %s" -H "X-TC-Action: %s"\
+		 -H "X-TC-Timestamp: %d"\
+		 -H "X-TC-Version: %s"\
+		 -d '%s'`, host, authorization, host, action, timestamp, version, payload)
+	fmt.Println(curl)
 	return nil
 }
