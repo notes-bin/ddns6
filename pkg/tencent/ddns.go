@@ -13,21 +13,23 @@ import (
 )
 
 type Record struct {
-	RecordId  string
-	Value     string
-	Status    string
-	UpdatedOn time.Time
-	Name      string
-	Line      string
-	LineId    string
-	Type      string
-	TTL       int
-	DefaultNS bool
+	RecordId  string    `json:"RecordId"`
+	Name      string    `json:"Name"`
+	Value     string    `json:"Value"`
+	Status    string    `json:"Status"`
+	UpdatedOn time.Time `json:"UpdatedOn"`
+	Line      string    `json:"Line"`
+	LineId    string    `json:"LineId"`
+	Type      string    `json:"Type"`
+	TTL       int       `json:"TTL"`
+	DefaultNS bool      `json:"DefaultNS"`
 }
 
 type Response struct {
-	RecordCountInfo struct{ TotalCount int }
-	RecordList      []Record
+	RecordCountInfo struct {
+		TotalCount int `json:"TotalCount"`
+	} `json:"RecordCountInfo"`
+	RecordList []Record `json:"RecordList"`
 }
 
 type dns struct {
@@ -37,18 +39,10 @@ type dns struct {
 	Addr   *net.IP
 }
 
-type Domain struct {
-	DomainName string `json:"domain_name"`
-	SubDomain  string
-	RecordType string `json:"record_type"`
-	RecordLine string `json:"record_line"`
-	Value      string `json:"value"`
-	TTL        int
-}
-
 type tencent struct {
 	secretId  string
 	secretKey string
+	dns
 }
 
 const (
@@ -69,18 +63,40 @@ func New(secretId, secretKey string) *tencent {
 }
 
 func (tc *tencent) RecordList() {
-	opt := map[string]any{"Type": "ALL", "Keyword": "dnspod"}
-	tc.request(service, "DescribeDomainList", version, &opt, result)
+	opt := `{"Domain": "notes-bin.top"}`
+	tc.request(service, "DescribeDomainList", version, &opt, &Response)
 
 }
+
+func (tc *tencent) RecordRead() {
+	Record := `{"Domain": "notes-bin.top","RecordId": 1342341821}`
+}
+
 func (tc *tencent) RecordCreate() {
+	Record := `{
+		"Domain": "notes-bin.top",
+		"SubDomain": "www",
+		"RecordType": "AAAA",
+		"RecordLine": "默认",
+		"RecordLineId": "0",
+		"Value": "129.23.32.32"
+		}`
 
 }
 func (tc *tencent) RecordModfiy() {
+	Record := `{
+		"Domain": "notes-bin.top",
+		"SubDomain": "www",
+		"RecordType": "AAAA",
+		"RecordLine": "默认",
+		"Value": "129.23.32.32"
+		"RecordId":1342341821,
+	}`
 
 }
 
 func (tc *tencent) RecordDelete() {
+	Record := `{"Domain": "notes-bin.top","RecordId": 1342341821}`
 
 }
 
