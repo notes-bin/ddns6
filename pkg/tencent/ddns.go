@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 )
 
@@ -21,6 +22,7 @@ func (tc *tencent) request(service, action, version string, params any) error {
 		jsonStr, _ = json.Marshal(params)
 	}
 	req, err := http.NewRequest("POST", fmt.Sprintf("https://%s.%s", service, endpoint), bytes.NewBuffer(jsonStr))
+	slog.Debug("create http request", "request", req, "error", err)
 	if err != nil {
 		return err
 	}
@@ -29,4 +31,8 @@ func (tc *tencent) request(service, action, version string, params any) error {
 	}
 
 	return nil
+}
+
+func (tc *tencent) String() string {
+	return "tencent"
 }
