@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net"
 	"net/http"
 	"time"
 )
@@ -32,13 +31,6 @@ type Response struct {
 	RecordList []Record `json:"RecordList"`
 }
 
-type dns struct {
-	Domain string
-	Name   string
-	Type   string
-	Addr   *net.IP
-}
-
 type tencentDomain struct {
 	Domain       string `json:"Domain"`
 	DomainId     int    `json:"DomainId,omitempty"`
@@ -46,14 +38,13 @@ type tencentDomain struct {
 	RecordType   string `json:"RecordType,omitempty"`
 	RecordLine   string `json:"RecordLine,omitempty"`
 	RecordLineId string `json:"RecordLineId,omitempty"`
-	Value        string `json:"Value,omitempty"`
+	Value        string `json:"Value"`
 	TTL          int    `json:"TTL,omitempty"`
 }
 
 type tencent struct {
 	secretId  string
 	secretKey string
-	dns
 }
 
 const (
