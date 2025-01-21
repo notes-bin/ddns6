@@ -39,6 +39,17 @@ type dns struct {
 	Addr   *net.IP
 }
 
+type tencentDomain struct {
+	Domain       string `json:"Domain"`
+	DomainId     int    `json:"DomainId,omitempty"`
+	SubDomain    string `json:"SubDomain,omitempty"`
+	RecordType   string `json:"RecordType,omitempty"`
+	RecordLine   string `json:"RecordLine,omitempty"`
+	RecordLineId string `json:"RecordLineId,omitempty"`
+	Value        string `json:"Value,omitempty"`
+	TTL          int    `json:"TTL,omitempty"`
+}
+
 type tencent struct {
 	secretId  string
 	secretKey string
@@ -62,45 +73,44 @@ func New(secretId, secretKey string) *tencent {
 	}
 }
 
-func (tc *tencent) RecordList() {
-	opt := `{"Domain": "notes-bin.top"}`
-	tc.request(service, "DescribeDomainList", version, &opt, &Response)
-
+func (tc *tencent) RecordList(opt tencentDomain, resp Response) error {
+	// `{"Domain": "notes-bin.top"}`
+	return tc.request(service, "DescribeDomainList", version, &opt, &resp)
 }
 
 func (tc *tencent) RecordRead() {
-	Record := `{"Domain": "notes-bin.top","RecordId": 1342341821}`
+	// record := `{"Domain": "notes-bin.top","RecordId": 1342341821}`
 }
 
 func (tc *tencent) RecordCreate() {
-	Record := `{
-		"Domain": "notes-bin.top",
-		"SubDomain": "www",
-		"RecordType": "AAAA",
-		"RecordLine": "默认",
-		"RecordLineId": "0",
-		"Value": "129.23.32.32"
-		}`
+	// record := `{
+	// 	"Domain": "notes-bin.top",
+	// 	"SubDomain": "www",
+	// 	"RecordType": "AAAA",
+	// 	"RecordLine": "默认",
+	// 	"RecordLineId": "0",
+	// 	"Value": "129.23.32.32"
+	// 	}`
 
 }
 func (tc *tencent) RecordModfiy() {
-	Record := `{
-		"Domain": "notes-bin.top",
-		"SubDomain": "www",
-		"RecordType": "AAAA",
-		"RecordLine": "默认",
-		"Value": "129.23.32.32"
-		"RecordId":1342341821,
-	}`
+	// record := `{
+	// 	"Domain": "notes-bin.top",
+	// 	"SubDomain": "www",
+	// 	"RecordType": "AAAA",
+	// 	"RecordLine": "默认",
+	// 	"Value": "129.23.32.32"
+	// 	"RecordId":1342341821,
+	// }`
 
 }
 
 func (tc *tencent) RecordDelete() {
-	Record := `{"Domain": "notes-bin.top","RecordId": 1342341821}`
+	// Record := `{"Domain": "notes-bin.top","RecordId": 1342341821}`
 
 }
 
-func (tc *tencent) request(service, action, version string, params, result *any) error {
+func (tc *tencent) request(service, action, version string, params, result any) error {
 	if params == nil {
 		return ErrNotEmptyRequestParams
 	}
