@@ -34,6 +34,7 @@ type Response struct {
 type tencentDomain struct {
 	Domain       string `json:"Domain"`
 	DomainId     int    `json:"DomainId,omitempty"`
+	RecordId     int    `json:"RecordId,omitempty"`
 	SubDomain    string `json:"SubDomain,omitempty"`
 	RecordType   string `json:"RecordType,omitempty"`
 	RecordLine   string `json:"RecordLine,omitempty"`
@@ -64,16 +65,17 @@ func New(secretId, secretKey string) *tencent {
 	}
 }
 
-func (tc *tencent) RecordList(opt tencentDomain, resp Response) error {
-	// `{"Domain": "notes-bin.top"}`
-	return tc.request(service, "DescribeDomainList", version, &opt, &resp)
+func (tc *tencent) RecordList(domain string, response Response) error {
+	opt := tencentDomain{Domain: domain}
+	return tc.request(service, "DescribeDomainList", version, &opt, &response)
 }
 
-func (tc *tencent) RecordRead() {
-	// record := `{"Domain": "notes-bin.top","RecordId": 1342341821}`
+func (tc *tencent) RecordRead(domain string, recordId int, response Response) error {
+	opt := tencentDomain{Domain: domain, RecordId: recordId}
+	return tc.request(service, "DescribeRecord", version, &opt, &response)
 }
 
-func (tc *tencent) RecordCreate() {
+func (tc *tencent) RecordCreate(domain, subdomain, value string) error {
 	// record := `{
 	// 	"Domain": "notes-bin.top",
 	// 	"SubDomain": "www",
@@ -83,7 +85,10 @@ func (tc *tencent) RecordCreate() {
 	// 	"Value": "129.23.32.32"
 	// 	}`
 
+	opt := tencentDomain{Domain: domain, SubDomain: subdomain, RecordType: "AAAA", RecordLine: "默认", Value: value}
+	return tc.request(service, "CreateDomainRecord", version, &opt, nil)
 }
+
 func (tc *tencent) RecordModfiy() {
 	// record := `{
 	// 	"Domain": "notes-bin.top",
