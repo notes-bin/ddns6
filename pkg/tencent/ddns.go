@@ -141,7 +141,3 @@ func (tc *tencent) request(service, action, version string, params, result any) 
 
 	return nil
 }
-
-func (tc *tencent) String() string {
-	return "tencent"
-}
