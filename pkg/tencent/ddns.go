@@ -76,33 +76,16 @@ func (tc *tencent) RecordRead(domain string, recordId int, response Response) er
 }
 
 func (tc *tencent) RecordCreate(domain, subdomain, value string) error {
-	// record := `{
-	// 	"Domain": "notes-bin.top",
-	// 	"SubDomain": "www",
-	// 	"RecordType": "AAAA",
-	// 	"RecordLine": "默认",
-	// 	"RecordLineId": "0",
-	// 	"Value": "129.23.32.32"
-	// 	}`
 
 	opt := tencentDomain{Domain: domain, SubDomain: subdomain, RecordType: "AAAA", RecordLine: "默认", Value: value}
 	return tc.request(service, "CreateDomainRecord", version, &opt, nil)
 }
 
 func (tc *tencent) RecordModfiy() {
-	// record := `{
-	// 	"Domain": "notes-bin.top",
-	// 	"SubDomain": "www",
-	// 	"RecordType": "AAAA",
-	// 	"RecordLine": "默认",
-	// 	"Value": "129.23.32.32"
-	// 	"RecordId":1342341821,
-	// }`
 
 }
 
 func (tc *tencent) RecordDelete() {
-	// Record := `{"Domain": "notes-bin.top","RecordId": 1342341821}`
 
 }
 
