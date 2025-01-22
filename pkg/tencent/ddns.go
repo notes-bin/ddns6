@@ -91,18 +91,6 @@ func New(secretId, secretKey string) *tencent {
 	}
 }
 
-// ListDomain 列出指定域名的相关信息。
-// 参数:
-//
-//	domain: 要查询的域名字符串。
-//	response: 用于接收响应数据的结构体指针。
-//
-// 返回值:
-//
-//	error: 如果请求过程中发生错误，则返回相应的错误信息。
-//
-// 该函数通过调用腾讯云服务接口 "DescribeDomainList" 来获取域名列表，
-// 并将结果填充到提供的 response 结构体中。
 func (tc *tencent) ListDomain(domain string, response Response) error {
 	opt := tencentDomain{Domain: domain}
 	return tc.request(service, "DescribeDomainList", version, &opt, &response)
