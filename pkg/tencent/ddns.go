@@ -65,28 +65,42 @@ func New(secretId, secretKey string) *tencent {
 	}
 }
 
-func (tc *tencent) RecordList(domain string, response Response) error {
+func (tc *tencent) ListDomain(domain string, response Response) error {
 	opt := tencentDomain{Domain: domain}
 	return tc.request(service, "DescribeDomainList", version, &opt, &response)
 }
 
-func (tc *tencent) RecordRead(domain string, recordId int, response Response) error {
+func (tc *tencent) DescribeDomain(domain string, response Response) error {
+	opt := tencentDomain{Domain: domain}
+	return tc.request(service, "DescribeDomain", version, &opt, &response)
+}
+
+func (tc *tencent) ReadRecord(domain string, recordId int, response Response) error {
 	opt := tencentDomain{Domain: domain, RecordId: recordId}
 	return tc.request(service, "DescribeRecord", version, &opt, &response)
 }
 
-func (tc *tencent) RecordCreate(domain, subdomain, value string) error {
-
+func (tc *tencent) CreateRecord(domain, subdomain, value string) error {
 	opt := tencentDomain{Domain: domain, SubDomain: subdomain, RecordType: "AAAA", RecordLine: "默认", Value: value}
-	return tc.request(service, "CreateDomainRecord", version, &opt, nil)
+	return tc.request(service, "CreateRecord", version, &opt, nil)
 }
 
-func (tc *tencent) RecordModfiy() {
+func (tc *tencent) ModfiyRecord(Domain string, RecordId int, SubDomain, RecordLine, Value string) error {
+	opt := tencentDomain{Domain: Domain, SubDomain: "@", RecordId: RecordId, RecordType: "AAAA", RecordLine: "默认", Value: Value}
+
+	if SubDomain != "" {
+		opt.SubDomain = SubDomain
+	}
+	if RecordLine != "" {
+		opt.RecordLine = RecordLine
+	}
+	return tc.request(service, "ModifyRecord", version, &opt, nil)
 
 }
 
-func (tc *tencent) RecordDelete() {
-
+func (tc *tencent) DeleteRecord(Domain string, RecordId int) error {
+	opt := tencentDomain{Domain: Domain, RecordId: RecordId}
+	return tc.request(service, "DeleteRecord", version, &opt, nil)
 }
 
 func (tc *tencent) request(service, action, version string, params, result any) error {
