@@ -80,19 +80,19 @@ func (tc *tencent) ReadRecord(domain string, recordId int, response Response) er
 	return tc.request(service, "DescribeRecord", version, &opt, &response)
 }
 
-func (tc *tencent) CreateRecord(domain, subdomain, value string) error {
-	opt := tencentDomain{Domain: domain, SubDomain: subdomain, RecordType: "AAAA", RecordLine: "默认", Value: value}
+func (tc *tencent) CreateRecord(domain, subDomain, value string) error {
+	opt := tencentDomain{Domain: domain, SubDomain: subDomain, RecordType: "AAAA", RecordLine: "默认", Value: value}
 	return tc.request(service, "CreateRecord", version, &opt, nil)
 }
 
-func (tc *tencent) ModfiyRecord(Domain string, RecordId int, SubDomain, RecordLine, Value string) error {
-	opt := tencentDomain{Domain: Domain, SubDomain: "@", RecordId: RecordId, RecordType: "AAAA", RecordLine: "默认", Value: Value}
+func (tc *tencent) ModfiyRecord(domain string, recordId int, subDomain, recordLine, value string) error {
+	opt := tencentDomain{Domain: domain, SubDomain: "@", RecordId: recordId, RecordType: "AAAA", RecordLine: "默认", Value: value}
 
-	if SubDomain != "" {
-		opt.SubDomain = SubDomain
+	if subDomain != "" {
+		opt.SubDomain = subDomain
 	}
-	if RecordLine != "" {
-		opt.RecordLine = RecordLine
+	if recordLine != "" {
+		opt.RecordLine = recordLine
 	}
 	return tc.request(service, "ModifyRecord", version, &opt, nil)
 
