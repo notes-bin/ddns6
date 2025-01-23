@@ -91,17 +91,17 @@ func New(secretId, secretKey string) *tencent {
 	}
 }
 
-func (tc *tencent) ListDomain(domain string, response Response) error {
+func (tc *tencent) ListDomain(domain string, response *Response) error {
 	opt := tencentDomain{Domain: domain}
 	return tc.request(service, "DescribeDomainList", version, &opt, &response)
 }
 
-func (tc *tencent) DescribeDomain(domain string, response Response) error {
+func (tc *tencent) DescribeDomain(domain string, response *Response) error {
 	opt := tencentDomain{Domain: domain}
 	return tc.request(service, "DescribeDomain", version, &opt, &response)
 }
 
-func (tc *tencent) ReadRecord(domain string, recordId int, response Response) error {
+func (tc *tencent) ReadRecord(domain string, recordId int, response *Response) error {
 	opt := tencentDomain{Domain: domain, RecordId: recordId}
 	return tc.request(service, "DescribeRecord", version, &opt, &response)
 }
