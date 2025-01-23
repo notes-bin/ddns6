@@ -24,10 +24,6 @@ func hmacsha256(s, key string) string {
 }
 
 func signature(secretId, secretKey, service, action, version string, r *http.Request) error {
-	// 需要设置环境变量 TENCENTCLOUD_SECRET_ID，值为示例的 AKID********************************
-	// secretId := os.Getenv("TENCENTCLOUD_SECRET_ID")
-	// 需要设置环境变量 TENCENTCLOUD_SECRET_KEY，值为示例的 ********************************
-	// secretKey := os.Getenv("TENCENTCLOUD_SECRET_KEY")
 	host := fmt.Sprintf("%s.%s", service, endpoint)
 	algorithm := "TC3-HMAC-SHA256"
 	var timestamp int64 = time.Now().Unix()
@@ -80,13 +76,13 @@ func signature(secretId, secretKey, service, action, version string, r *http.Req
 	r.Header.Set("X-TC-Timestamp", fmt.Sprintf("%d", timestamp))
 	r.Header.Set("X-TC-Version", version)
 
-	curl := fmt.Sprintf(`curl -X POST https://%s\
-		 -H "Authorization: %s"\
-		 -H "Content-Type: application/json; charset=utf-8"\
-		 -H "Host: %s" -H "X-TC-Action: %s"\
-		 -H "X-TC-Timestamp: %d"\
-		 -H "X-TC-Version: %s"\
-		 -d '%s'`, host, authorization, host, action, timestamp, version, payload)
-	fmt.Println(curl)
+	// curl := fmt.Sprintf(`curl -X POST https://%s\
+	// 	 -H "Authorization: %s"\
+	// 	 -H "Content-Type: application/json; charset=utf-8"\
+	// 	 -H "Host: %s" -H "X-TC-Action: %s"\
+	// 	 -H "X-TC-Timestamp: %d"\
+	// 	 -H "X-TC-Version: %s"\
+	// 	 -d '%s'`, host, authorization, host, action, timestamp, version, payload)
+	// fmt.Println(curl)
 	return nil
 }
