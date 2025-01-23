@@ -49,6 +49,10 @@ type Response struct {
 		TotalCount int `json:"TotalCount"`
 	} `json:"RecordCountInfo"`
 	RecordList []Record `json:"RecordList"`
+	Error      struct {
+		Code    string `json:"Code"`
+		Message string `json:"Message"`
+	} `json:"Error"`
 }
 
 // TencentDomain 结构体表示腾讯云 DNS 记录的相关信息。
@@ -62,7 +66,7 @@ type tencentDomain struct {
 	RecordType   string `json:"RecordType,omitempty"`   // 记录类型
 	RecordLine   string `json:"RecordLine,omitempty"`   // 记录线路
 	RecordLineId string `json:"RecordLineId,omitempty"` // 记录线路 ID
-	Value        string `json:"Value"`                  // 记录值
+	Value        string `json:"Value,omitempty"`        // 记录值
 	TTL          int    `json:"TTL,omitempty"`          // TTL 值
 }
 
@@ -91,14 +95,9 @@ func New(secretId, secretKey string) *tencent {
 	}
 }
 
-func (tc *tencent) ListDomain(domain string, response *Response) error {
+func (tc *tencent) ListRecords(domain string, response *Response) error {
 	opt := tencentDomain{Domain: domain}
-	return tc.request(service, "DescribeDomainList", version, &opt, &response)
-}
-
-func (tc *tencent) DescribeDomain(domain string, response *Response) error {
-	opt := tencentDomain{Domain: domain}
-	return tc.request(service, "DescribeDomain", version, &opt, &response)
+	return tc.request(service, "DescribeRecordList", version, &opt, &response)
 }
 
 func (tc *tencent) ReadRecord(domain string, recordId int, response *Response) error {
@@ -155,7 +154,7 @@ func (tc *tencent) request(service, action, version string, params, result any) 
 	if err != nil {
 		return err
 	}
-	if err := signature(tc.secretId, tc.secretKey, service, action, version, req); err != nil {
+	if err := signature(tc.secretId, tc.secretKey, service, action, version, string(jsonStr), req); err != nil {
 		return ErrGenerateSignature
 	}
 	cli := http.Client{Timeout: 30 * time.Second}
@@ -164,13 +163,13 @@ func (tc *tencent) request(service, action, version string, params, result any) 
 		return err
 	}
 	defer resp.Body.Close()
-	slog.Debug("http response", "response", resp)
 
 	raw, err := io.ReadAll(resp.Body)
+	slog.Info("http response", "response", raw, "error", err)
 	if err != nil {
 		return err
 	}
-	if err := json.Unmarshal(raw, result); err != nil {
+	if err := json.Unmarshal(raw, &result); err != nil {
 		return err
 	}
 

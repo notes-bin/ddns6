@@ -20,18 +20,9 @@ func TestRequest(t *testing.T) {
 
 }
 
-func TestListDomain(t *testing.T) {
+func TestListRecords(t *testing.T) {
 	var response = new(Response)
-	err := tc.ListDomain(domain, response)
-	if err != nil {
-		t.Error(err)
-	}
-	t.Log(response)
-}
-
-func TestDescribeDomain(t *testing.T) {
-	var response = new(Response)
-	err := tc.DescribeDomain(domain, response)
+	err := tc.ListRecords(domain, response)
 	if err != nil {
 		t.Error(err)
 	}

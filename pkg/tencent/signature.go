@@ -23,7 +23,7 @@ func hmacsha256(s, key string) string {
 	return string(hashed.Sum(nil))
 }
 
-func signature(secretId, secretKey, service, action, version string, r *http.Request) error {
+func signature(secretId, secretKey, service, action, version, payload string, r *http.Request) error {
 	host := fmt.Sprintf("%s.%s", service, endpoint)
 	algorithm := "TC3-HMAC-SHA256"
 	var timestamp int64 = time.Now().Unix()
@@ -35,7 +35,6 @@ func signature(secretId, secretKey, service, action, version string, r *http.Req
 	canonicalHeaders := fmt.Sprintf("content-type:%s\nhost:%s\nx-tc-action:%s\n",
 		"application/json; charset=utf-8", host, strings.ToLower(action))
 	signedHeaders := "content-type;host;x-tc-action"
-	payload := `{"Limit": 1, "Filters": [{"Values": ["\u672a\u547d\u540d"], "Name": "instance-name"}]}`
 	hashedRequestPayload := sha256hex(payload)
 	canonicalRequest := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s",
 		httpRequestMethod,
