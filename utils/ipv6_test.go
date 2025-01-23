@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -11,7 +10,7 @@ func TestGetIPV6Addr(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	fmt.Println(i.ipv6)
+	t.Logf("ipv6 -> %v\n", i.ipv6)
 }
 
 func TestGetIPV6AddrBySite(t *testing.T) {
@@ -20,7 +19,7 @@ func TestGetIPV6AddrBySite(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	fmt.Println(s.ipv6)
+	t.Logf("ipv6 -> %v\n", s.ipv6)
 }
 
 func TestGetIPV6AddrByPublicDns(t *testing.T) {
@@ -29,5 +28,5 @@ func TestGetIPV6AddrByPublicDns(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	fmt.Println(p.ipv6)
+	t.Logf("ipv6 -> %v\n", p.ipv6)
 }
