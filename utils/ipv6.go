@@ -54,7 +54,7 @@ type site struct {
 func NewSite(urls ...string) *site {
 	u := []string{"https://6.ipw.cn"}
 	if len(urls) > 0 {
-		u = append(u, urls...)
+		u = append(urls, u...)
 	}
 
 	return &site{
