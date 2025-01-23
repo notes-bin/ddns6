@@ -25,16 +25,16 @@ import (
 // Record 结构体表示一个 DNS 记录的详细信息。
 // 它包含了记录的唯一标识符、名称、值、状态、更新时间、线路、线路ID、类型、TTL（生存时间）以及是否为默认命名服务器。
 type Record struct {
-	RecordId  string    `json:"RecordId"`  // 记录的唯一标识符
-	Name      string    `json:"Name"`      // 记录的名称
-	Value     string    `json:"Value"`     // 记录的值
-	Status    string    `json:"Status"`    // 记录的状态
-	UpdatedOn time.Time `json:"UpdatedOn"` // 记录的最后更新时间
-	Line      string    `json:"Line"`      // 记录所属的线路
-	LineId    string    `json:"LineId"`    // 线路的唯一标识符
-	Type      string    `json:"Type"`      // 记录的类型，如 A、CNAME 等
-	TTL       int       `json:"TTL"`       // 记录的生存时间
-	DefaultNS bool      `json:"DefaultNS"` // 是否为默认命名服务器
+	RecordId  int    `json:"RecordId"`  // 记录的唯一标识符
+	Name      string `json:"Name"`      // 记录的名称
+	Value     string `json:"Value"`     // 记录的值
+	Status    string `json:"Status"`    // 记录的状态
+	UpdatedOn string `json:"UpdatedOn"` // 记录的最后更新时间
+	Line      string `json:"Line"`      // 记录所属的线路
+	LineId    string `json:"LineId"`    // 线路的唯一标识符
+	Type      string `json:"Type"`      // 记录的类型，如 A、CNAME 等
+	TTL       int    `json:"TTL"`       // 记录的生存时间
+	DefaultNS bool   `json:"DefaultNS"` // 是否为默认命名服务器
 }
 
 // Response 结构体表示来自腾讯 DDNS 服务的响应。
