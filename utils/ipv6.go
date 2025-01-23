@@ -10,28 +10,27 @@ import (
 )
 
 type iface struct {
-	Name string
-	ipv6 []*net.IP
+	name string
 }
 
 func NewIface(name string) *iface {
 	return &iface{
-		Name: name,
+		name: name,
 	}
 }
 
-func (i *iface) GetIPV6Addr() error {
+func (i *iface) GetIPV6Addr() (ipv6 []*net.IP, err error) {
 	//TODO: 会获取多个ipv6地址,需要过滤
-	iface, err := net.InterfaceByName(i.Name)
+	iface, err := net.InterfaceByName(i.name)
 	if err != nil {
 		fmt.Println(err)
-		return err
+		return
 	}
 
 	addrs, err := iface.Addrs()
 	if err != nil {
 		fmt.Println(err)
-		return err
+		return
 	}
 
 	for _, addr := range addrs {
@@ -42,15 +41,14 @@ func (i *iface) GetIPV6Addr() error {
 
 		ip := ipNet.IP
 		if ip.To4() == nil && ip.IsGlobalUnicast() {
-			i.ipv6 = append(i.ipv6, &ip)
+			ipv6 = append(ipv6, &ip)
 		}
 	}
-	return nil
+	return
 }
 
 type site struct {
 	urls []string
-	ipv6 []*net.IP
 }
 
 func NewSite(urls ...string) *site {
@@ -64,33 +62,32 @@ func NewSite(urls ...string) *site {
 	}
 }
 
-func (s *site) GetIPV6Addr() error {
+func (s *site) GetIPV6Addr() (ipv6 []*net.IP, err error) {
 	for _, url := range s.urls {
 		resp, err := http.Get(url)
 		if err != nil {
 			fmt.Println("request err -> ", err)
-			return err
+			return nil, err
 		}
 
 		defer resp.Body.Close()
 		res, err := io.ReadAll(resp.Body)
 		if err != nil {
 			fmt.Println("read err -> ", err)
-			return err
+			return nil, err
 		}
-		ipv6 := net.ParseIP(string(res))
-		s.ipv6 = append(s.ipv6, &ipv6)
-		if ipv6.To16() != nil {
+		ip := net.ParseIP(string(res))
+		ipv6 = append(ipv6, &ip)
+		if ip.To16() != nil {
 			break
 		}
 	}
-	return nil
+	return
 }
 
 type publicDns struct {
 	port int
 	dns  []string
-	ipv6 []*net.IP
 }
 
 func NewPublicDNS(dns ...string) *publicDns {
@@ -101,12 +98,11 @@ func NewPublicDNS(dns ...string) *publicDns {
 	return &publicDns{
 		port: 53,
 		dns:  d,
-		ipv6: make([]*net.IP, 0),
 	}
 
 }
 
-func (p *publicDns) GetIPV6Addr() error {
+func (p *publicDns) GetIPV6Addr() (ipv6 []*net.IP, err error) {
 	// 连接到一个IPv6的DNS服务器，例如Google的公共DNS服务器
 	for _, ip := range p.dns {
 		dnsServer := fmt.Sprintf("[%s]:%d", ip, p.port)
@@ -119,10 +115,10 @@ func (p *publicDns) GetIPV6Addr() error {
 
 		// 获取本机的IPv6地址
 		localAddr := conn.LocalAddr().(*net.UDPAddr)
-		p.ipv6 = append(p.ipv6, &localAddr.IP)
+		ipv6 = append(ipv6, &localAddr.IP)
 		if localAddr.IP.To16() != nil {
 			break
 		}
 	}
-	return nil
+	return
 }
