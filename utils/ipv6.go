@@ -21,6 +21,7 @@ func NewIface(name string) *iface {
 }
 
 func (i *iface) GetIPV6Addr() error {
+	//TODO: 会获取多个ipv6地址,需要过滤
 	iface, err := net.InterfaceByName(i.Name)
 	if err != nil {
 		fmt.Println(err)
