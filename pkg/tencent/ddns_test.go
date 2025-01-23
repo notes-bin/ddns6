@@ -21,25 +21,21 @@ func TestRequest(t *testing.T) {
 }
 
 func TestListRecords(t *testing.T) {
-	var response = new(Response)
+	var response = new(TencentCloudResponse)
 	err := tc.ListRecords(domain, response)
 	if err != nil {
 		t.Error(err)
 	}
-	t.Log(response)
+	t.Logf("response -> %#v\n", response)
 }
 
 func TestReadRecord(t *testing.T) {
-	var response = new(Response)
+	var response = new(TencentCloudResponse)
 	err := tc.ReadRecord(domain, 123456, response)
 	if err != nil {
 		t.Error(err)
 	}
-	t.Log(response)
-}
-
-func TestCreateRecord(t *testing.T) {
-
+	t.Logf("response -> %#v\n", response)
 }
 
 func TestModifyRecord(t *testing.T) {

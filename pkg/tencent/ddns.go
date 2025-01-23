@@ -44,12 +44,17 @@ type Record struct {
 //   - RecordCountInfo: 包含记录总数的结构体。
 //   - TotalCount: 表示记录的总数。
 //   - RecordList: 是一个 Record 类型的切片，包含了所有的记录信息。
-type Response struct {
-	RecordCountInfo struct {
-		TotalCount int `json:"TotalCount"`
-	} `json:"RecordCountInfo"`
-	RecordList []Record `json:"RecordList"`
-	Error      struct {
+type TencentCloudResponse struct {
+	Response struct {
+		RecordCountInfo struct {
+			TotalCount int `json:"TotalCount"`
+		} `json:"RecordCountInfo"`
+		RecordList []Record `json:"RecordList"`
+	}
+}
+
+type TencentCloudStatus struct {
+	Error struct {
 		Code    string `json:"Code"`
 		Message string `json:"Message"`
 	} `json:"Error"`
@@ -95,22 +100,22 @@ func New(secretId, secretKey string) *tencent {
 	}
 }
 
-func (tc *tencent) ListRecords(domain string, response *Response) error {
+func (tc *tencent) ListRecords(domain string, response *TencentCloudResponse) error {
 	opt := tencentDomain{Domain: domain}
 	return tc.request(service, "DescribeRecordList", version, &opt, &response)
 }
 
-func (tc *tencent) ReadRecord(domain string, recordId int, response *Response) error {
+func (tc *tencent) ReadRecord(domain string, recordId int, response *TencentCloudResponse) error {
 	opt := tencentDomain{Domain: domain, RecordId: recordId}
 	return tc.request(service, "DescribeRecord", version, &opt, &response)
 }
 
-func (tc *tencent) CreateRecord(domain, subDomain, value string) error {
+func (tc *tencent) CreateRecord(domain, subDomain, value string, status *TencentCloudStatus) error {
 	opt := tencentDomain{Domain: domain, SubDomain: subDomain, RecordType: "AAAA", RecordLine: "默认", Value: value}
 	return tc.request(service, "CreateRecord", version, &opt, nil)
 }
 
-func (tc *tencent) ModfiyRecord(domain string, recordId int, subDomain, recordLine, value string) error {
+func (tc *tencent) ModfiyRecord(domain string, recordId int, subDomain, recordLine, value string, status *TencentCloudStatus) error {
 	opt := tencentDomain{Domain: domain, SubDomain: "@", RecordId: recordId, RecordType: "AAAA", RecordLine: "默认", Value: value}
 
 	if subDomain != "" {
