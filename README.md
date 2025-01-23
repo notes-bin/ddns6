@@ -1,2 +1,2 @@
 # ddns6
-ddns cli for ipv6 
+一个用golang编写的简单的ipv6动态域名解析命令行工具
