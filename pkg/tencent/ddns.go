@@ -37,13 +37,6 @@ type Record struct {
 	DefaultNS bool   `json:"DefaultNS"` // 是否为默认命名服务器
 }
 
-// Response 结构体表示来自腾讯 DDNS 服务的响应。
-// 它包含有关记录计数的信息以及记录列表。
-//
-// 字段:
-//   - RecordCountInfo: 包含记录总数的结构体。
-//   - TotalCount: 表示记录的总数。
-//   - RecordList: 是一个 Record 类型的切片，包含了所有的记录信息。
 type TencentCloudResponse struct {
 	Response struct {
 		RecordCountInfo struct {
@@ -58,6 +51,13 @@ type TencentCloudStatus struct {
 		Code    string `json:"Code"`
 		Message string `json:"Message"`
 	} `json:"Error"`
+}
+
+func (e *TencentCloudStatus) Errors() error {
+	if e.Error.Code != "" {
+		return fmt.Errorf("code: %s, message: %s", e.Error.Code, e.Error.Message)
+	}
+	return nil
 }
 
 // TencentDomain 结构体表示腾讯云 DNS 记录的相关信息。
@@ -110,7 +110,10 @@ func (tc *tencent) CreateRecord(domain, subDomain, value string, status *Tencent
 	if subDomain != "" {
 		opt.SubDomain = subDomain
 	}
-	return tc.request(service, "CreateRecord", version, &opt, nil)
+	if err := tc.request(service, "CreateRecord", version, &opt, &status); err != nil {
+		return err
+	}
+	return status.Errors()
 }
 
 func (tc *tencent) ModfiyRecord(domain string, recordId int, subDomain, recordLine, value string, status *TencentCloudStatus) error {
@@ -122,13 +125,19 @@ func (tc *tencent) ModfiyRecord(domain string, recordId int, subDomain, recordLi
 	if recordLine != "" {
 		opt.RecordLine = recordLine
 	}
-	return tc.request(service, "ModifyRecord", version, &opt, nil)
 
+	if err := tc.request(service, "ModifyRecord", version, &opt, &status); err != nil {
+		return err
+	}
+	return status.Errors()
 }
 
 func (tc *tencent) DeleteRecord(Domain string, RecordId int, status *TencentCloudStatus) error {
 	opt := tencentDomain{Domain: Domain, RecordId: RecordId}
-	return tc.request(service, "DeleteRecord", version, &opt, &status)
+	if err := tc.request(service, "DeleteRecord", version, &opt, &status); err != nil {
+		return err
+	}
+	return status.Errors()
 }
 
 // request 向腾讯云服务发送HTTP POST请求以执行特定操作。
@@ -168,7 +177,7 @@ func (tc *tencent) request(service, action, version string, params, result any) 
 	defer resp.Body.Close()
 
 	raw, err := io.ReadAll(resp.Body)
-	slog.Info("http response", "response", raw, "error", err)
+	slog.Debug("http response", "response", raw, "error", err)
 	if err != nil {
 		return err
 	}
