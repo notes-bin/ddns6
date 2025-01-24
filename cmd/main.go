@@ -5,16 +5,18 @@ import (
 	"net"
 	"time"
 
+	"github.com/notes-bin/ddns6/pkg/tencent"
 	"github.com/notes-bin/ddns6/utils"
 )
 
 // IPv6Geter 接口定义了一个方法 GetIPV6Addr，用于获取 IPv6 地址列表。
 // 实现该接口的类型需要提供一个返回 IPv6 地址切片和错误信息的方法。
 type IPv6Geter interface {
-	// GetIPV6Addr 返回一个包含 IPv6 地址的切片以及可能发生的错误。
-	// ipv6: []*net.IP 类型的切片，包含获取到的 IPv6 地址。
-	// err: 如果在获取地址过程中发生错误，将返回相应的错误信息。
 	GetIPV6Addr() (ipv6 []*net.IP, err error)
+}
+
+type Jober interface {
+	Job(domain string)
 }
 
 // DNS 结构体表示一个 DNS 记录，包含以下字段：
@@ -33,6 +35,7 @@ func NewDns(domain, subdomain string) *dns {
 	if subdomain == "" {
 		subdomain = "@"
 	}
+
 	return &dns{
 		Domain:    domain,
 		SubDomain: subdomain,
@@ -41,7 +44,7 @@ func NewDns(domain, subdomain string) *dns {
 	}
 }
 
-func (d *dns) update(ip IPv6Geter, duration time.Duration) {
+func (d *dns) monitor(ip IPv6Geter, job Jober, duration time.Duration) {
 	ticker := time.NewTicker(duration)
 	for range ticker.C {
 		ipv6, err := ip.GetIPV6Addr()
@@ -49,33 +52,46 @@ func (d *dns) update(ip IPv6Geter, duration time.Duration) {
 			panic(err)
 		}
 		d.Addr = ipv6
+
+		job.Job(d.Domain)
 	}
 }
 
 func main() {
-	ipv6 := flag.String("ipv6", "dns", "service name, dns, iface, site")
+	ipv6 := flag.String("ipv6", "dns", "dns, iface, site")
 	pdns := flag.String("dns", "", "dns name")
 	site := flag.String("site", "", "site name")
 	iface := flag.String("iface", "", "interface name")
 	domain := flag.String("domain", "", "domain name")
 	subdomain := flag.String("subdomain", "", "subdomain name")
 	interval := flag.Int("interval", 10, "interval time")
+	service := flag.String("service", "tencent", "service name")
+	accessKey := flag.String("ak", "", "access key")
+	secretKey := flag.String("sk", "", "secret key")
 	flag.Parse()
 
 	dns := NewDns(*domain, *subdomain)
 	duration := time.Duration(*interval) * time.Minute
 
+	var ip IPv6Geter
 	switch *ipv6 {
 	case "dns":
-		ip := utils.NewPublicDNS(*pdns)
-		dns.update(ip, duration)
+		ip = utils.NewPublicDNS(*pdns)
 	case "iface":
-		ip := utils.NewIface(*iface)
-		dns.update(ip, duration)
+		ip = utils.NewIface(*iface)
 	case "site":
-		ip := utils.NewSite(*site)
-		dns.update(ip, duration)
+		ip = utils.NewSite(*site)
 	default:
 		panic("service not found")
 	}
+
+	var job Jober
+	switch *service {
+	case "tencent":
+		job = tencent.New(*accessKey, *secretKey)
+	default:
+		panic("service not found")
+	}
+
+	dns.monitor(ip, job, duration)
 }
