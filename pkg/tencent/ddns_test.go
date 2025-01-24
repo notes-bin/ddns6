@@ -38,9 +38,20 @@ func TestCreateRecord(t *testing.T) {
 }
 
 func TestModifyRecord(t *testing.T) {
-
+	response := new(TencentCloudStatus)
+	ipv6, _ := utils.NewPublicDNS().GetIPV6Addr()
+	err := tc.ModfiyRecord(domain, 1956278994, "www", "默认", ipv6[0].String(), response)
+	if err != nil {
+		t.Error(err)
+	}
+	t.Logf("response -> %#v\n", response)
 }
 
 func TestDeleteRecord(t *testing.T) {
-
+	response := new(TencentCloudStatus)
+	err := tc.DeleteRecord(domain, 1956278994, response)
+	if err != nil {
+		t.Error(err)
+	}
+	t.Logf("response -> %#v\n", response)
 }
