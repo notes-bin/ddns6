@@ -100,6 +100,12 @@ func New(secretId, secretKey string) *tencent {
 	}
 }
 
+func (tc *tencent) Job(domain string) {
+	for {
+		time.Sleep(time.Second * 30)
+	}
+}
+
 func (tc *tencent) ListRecords(domain string, response *TencentCloudResponse) error {
 	opt := tencentDomain{Domain: domain}
 	return tc.request(service, "DescribeRecordList", version, &opt, &response)
