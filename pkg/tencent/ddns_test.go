@@ -29,15 +29,6 @@ func TestListRecords(t *testing.T) {
 	t.Logf("response -> %#v\n", response)
 }
 
-func TestReadRecord(t *testing.T) {
-	var response = new(TencentCloudResponse)
-	err := tc.ReadRecord(domain, 123456, response)
-	if err != nil {
-		t.Error(err)
-	}
-	t.Logf("response -> %#v\n", response)
-}
-
 func TestModifyRecord(t *testing.T) {
 
 }

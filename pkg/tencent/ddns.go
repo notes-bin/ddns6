@@ -100,21 +100,48 @@ func New(secretId, secretKey string) *tencent {
 	}
 }
 
+// ListRecords 列出指定域名的 DNS 记录。
+// 参数:
+//   - domain: 需要查询的域名。
+//   - response: 用于接收查询结果的结构体指针。
+//
+// 返回值:
+//   - error: 如果查询过程中发生错误，则返回相应的错误信息。
+//
+// 该函数通过调用腾讯云的 DescribeRecordList 接口来获取域名的 DNS 记录列表。
 func (tc *tencent) ListRecords(domain string, response *TencentCloudResponse) error {
 	opt := tencentDomain{Domain: domain}
 	return tc.request(service, "DescribeRecordList", version, &opt, &response)
 }
 
-func (tc *tencent) ReadRecord(domain string, recordId int, response *TencentCloudResponse) error {
-	opt := tencentDomain{Domain: domain, RecordId: recordId}
-	return tc.request(service, "DescribeRecord", version, &opt, &response)
-}
-
+// CreateRecord 创建一个新的 DNS 记录。
+// 参数:
+//   - domain: 域名。
+//   - subDomain: 子域名（可选），如果为空字符串，则使用 "@" 作为默认值。
+//   - value: 记录的值。
+//   - status: 状态指针，用于返回操作状态。
+//
+// 返回值:
+//   - error: 如果操作失败，返回相应的错误信息。
 func (tc *tencent) CreateRecord(domain, subDomain, value string, status *TencentCloudStatus) error {
-	opt := tencentDomain{Domain: domain, SubDomain: subDomain, RecordType: "AAAA", RecordLine: "默认", Value: value}
+	opt := tencentDomain{Domain: domain, SubDomain: "@", RecordType: "AAAA", RecordLine: "默认", Value: value}
+	if subDomain != "" {
+		opt.SubDomain = subDomain
+	}
 	return tc.request(service, "CreateRecord", version, &opt, nil)
 }
 
+// ModfiyRecord 修改指定域名的 DNS 记录。
+// 参数:
+//   - domain: 域名。
+//   - recordId: 要修改的记录 ID。
+//   - subDomain: 子域名（可选），如果为空字符串，则使用 "@" 作为默认值。
+//   - recordLine: 记录线路（可选），如果为空字符串，则使用 "默认" 作为默认值。
+//   - value: 记录的值。
+//   - status: 状态指针，用于返回操作状态。
+//
+// 返回值:
+//   - error: 如果操作失败，返回相应的错误信息。
 func (tc *tencent) ModfiyRecord(domain string, recordId int, subDomain, recordLine, value string, status *TencentCloudStatus) error {
 	opt := tencentDomain{Domain: domain, SubDomain: "@", RecordId: recordId, RecordType: "AAAA", RecordLine: "默认", Value: value}
 
@@ -128,9 +155,14 @@ func (tc *tencent) ModfiyRecord(domain string, recordId int, subDomain, recordLi
 
 }
 
-func (tc *tencent) DeleteRecord(Domain string, RecordId int) error {
+// DeleteRecord 删除指定域名下的记录。
+// 参数 Domain 是要删除记录的域名。
+// 参数 RecordId 是要删除的记录ID。
+// 参数 status 用于接收操作的状态信息。
+// 返回值是一个error，如果删除成功则返回nil，否则返回相应的错误信息。
+func (tc *tencent) DeleteRecord(Domain string, RecordId int, status *TencentCloudStatus) error {
 	opt := tencentDomain{Domain: Domain, RecordId: RecordId}
-	return tc.request(service, "DeleteRecord", version, &opt, nil)
+	return tc.request(service, "DeleteRecord", version, &opt, &status)
 }
 
 // request 向腾讯云服务发送HTTP POST请求以执行特定操作。
