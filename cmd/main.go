@@ -29,7 +29,7 @@ type dns struct {
 	Addr      []*net.IP
 }
 
-func NewDNS(domain, subdomain string) *dns {
+func NewDns(domain, subdomain string) *dns {
 	return &dns{
 		Domain:    domain,
 		SubDomain: subdomain,
@@ -59,7 +59,7 @@ func main() {
 	interval := flag.Int("interval", 10, "interval time")
 	flag.Parse()
 
-	dns := NewDNS(*domain, *subdomain)
+	dns := NewDns(*domain, *subdomain)
 	duration := time.Duration(*interval) * time.Minute
 
 	switch *ipv6 {
