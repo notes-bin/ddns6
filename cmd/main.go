@@ -30,6 +30,9 @@ type dns struct {
 }
 
 func NewDns(domain, subdomain string) *dns {
+	if subdomain == "" {
+		subdomain = "@"
+	}
 	return &dns{
 		Domain:    domain,
 		SubDomain: subdomain,
@@ -75,5 +78,4 @@ func main() {
 	default:
 		panic("service not found")
 	}
-
 }
