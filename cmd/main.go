@@ -2,10 +2,10 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"net"
 	"time"
 
-	"github.com/notes-bin/ddns6/pkg/tencent"
 	"github.com/notes-bin/ddns6/utils"
 )
 
@@ -58,40 +58,46 @@ func (d *dns) monitor(ip IPv6Geter, job Jober, duration time.Duration) {
 }
 
 func main() {
-	ipv6 := flag.String("ipv6", "dns", "dns, iface, site")
-	pdns := flag.String("dns", "", "dns name")
-	site := flag.String("site", "", "site name")
-	iface := flag.String("iface", "", "interface name")
 	domain := flag.String("domain", "", "domain name")
-	subdomain := flag.String("subdomain", "", "subdomain name")
-	interval := flag.Int("interval", 10, "interval time")
-	service := flag.String("service", "tencent", "service name")
-	accessKey := flag.String("ak", "", "access key")
-	secretKey := flag.String("sk", "", "secret key")
+	subdomain := flag.String("subdomain", "@", "subdomain name")
+	ipv6 := flag.String("ipv6", "dns", "get ipv6 address, dns or site or iface. default dns")
+	publicDns := flag.String("public-dns", "", "add custom public ipv6 dns, alibaba and google dns are included by default")
+	site := flag.String("site", "", "add a custom website that can query IPv6 addr. (default https://6.ipw.cn)")
+	iface := flag.String("iface", "eth0", "the name of the physical NIC of the device")
+	interval := flag.Int("interval", 10, "ddns update cycle, unit: minutes")
 	flag.Parse()
 
-	dns := NewDns(*domain, *subdomain)
-	duration := time.Duration(*interval) * time.Minute
-
+	var job Jober
 	var ip IPv6Geter
 	switch *ipv6 {
 	case "dns":
-		ip = utils.NewPublicDNS(*pdns)
-	case "iface":
-		ip = utils.NewIface(*iface)
+		ip = utils.NewPublicDNS(*publicDns)
 	case "site":
 		ip = utils.NewSite(*site)
+	case "iface":
+		ip = utils.NewIface(*iface)
 	default:
-		panic("service not found")
+		panic("ipv6 must be dns or site or iface")
 	}
 
-	var job Jober
-	switch *service {
-	case "tencent":
-		job = tencent.New(*accessKey, *secretKey)
-	default:
-		panic("service not found")
+	args := flag.Args()
+	fmt.Println(args)
+	if len(args) == 0 {
+		panic("请指定子命令")
 	}
+
+	switch args[0] {
+	case "tencent":
+		cmd := newSubCmd("tencent", "腾讯云")
+		cmd.String("secret-id", "", "腾讯云 API 密钥 ID")
+		cmd.String("secret-key", "", "腾讯云 API 密钥 Key")
+		cmd.Parse(args[1:])
+	default:
+		panic("子命令必须为 tencent")
+	}
+
+	duration := time.Duration(*interval) * time.Minute
+	dns := NewDns(*domain, *subdomain)
 
 	dns.monitor(ip, job, duration)
 }
