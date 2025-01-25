@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"net"
 	"time"
 
@@ -58,13 +57,13 @@ func (d *dns) monitor(ip IPv6Geter, job Jober, duration time.Duration) {
 }
 
 func main() {
-	domain := flag.String("domain", "", "domain name")
-	subdomain := flag.String("subdomain", "@", "subdomain name")
-	ipv6 := flag.String("ipv6", "dns", "get ipv6 address, dns or site or iface. default dns")
-	publicDns := flag.String("public-dns", "", "add custom public ipv6 dns, alibaba and google dns are included by default")
-	site := flag.String("site", "", "add a custom website that can query IPv6 addr. (default https://6.ipw.cn)")
-	iface := flag.String("iface", "eth0", "the name of the physical NIC of the device")
-	interval := flag.Int("interval", 10, "ddns update cycle, unit: minutes")
+	domain := flag.String("domain", "", "设置域名")
+	subdomain := flag.String("subdomain", "@", "设置子域名")
+	ipv6 := flag.String("ipv6", "dns", "获取IPv6地址的方式, 可以是dns、site或iface,默认是dns")
+	publicDns := flag.String("public-dns", "", "添加自定义公共IPv6 DNS, 默认包含阿里云和谷歌DNS")
+	site := flag.String("site", "", "添加一个可以查询IPv6地址的自定义网站, 默认是https://6.ipw.cn")
+	iface := flag.String("iface", "eth0", "设备的物理网卡名称")
+	interval := flag.Int("interval", 10, "DDNS更新周期, 单位: 分钟")
 	flag.Parse()
 
 	var job Jober
@@ -81,7 +80,6 @@ func main() {
 	}
 
 	args := flag.Args()
-	fmt.Println(args)
 	if len(args) == 0 {
 		panic("请指定子命令")
 	}
@@ -93,7 +91,7 @@ func main() {
 		cmd.String("secret-key", "", "腾讯云 API 密钥 Key")
 		cmd.Parse(args[1:])
 	default:
-		panic("子命令必须为 tencent")
+		panic("子命令必须为 tencent ...")
 	}
 
 	duration := time.Duration(*interval) * time.Minute
