@@ -123,11 +123,8 @@ func (tc *tencent) CreateRecord(domain, subDomain, value string, status *Tencent
 }
 
 func (tc *tencent) ModfiyRecord(domain string, recordId int, subDomain, recordLine, value string, status *TencentCloudStatus) error {
-	opt := tencentDomain{Domain: domain, SubDomain: "@", RecordId: recordId, RecordType: "AAAA", RecordLine: "默认", Value: value}
+	opt := tencentDomain{Domain: domain, SubDomain: subDomain, RecordId: recordId, RecordType: "AAAA", RecordLine: "默认", Value: value}
 
-	if subDomain != "" {
-		opt.SubDomain = subDomain
-	}
 	if recordLine != "" {
 		opt.RecordLine = recordLine
 	}
