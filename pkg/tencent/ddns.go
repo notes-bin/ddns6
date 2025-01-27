@@ -112,10 +112,7 @@ func (tc *tencent) ListRecords(domain string, response *TencentCloudResponse) er
 }
 
 func (tc *tencent) CreateRecord(domain, subDomain, value string, status *TencentCloudStatus) error {
-	opt := tencentDomain{Domain: domain, SubDomain: "@", RecordType: "AAAA", RecordLine: "默认", Value: value}
-	if subDomain != "" {
-		opt.SubDomain = subDomain
-	}
+	opt := tencentDomain{Domain: domain, SubDomain: subDomain, RecordType: "AAAA", RecordLine: "默认", Value: value}
 	if err := tc.request(service, "CreateRecord", version, &opt, &status); err != nil {
 		return err
 	}
