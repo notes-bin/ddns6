@@ -100,9 +100,14 @@ func New(secretId, secretKey string) *tencent {
 	}
 }
 
-func (tc *tencent) Task(domain string) {
-	for {
-		time.Sleep(time.Second * 30)
+func (tc *tencent) Task(domain, subdomain, ipv6addr string) error {
+	response, status := new(TencentCloudResponse), new(TencentCloudStatus)
+	tc.ListRecords(domain, response)
+	if response.Response.RecordCountInfo.TotalCount > 0 {
+		record := response.Response.RecordList[0]
+		return tc.ModfiyRecord(domain, record.RecordId, record.Name, record.Line, ipv6addr, status)
+	} else {
+		return tc.CreateRecord(domain, subdomain, ipv6addr, status)
 	}
 }
 

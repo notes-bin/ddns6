@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/notes-bin/ddns6/pkg/tencent"
@@ -17,8 +19,11 @@ type IPv6Geter interface {
 	GetIPV6Addr() (ipv6 []*net.IP, err error)
 }
 
+// Tasker 是一个接口，定义了执行 DNS 更新任务的方法。
+// Task 方法接受三个参数：域名、子域名和 IPv6 地址，
+// 并返回一个错误（如果有）。实现该接口的类型需要提供具体的任务执行逻辑。
 type Tasker interface {
-	Task(domain string)
+	Task(domain, subdomain, ipv6addr string) error
 }
 
 // DNS 结构体表示一个 DNS 记录，包含以下字段：
@@ -41,7 +46,9 @@ func (d *dns) monitor(ip IPv6Geter, t Tasker, duration time.Duration) {
 			panic(err)
 		}
 		d.Addr = ipv6
-		t.Task(d.Domain)
+		if err := t.Task(d.Domain, d.SubDomain, d.Addr[0].String()); err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -107,6 +114,11 @@ func main() {
 		panic("子命令必须为 tencent ...")
 	}
 
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+
 	duration := time.Duration(*interval) * time.Minute
-	ddns.monitor(ip, task, duration)
+	go ddns.monitor(ip, task, duration)
+	<-sigCh
+
 }
