@@ -29,7 +29,7 @@ func TestListRecords(t *testing.T) {
 
 func TestCreateRecord(t *testing.T) {
 	response := new(TencentCloudStatus)
-	ipv6, _ := utils.NewPublicDNS().GetIPV6Addr()
+	ipv6, _ := utils.NewPublicDNS("2400:3200:baba::1").GetIPV6Addr()
 	err := tc.CreateRecord(domain, "www", ipv6[0].String(), response)
 	if err != nil {
 		t.Error(err)
@@ -39,7 +39,7 @@ func TestCreateRecord(t *testing.T) {
 
 func TestModifyRecord(t *testing.T) {
 	response := new(TencentCloudStatus)
-	ipv6, _ := utils.NewPublicDNS().GetIPV6Addr()
+	ipv6, _ := utils.NewPublicDNS("2400:3200:baba::1").GetIPV6Addr()
 	err := tc.ModfiyRecord(domain, 1956278994, "www", "默认", ipv6[0].String(), response)
 	if err != nil {
 		t.Error(err)
@@ -49,9 +49,17 @@ func TestModifyRecord(t *testing.T) {
 
 func TestDeleteRecord(t *testing.T) {
 	response := new(TencentCloudStatus)
-	err := tc.DeleteRecord(domain, 1956278994, response)
+	err := tc.DeleteRecord(domain, 1959780499, response)
 	if err != nil {
 		t.Error(err)
 	}
 	t.Logf("response -> %#v\n", response)
+}
+
+func TestTask(t *testing.T) {
+	ipv6, _ := utils.NewPublicDNS("2400:3200:baba::1").GetIPV6Addr()
+	err := tc.Task(domain, "www", ipv6[0].String())
+	if err != nil {
+		t.Error(err)
+	}
 }
