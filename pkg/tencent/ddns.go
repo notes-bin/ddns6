@@ -103,12 +103,15 @@ func New(secretId, secretKey string) *tencent {
 func (tc *tencent) Task(domain, subdomain, ipv6addr string) error {
 	response, status := new(TencentCloudResponse), new(TencentCloudStatus)
 	tc.ListRecords(domain, response)
-	if response.Response.RecordCountInfo.TotalCount > 0 {
-		record := response.Response.RecordList[0]
-		return tc.ModfiyRecord(domain, record.RecordId, record.Name, record.Line, ipv6addr, status)
-	} else {
+	if response.Response.RecordCountInfo.TotalCount == 0 {
 		return tc.CreateRecord(domain, subdomain, ipv6addr, status)
+
 	}
+	record := response.Response.RecordList[0]
+	if record.Value == ipv6addr {
+		return nil
+	}
+	return tc.ModfiyRecord(domain, record.RecordId, record.Name, record.Line, ipv6addr, status)
 }
 
 func (tc *tencent) ListRecords(domain string, response *TencentCloudResponse) error {
