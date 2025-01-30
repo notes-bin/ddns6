@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/notes-bin/ddns6/pkg/tencent"
 	"github.com/notes-bin/ddns6/utils"
 )
 
@@ -16,8 +17,8 @@ type IPv6Geter interface {
 	GetIPV6Addr() (ipv6 []*net.IP, err error)
 }
 
-type Jober interface {
-	Job(domain string)
+type Tasker interface {
+	Task(domain string)
 }
 
 // DNS 结构体表示一个 DNS 记录，包含以下字段：
@@ -32,20 +33,7 @@ type dns struct {
 	Addr      []*net.IP
 }
 
-func NewDns(domain, subdomain string) *dns {
-	if subdomain == "" {
-		subdomain = "@"
-	}
-
-	return &dns{
-		Domain:    domain,
-		SubDomain: subdomain,
-		Type:      "AAAA",
-		Addr:      make([]*net.IP, 0),
-	}
-}
-
-func (d *dns) monitor(ip IPv6Geter, job Jober, duration time.Duration) {
+func (d *dns) monitor(ip IPv6Geter, t Tasker, duration time.Duration) {
 	ticker := time.NewTicker(duration)
 	for range ticker.C {
 		ipv6, err := ip.GetIPV6Addr()
@@ -53,20 +41,9 @@ func (d *dns) monitor(ip IPv6Geter, job Jober, duration time.Duration) {
 			panic(err)
 		}
 		d.Addr = ipv6
-
-		job.Job(d.Domain)
+		t.Task(d.Domain)
 	}
 }
-
-var (
-	domain    = flag.String("domain", "", "设置域名")
-	subdomain = flag.String("subdomain", "@", "设置子域名")
-	ipv6      = flag.String("ipv6", "dns", "获取IPv6地址的方式, 可以是dns、site或iface,默认是dns")
-	publicDns = flag.String("public-dns", "", "添加自定义公共IPv6 DNS, 默认包含阿里云和谷歌DNS")
-	site      = flag.String("site", "", "添加一个可以查询IPv6地址的自定义网站, 默认是https://6.ipw.cn")
-	iface     = flag.String("iface", "eth0", "设备的物理网卡名称")
-	interval  = flag.Int("interval", 10, "DDNS更新周期, 单位: 分钟")
-)
 
 func showHelp() {
 	fmt.Fprintf(os.Stderr, "简单的dnns6 命令行工具\n\n在全局命令或子命令选项使用 -h 或 --help 查看帮助\n\n")
@@ -81,14 +58,28 @@ func showHelp() {
 }
 
 func main() {
+	var (
+		ipv6     = flag.String("ipv6", "dns", "获取IPv6地址的方式, 可以是dns、site或iface,默认是dns")
+		pdns     = flag.String("public-dns", "", "添加自定义公共IPv6 DNS, 默认包含阿里云和谷歌DNS")
+		site     = flag.String("site", "", "添加一个可以查询IPv6地址的自定义网站, 默认是https://6.ipw.cn")
+		iface    = flag.String("iface", "eth0", "设备的物理网卡名称")
+		interval = flag.Int("interval", 10, "DDNS更新周期, 单位: 分钟")
+	)
+
+	ddns := &dns{Type: "AAAA"}
+	flag.StringVar(&ddns.Domain, "domain", "", "设置域名")
+	flag.StringVar(&ddns.SubDomain, "subdomain", "@", "设置子域名")
 	flag.Usage = showHelp
 	flag.Parse()
 
-	var job Jober
-	var ip IPv6Geter
+	var (
+		task Tasker
+		ip   IPv6Geter
+	)
+
 	switch *ipv6 {
 	case "dns":
-		ip = utils.NewPublicDNS(*publicDns)
+		ip = utils.NewPublicDNS(*pdns)
 	case "site":
 		ip = utils.NewSite(*site)
 	case "iface":
@@ -107,16 +98,15 @@ func main() {
 		showHelp()
 		os.Exit(0)
 	case "tencent":
-		cmd := newSubCmd("tencent", "腾讯云")
-		cmd.String("secret-id", "", "腾讯云 API 密钥 ID")
-		cmd.String("secret-key", "", "腾讯云 API 密钥 Key")
+		cmd := newSubCmd("tencent", "腾讯云dns服务")
+		secretId := cmd.String("secret-id", "", "腾讯云 API 密钥 ID")
+		secretKey := cmd.String("secret-key", "", "腾讯云 API 密钥 Key")
 		cmd.Parse(args[1:])
+		task = tencent.New(*secretId, *secretKey)
 	default:
 		panic("子命令必须为 tencent ...")
 	}
 
 	duration := time.Duration(*interval) * time.Minute
-	dns := NewDns(*domain, *subdomain)
-
-	dns.monitor(ip, job, duration)
+	ddns.monitor(ip, task, duration)
 }
