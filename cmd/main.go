@@ -2,7 +2,9 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"github.com/notes-bin/ddns6/utils"
@@ -56,14 +58,30 @@ func (d *dns) monitor(ip IPv6Geter, job Jober, duration time.Duration) {
 	}
 }
 
+var (
+	domain    = flag.String("domain", "", "设置域名")
+	subdomain = flag.String("subdomain", "@", "设置子域名")
+	ipv6      = flag.String("ipv6", "dns", "获取IPv6地址的方式, 可以是dns、site或iface,默认是dns")
+	publicDns = flag.String("public-dns", "", "添加自定义公共IPv6 DNS, 默认包含阿里云和谷歌DNS")
+	site      = flag.String("site", "", "添加一个可以查询IPv6地址的自定义网站, 默认是https://6.ipw.cn")
+	iface     = flag.String("iface", "eth0", "设备的物理网卡名称")
+	interval  = flag.Int("interval", 10, "DDNS更新周期, 单位: 分钟")
+)
+
+func showHelp() {
+	fmt.Fprintf(os.Stderr, "简单的dnns6 命令行工具\n\n在全局命令或子命令选项使用 -h 或 --help 查看帮助\n\n")
+	fmt.Fprintf(os.Stderr, "用法: %s [选项]\n\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "全局命令:\n")
+	flag.PrintDefaults()
+	fmt.Fprintf(os.Stderr, "\n子命令:\n")
+	fmt.Fprintf(os.Stderr, "  tencent 为腾讯云域名添加 IPv6 记录\n")
+	fmt.Fprintf(os.Stderr, "  help    显示帮助信息\n")
+	fmt.Fprintf(os.Stderr, "\n示例:\n")
+	fmt.Fprintf(os.Stderr, "  %s -domain 域名 tencent -secret-id xxx -secret-key yyy\n", os.Args[0])
+}
+
 func main() {
-	domain := flag.String("domain", "", "设置域名")
-	subdomain := flag.String("subdomain", "@", "设置子域名")
-	ipv6 := flag.String("ipv6", "dns", "获取IPv6地址的方式, 可以是dns、site或iface,默认是dns")
-	publicDns := flag.String("public-dns", "", "添加自定义公共IPv6 DNS, 默认包含阿里云和谷歌DNS")
-	site := flag.String("site", "", "添加一个可以查询IPv6地址的自定义网站, 默认是https://6.ipw.cn")
-	iface := flag.String("iface", "eth0", "设备的物理网卡名称")
-	interval := flag.Int("interval", 10, "DDNS更新周期, 单位: 分钟")
+	flag.Usage = showHelp
 	flag.Parse()
 
 	var job Jober
@@ -85,6 +103,9 @@ func main() {
 	}
 
 	switch args[0] {
+	case "help":
+		showHelp()
+		os.Exit(0)
 	case "tencent":
 		cmd := newSubCmd("tencent", "腾讯云")
 		cmd.String("secret-id", "", "腾讯云 API 密钥 ID")
