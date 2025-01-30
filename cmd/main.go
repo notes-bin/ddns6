@@ -38,8 +38,9 @@ type dns struct {
 	Addr      []*net.IP
 }
 
-func (d *dns) monitor(ip IPv6Geter, t Tasker, duration time.Duration) {
-	ticker := time.NewTicker(duration)
+func (d *dns) monitor(ip IPv6Geter, t Tasker, ticker *time.Ticker) {
+	defer ticker.Stop()
+
 	for range ticker.C {
 		ipv6, err := ip.GetIPV6Addr()
 		if err != nil {
@@ -65,17 +66,28 @@ func showHelp() {
 }
 
 func main() {
-	var (
-		ipv6     = flag.String("ipv6", "dns", "获取IPv6地址的方式, 可以是dns、site或iface,默认是dns")
-		pdns     = flag.String("public-dns", "", "添加自定义公共IPv6 DNS, 默认包含阿里云和谷歌DNS")
-		site     = flag.String("site", "", "添加一个可以查询IPv6地址的自定义网站, 默认是https://6.ipw.cn")
-		iface    = flag.String("iface", "eth0", "设备的物理网卡名称")
-		interval = flag.Int("interval", 10, "DDNS更新周期, 单位: 分钟")
-	)
+	ipopts := []string{"dns", "site", "iface"}
+	choice := utils.ChoiceValue{
+		Value:   ipopts[0], // 默认值为第一个可选值
+		Options: ipopts,
+	}
+	flag.Var(&choice, "ipv6", fmt.Sprintf("选择一个值(可选值: %v)", ipopts))
+
+	pdns := utils.StringSlice{"2400:3200:baba::1", "2001:4860:4860::8888"}
+	flag.Var(&pdns, "public-dns", "添加自定义公共IPv6 DNS, 多个DNS用逗号分隔")
+
+	site := utils.StringSlice{"https://6.ipw.cn"}
+	flag.Var(&site, "site", "添加一个可以查询IPv6地址的自定义网站, 多个网站用逗号分隔")
+
+	var interval utils.Duration = utils.Duration(5 * time.Minute)
+	flag.Var(&interval, "interval", "定时任务时间间隔（例如 1s、2m、3h、5m2s、1h15m)")
+
+	iface := flag.String("iface", "eth0", "设备的物理网卡名称")
 
 	ddns := &dns{Type: "AAAA"}
 	flag.StringVar(&ddns.Domain, "domain", "", "设置域名")
 	flag.StringVar(&ddns.SubDomain, "subdomain", "@", "设置子域名")
+
 	flag.Usage = showHelp
 	flag.Parse()
 
@@ -84,11 +96,11 @@ func main() {
 		ip   IPv6Geter
 	)
 
-	switch *ipv6 {
+	switch choice.Value {
 	case "dns":
-		ip = utils.NewPublicDNS(*pdns)
+		ip = utils.NewPublicDNS(pdns...)
 	case "site":
-		ip = utils.NewSite(*site)
+		ip = utils.NewSite(site...)
 	case "iface":
 		ip = utils.NewIface(*iface)
 	default:
@@ -105,7 +117,7 @@ func main() {
 		showHelp()
 		os.Exit(0)
 	case "tencent":
-		cmd := newSubCmd("tencent", "腾讯云dns服务")
+		cmd := utils.NewSubCmd("tencent", "腾讯云dns服务")
 		secretId := cmd.String("secret-id", "", "腾讯云 API 密钥 ID")
 		secretKey := cmd.String("secret-key", "", "腾讯云 API 密钥 Key")
 		cmd.Parse(args[1:])
@@ -117,8 +129,8 @@ func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 
-	duration := time.Duration(*interval) * time.Minute
-	go ddns.monitor(ip, task, duration)
+	ticker := time.NewTicker(time.Duration(interval))
+	go ddns.monitor(ip, task, ticker)
 	<-sigCh
 
 }
