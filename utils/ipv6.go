@@ -52,13 +52,8 @@ type site struct {
 }
 
 func NewSite(urls ...string) *site {
-	u := []string{"https://6.ipw.cn"}
-	if len(urls) > 0 {
-		u = append(urls, u...)
-	}
-
 	return &site{
-		urls: u,
+		urls: urls,
 	}
 }
 
@@ -91,13 +86,9 @@ type publicDns struct {
 }
 
 func NewPublicDNS(dns ...string) *publicDns {
-	d := []string{"2400:3200:baba::1", "2001:4860:4860::8888"}
-	if len(dns) > 0 {
-		d = append(dns, d...)
-	}
 	return &publicDns{
 		port: 53,
-		dns:  d,
+		dns:  dns,
 	}
 
 }
