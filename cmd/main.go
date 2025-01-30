@@ -13,6 +13,8 @@ import (
 	"github.com/notes-bin/ddns6/utils"
 )
 
+var Version = "unknown"
+
 // IPv6Geter 接口定义了一个方法 GetIPV6Addr，用于获取 IPv6 地址列表。
 // 实现该接口的类型需要提供一个返回 IPv6 地址切片和错误信息的方法。
 type IPv6Geter interface {
@@ -38,17 +40,18 @@ type dns struct {
 	Addr      []*net.IP
 }
 
-func (d *dns) monitor(ip IPv6Geter, t Tasker, ticker *time.Ticker) {
+func (d *dns) updateRecord(ip IPv6Geter, t Tasker, ticker *time.Ticker) {
 	defer ticker.Stop()
-
 	for range ticker.C {
-		ipv6, err := ip.GetIPV6Addr()
+		addr, err := ip.GetIPV6Addr()
 		if err != nil {
-			panic(err)
+			fmt.Fprintf(os.Stderr, "获取 IPv6 地址失败: %v\n", err)
+			continue
 		}
-		d.Addr = ipv6
+		d.Addr = addr
 		if err := t.Task(d.Domain, d.SubDomain, d.Addr[0].String()); err != nil {
-			panic(err)
+			fmt.Fprintf(os.Stderr, "配置ddns解析失败: %v\n", err)
+			continue
 		}
 	}
 }
@@ -123,14 +126,14 @@ func main() {
 		cmd.Parse(args[1:])
 		task = tencent.New(*secretId, *secretKey)
 	default:
-		panic("子命令必须为 tencent ...")
+		panic("子命令必须为 tencent")
 	}
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 
 	ticker := time.NewTicker(time.Duration(interval))
-	go ddns.monitor(ip, task, ticker)
+	go ddns.updateRecord(ip, task, ticker)
 	<-sigCh
 
 }
