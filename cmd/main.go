@@ -15,7 +15,11 @@ import (
 	"github.com/notes-bin/ddns6/utils"
 )
 
-var Version = "unknown"
+var (
+	Version   = "dev"
+	Commit    = "none"
+	BuildTime = "unknown"
+)
 
 // IPv6Geter 接口定义了一个方法 GetIPV6Addr，用于获取 IPv6 地址列表。
 // 实现该接口的类型需要提供一个返回 IPv6 地址切片和错误信息的方法。
@@ -123,7 +127,7 @@ func main() {
 	logger(os.Stderr, debug)
 
 	if version {
-		fmt.Printf("ddns6 version: %s\n", Version)
+		fmt.Printf("Version: %s\nCommit: %s\nBuild Time: %s\n", Version, Commit, BuildTime)
 		os.Exit(0)
 	}
 
