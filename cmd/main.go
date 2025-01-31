@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -45,15 +47,26 @@ func (d *dns) updateRecord(ip IPv6Geter, t Tasker, ticker *time.Ticker) {
 	for range ticker.C {
 		addr, err := ip.GetIPV6Addr()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "获取 IPv6 地址失败: %v\n", err)
+			slog.Error("获取 IPv6 地址失败", "err", err)
 			continue
 		}
 		d.Addr = addr
 		if err := t.Task(d.Domain, d.SubDomain, d.Addr[0].String()); err != nil {
-			fmt.Fprintf(os.Stderr, "配置ddns解析失败: %v\n", err)
+			slog.Error("配置ddns解析失败", "err", err)
 			continue
 		}
+		slog.Info("更新成功", "domain", d.Domain, "subdomain", d.SubDomain, "ipv6", d.Addr[0].String())
 	}
+}
+
+func logger(w io.Writer, level slog.Level) {
+	opts := &slog.HandlerOptions{
+		AddSource: true,
+		Level:     level,
+	}
+	handler := slog.NewJSONHandler(w, opts)
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
 }
 
 func showHelp() {
@@ -69,6 +82,11 @@ func showHelp() {
 }
 
 func main() {
+	var (
+		task           Tasker
+		ip             IPv6Geter
+		debug, version bool
+	)
 	ipopts := []string{"dns", "site", "iface"}
 	choice := utils.ChoiceValue{
 		Value:   ipopts[0], // 默认值为第一个可选值
@@ -91,13 +109,22 @@ func main() {
 	flag.StringVar(&ddns.Domain, "domain", "", "设置域名")
 	flag.StringVar(&ddns.SubDomain, "subdomain", "@", "设置子域名")
 
+	flag.BoolVar(&debug, "debug", false, "开启调试模式")
+	flag.BoolVar(&version, "version", false, "显示版本信息")
+
 	flag.Usage = showHelp
 	flag.Parse()
 
-	var (
-		task Tasker
-		ip   IPv6Geter
-	)
+	if debug {
+		logger(os.Stderr, slog.LevelDebug)
+	} else {
+		logger(os.Stderr, slog.LevelInfo)
+	}
+
+	if version {
+		fmt.Printf("ddns6 version: %s\n", Version)
+		os.Exit(0)
+	}
 
 	switch choice.Value {
 	case "dns":
@@ -134,6 +161,7 @@ func main() {
 
 	ticker := time.NewTicker(time.Duration(interval))
 	go ddns.updateRecord(ip, task, ticker)
+	slog.Info("ddns6 启动成功...", "pid", os.Getpid())
 	<-sigCh
-
+	slog.Info("ddns6 退出成功...")
 }
