@@ -59,9 +59,14 @@ func (d *dns) updateRecord(ip IPv6Geter, t Tasker, ticker *time.Ticker) {
 	}
 }
 
-func logger(w io.Writer, level slog.Level) {
+func logger(w io.Writer, debug bool) {
+	level := slog.LevelInfo
+	if debug {
+		level = slog.LevelDebug
+	}
+
 	opts := &slog.HandlerOptions{
-		AddSource: true,
+		AddSource: debug,
 		Level:     level,
 	}
 	handler := slog.NewJSONHandler(w, opts)
@@ -115,11 +120,7 @@ func main() {
 	flag.Usage = showHelp
 	flag.Parse()
 
-	if debug {
-		logger(os.Stderr, slog.LevelDebug)
-	} else {
-		logger(os.Stderr, slog.LevelInfo)
-	}
+	logger(os.Stderr, debug)
 
 	if version {
 		fmt.Printf("ddns6 version: %s\n", Version)
