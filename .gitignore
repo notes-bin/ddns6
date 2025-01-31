@@ -29,3 +29,5 @@ go.work.sum
 
 # mac
 .DS_Store
+# Added by goreleaser init:
+dist/
