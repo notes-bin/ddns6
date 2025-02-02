@@ -8,9 +8,11 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
+	"github.com/notes-bin/ddns6/configs"
 	"github.com/notes-bin/ddns6/pkg/tencent"
 	"github.com/notes-bin/ddns6/utils"
 )
@@ -81,13 +83,9 @@ func logger(w io.Writer, debug bool) {
 func showHelp() {
 	fmt.Fprintf(os.Stderr, "简单的dnns6 命令行工具\n\n在全局命令或子命令选项使用 -h 或 --help 查看帮助\n\n")
 	fmt.Fprintf(os.Stderr, "用法: %s [选项]\n\n", os.Args[0])
-	fmt.Fprintf(os.Stderr, "全局命令:\n")
 	flag.PrintDefaults()
-	fmt.Fprintf(os.Stderr, "\n子命令:\n")
-	fmt.Fprintf(os.Stderr, "  tencent 为腾讯云域名添加 IPv6 记录\n")
-	fmt.Fprintf(os.Stderr, "  help    显示帮助信息\n")
 	fmt.Fprintf(os.Stderr, "\n示例:\n")
-	fmt.Fprintf(os.Stderr, "  %s -domain 域名 tencent -secret-id xxx -secret-key yyy\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "  %s -domain 域名 -service tencent \n", os.Args[0])
 }
 
 func main() {
@@ -96,33 +94,68 @@ func main() {
 		ip             IPv6Geter
 		debug, version bool
 	)
-	ipopts := []string{"dns", "site", "iface"}
-	choice := utils.ChoiceValue{
-		Value:   ipopts[0], // 默认值为第一个可选值
-		Options: ipopts,
-	}
-	flag.Var(&choice, "ipv6", fmt.Sprintf("选择一个值(可选值: %v)", ipopts))
 
+	// 获取可执行文件路径
+	exePath, err := os.Executable()
+	if err != nil {
+		fmt.Println("Failed to get executable path:", err)
+		return
+	}
+
+	// 添加可执行文件路径到参数列表
+	params := []string{filepath.Dir(exePath)}
+
+	// 选择 IPv6 地址获取方式
+	ipv6s := []string{"dns", "site", "iface"}
+	ipv6Choice := utils.ChoiceValue{
+		Value:   ipv6s[0], // 默认值为第一个可选值
+		Options: ipv6s,
+	}
+	flag.Var(&ipv6Choice, "ipv6", fmt.Sprintf("选择一个IPv6 获取方式(可选值: %v)", ipv6s))
+
+	// 选择 ddns 服务商
+	services := []string{"tencent"}
+	serviceChoice := utils.ChoiceValue{
+		Value:   services[0], // 默认值为第一个可选值
+		Options: services,
+	}
+	flag.Var(&serviceChoice, "service", fmt.Sprintf("选择一个 ddns 服务商(可选值: %v)", services))
+
+	// 公共DNS 选项
 	pdns := utils.StringSlice{"2400:3200:baba::1", "2001:4860:4860::8888"}
 	flag.Var(&pdns, "public-dns", "添加自定义公共IPv6 DNS, 多个DNS用逗号分隔")
 
+	//	自定义网站选项
 	site := utils.StringSlice{"https://6.ipw.cn"}
 	flag.Var(&site, "site", "添加一个可以查询IPv6地址的自定义网站, 多个网站用逗号分隔")
 
+	// 定时任务选项
 	var interval utils.Duration = utils.Duration(5 * time.Minute)
 	flag.Var(&interval, "interval", "定时任务时间间隔（例如 1s、2m、3h、5m2s、1h15m)")
 
+	// 物理网卡选项
 	iface := flag.String("iface", "eth0", "设备的物理网卡名称")
 
+	// 域名选项
 	ddns := &dns{Type: "AAAA"}
 	flag.StringVar(&ddns.Domain, "domain", "", "设置域名")
+
+	// 子域名选项
 	flag.StringVar(&ddns.SubDomain, "subdomain", "@", "设置子域名")
 
+	// 生成服务选项
+	init := flag.Bool("init", false, "生成 systemd 服务")
+
+	// 调试选项
 	flag.BoolVar(&debug, "debug", false, "开启调试模式")
+
+	// 版本选项
 	flag.BoolVar(&version, "version", false, "显示版本信息")
 
 	flag.Usage = showHelp
 	flag.Parse()
+
+	// 获取当前运行的可执行文件路径
 
 	logger(os.Stderr, debug)
 
@@ -131,7 +164,35 @@ func main() {
 		os.Exit(0)
 	}
 
-	switch choice.Value {
+	switch serviceChoice.Value {
+	case "tencent":
+		secret, err := utils.GetEnvSafe(tencent.ID, tencent.KEY)
+		if err != nil {
+			slog.Error("获取腾讯云密钥失败", "err", err)
+			os.Exit(1)
+		}
+		task = tencent.New(secret[tencent.ID], secret[tencent.KEY])
+	default:
+		slog.Error("不支持的ddns服务商", "service", serviceChoice.Value)
+	}
+
+	if *init {
+		flag.Visit(func(f *flag.Flag) {
+			params = append(params, fmt.Sprintf("-%s=%v", f.Name, f.Value))
+		})
+
+		for i, v := range params {
+			if v == "-init=true" {
+				// 删除索引i处的元素
+				params = append(params[:i], params[i+1:]...)
+			}
+		}
+
+		configs.GenerateService(params...)
+		os.Exit(0)
+	}
+
+	switch ipv6Choice.Value {
 	case "dns":
 		ip = utils.NewPublicDNS(pdns...)
 	case "site":
@@ -140,25 +201,6 @@ func main() {
 		ip = utils.NewIface(*iface)
 	default:
 		panic("ipv6 must be dns or site or iface")
-	}
-
-	args := flag.Args()
-	if len(args) == 0 {
-		panic("请指定子命令")
-	}
-
-	switch args[0] {
-	case "help":
-		showHelp()
-		os.Exit(0)
-	case "tencent":
-		cmd := utils.NewSubCmd("tencent", "腾讯云dns服务")
-		secretId := cmd.String("secret-id", "", "腾讯云 API 密钥 ID")
-		secretKey := cmd.String("secret-key", "", "腾讯云 API 密钥 Key")
-		cmd.Parse(args[1:])
-		task = tencent.New(*secretId, *secretKey)
-	default:
-		panic("子命令必须为 tencent")
 	}
 
 	sigCh := make(chan os.Signal, 1)
