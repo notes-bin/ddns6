@@ -95,16 +95,6 @@ func main() {
 		debug, version bool
 	)
 
-	// 获取可执行文件路径
-	exePath, err := os.Executable()
-	if err != nil {
-		fmt.Println("Failed to get executable path:", err)
-		return
-	}
-
-	// 添加可执行文件路径到参数列表
-	params := []string{filepath.Dir(exePath)}
-
 	// 选择 IPv6 地址获取方式
 	ipv6s := []string{"dns", "site", "iface"}
 	ipv6Choice := utils.ChoiceValue{
@@ -161,7 +151,7 @@ func main() {
 
 	if version {
 		fmt.Printf("Version: %s\nCommit: %s\nBuild Time: %s\n", Version, Commit, BuildTime)
-		os.Exit(0)
+		return
 	}
 
 	switch serviceChoice.Value {
@@ -174,7 +164,17 @@ func main() {
 		task = tencent.New(secret[tencent.ID], secret[tencent.KEY])
 	default:
 		slog.Error("不支持的ddns服务商", "service", serviceChoice.Value)
+		os.Exit(1)
 	}
+	// 获取可执行文件路径
+	exePath, err := os.Executable()
+	if err != nil {
+		fmt.Println("Failed to get executable path:", err)
+		return
+	}
+
+	// 添加可执行文件路径到参数列表
+	params := []string{filepath.Dir(exePath)}
 
 	if *init {
 		flag.Visit(func(f *flag.Flag) {
@@ -189,7 +189,7 @@ func main() {
 		}
 
 		configs.GenerateService(params...)
-		os.Exit(0)
+		return
 	}
 
 	switch ipv6Choice.Value {
@@ -200,7 +200,8 @@ func main() {
 	case "iface":
 		ip = utils.NewIface(*iface)
 	default:
-		panic("ipv6 must be dns or site or iface")
+		slog.Error("不支持的ipv6获取方式", "ipv6", ipv6Choice.Value)
+		os.Exit(1)
 	}
 
 	sigCh := make(chan os.Signal, 1)
