@@ -58,7 +58,7 @@ type TencentCloudStatus struct {
 	} `json:"Error"`
 }
 
-func (e *TencentCloudStatus) Errors() error {
+func (e *TencentCloudStatus) ErrMessage() error {
 	if e.Error.Code != "" {
 		return fmt.Errorf("code: %s, message: %s", e.Error.Code, e.Error.Message)
 	}
@@ -130,7 +130,7 @@ func (tc *tencent) CreateRecord(domain, subDomain, value string, status *Tencent
 	if err := tc.request(service, "CreateRecord", version, &opt, &status); err != nil {
 		return err
 	}
-	return status.Errors()
+	return status.ErrMessage()
 }
 
 func (tc *tencent) ModfiyRecord(domain string, recordId int, subDomain, recordLine, value string, status *TencentCloudStatus) error {
@@ -143,7 +143,7 @@ func (tc *tencent) ModfiyRecord(domain string, recordId int, subDomain, recordLi
 	if err := tc.request(service, "ModifyRecord", version, &opt, &status); err != nil {
 		return err
 	}
-	return status.Errors()
+	return status.ErrMessage()
 }
 
 func (tc *tencent) DeleteRecord(Domain string, RecordId int, status *TencentCloudStatus) error {
@@ -151,7 +151,7 @@ func (tc *tencent) DeleteRecord(Domain string, RecordId int, status *TencentClou
 	if err := tc.request(service, "DeleteRecord", version, &opt, &status); err != nil {
 		return err
 	}
-	return status.Errors()
+	return status.ErrMessage()
 }
 
 // request 向腾讯云服务发送HTTP POST请求以执行特定操作。
