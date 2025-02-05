@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 )
@@ -114,7 +115,7 @@ func (tc *tencent) Task(domain, subdomain, ipv6addr string) error {
 
 	}
 	record := response.Response.RecordList[0]
-	if record.Value == ipv6addr {
+	if net.ParseIP(record.Value).Equal(net.ParseIP(ipv6addr)) {
 		return ErrIPv6NotChanged
 	}
 	return tc.ModfiyRecord(domain, record.RecordId, record.Name, record.Line, ipv6addr, status)
