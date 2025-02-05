@@ -96,6 +96,7 @@ const (
 var (
 	ErrGenerateSignature     = errors.New("failed to generate signature")
 	ErrNotEmptyRequestParams = errors.New("not empty request params")
+	ErrIPv6NotChanged        = errors.New("ipv6 address not changed")
 )
 
 func New(secretId, secretKey string) *tencent {
@@ -114,7 +115,7 @@ func (tc *tencent) Task(domain, subdomain, ipv6addr string) error {
 	}
 	record := response.Response.RecordList[0]
 	if record.Value == ipv6addr {
-		return nil
+		return ErrIPv6NotChanged
 	}
 	return tc.ModfiyRecord(domain, record.RecordId, record.Name, record.Line, ipv6addr, status)
 }
