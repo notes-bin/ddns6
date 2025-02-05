@@ -68,7 +68,7 @@ func (e *TencentCloudStatus) Errors() error {
 // TencentDomain 结构体表示腾讯云 DNS 记录的相关信息。
 // 它包含了域名、记录 ID、子域名、记录类型、记录线路、记录线路 ID、值以及 TTL 等字段。
 // 这些字段用于描述和管理 DNS 记录的各种属性。
-type tencentDomain struct {
+type tencentRequest struct {
 	Domain       string `json:"Domain"`                 // 域名
 	DomainId     int    `json:"DomainId,omitempty"`     // 域名 ID
 	RecordId     int    `json:"RecordId,omitempty"`     // 记录 ID
@@ -120,12 +120,12 @@ func (tc *tencent) Task(domain, subdomain, ipv6addr string) error {
 }
 
 func (tc *tencent) ListRecords(domain string, response *TencentCloudResponse) error {
-	opt := tencentDomain{Domain: domain, RecordType: "AAAA"}
+	opt := tencentRequest{Domain: domain, RecordType: "AAAA"}
 	return tc.request(service, "DescribeRecordList", version, &opt, &response)
 }
 
 func (tc *tencent) CreateRecord(domain, subDomain, value string, status *TencentCloudStatus) error {
-	opt := tencentDomain{Domain: domain, SubDomain: subDomain, RecordType: "AAAA", RecordLine: "默认", Value: value}
+	opt := tencentRequest{Domain: domain, SubDomain: subDomain, RecordType: "AAAA", RecordLine: "默认", Value: value}
 	if err := tc.request(service, "CreateRecord", version, &opt, &status); err != nil {
 		return err
 	}
@@ -133,7 +133,7 @@ func (tc *tencent) CreateRecord(domain, subDomain, value string, status *Tencent
 }
 
 func (tc *tencent) ModfiyRecord(domain string, recordId int, subDomain, recordLine, value string, status *TencentCloudStatus) error {
-	opt := tencentDomain{Domain: domain, SubDomain: subDomain, RecordId: recordId, RecordType: "AAAA", RecordLine: "默认", Value: value}
+	opt := tencentRequest{Domain: domain, SubDomain: subDomain, RecordId: recordId, RecordType: "AAAA", RecordLine: "默认", Value: value}
 
 	if recordLine != "" {
 		opt.RecordLine = recordLine
@@ -146,7 +146,7 @@ func (tc *tencent) ModfiyRecord(domain string, recordId int, subDomain, recordLi
 }
 
 func (tc *tencent) DeleteRecord(Domain string, RecordId int, status *TencentCloudStatus) error {
-	opt := tencentDomain{Domain: Domain, RecordId: RecordId}
+	opt := tencentRequest{Domain: Domain, RecordId: RecordId}
 	if err := tc.request(service, "DeleteRecord", version, &opt, &status); err != nil {
 		return err
 	}
