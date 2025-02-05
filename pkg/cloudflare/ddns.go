@@ -1,5 +1,15 @@
 package cloudflare
 
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"time"
+)
+
 const (
 	endpoint = "https://api.cloudflare.com/client/v4/zones"
 	ID       = "CLOUDFLARE_AUTH_EMAIL"
@@ -33,6 +43,13 @@ type cloudflareResponse struct {
 	} `json:"result_info"`
 }
 
+type cloudflareZoneResponse struct {
+	Result []struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	} `json:"result"`
+}
+
 type cloudflareStatus struct {
 	Success  bool `json:"success"`
 	Messages struct {
@@ -42,6 +59,12 @@ type cloudflareStatus struct {
 }
 
 type cloudflareRequest struct {
+	Comment string `json:"comment,omitempty"`
+	Content string `json:"content,omitempty"`
+	Name    string `json:"name,omitempty"`
+	Ttl     int    `json:"ttl,omitempty"`
+	Type    string `json:"type,omitempty"`
+	Id      string `json:"id,omitempty"`
 }
 
 type cloudflare struct {
@@ -68,11 +91,50 @@ func (c *cloudflare) ModfiyRecord(domain string, recordId int, subDomain, record
 	return nil
 }
 
-func (c *cloudflare) DeleteRecord(Domain string, RecordId int, status *cloudflareStatus) error {
+func (c *cloudflare) DeleteRecord(domain string, RecordId int, status *cloudflareStatus) error {
 	return nil
 }
 
-func (c *cloudflare) request(service, action, version string, params, result any) error {
+func (c *cloudflare) getZoneID(domain string, respnose *cloudflareZoneResponse) error {
+	opts := cloudflareRequest{
+		Name: domain,
+	}
+	return c.request("GET", endpoint, &opts, &respnose)
+}
+
+func (c *cloudflare) request(method, apiUrl string, params, result any) error {
+	jsonStr, err := json.Marshal(params)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(method, apiUrl, bytes.NewBuffer(jsonStr))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Key)
+	req.Header.Set("Content-Type", "application/json")
+
+	cli := http.Client{Timeout: 30 * time.Second}
+	resp, err := cli.Do(req)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	defer resp.Body.Close()
+
+	raw, err := io.ReadAll(resp.Body)
+	slog.Debug("http response", "response", raw, "error", err)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return err
+	}
 
 	return nil
 }
