@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -58,6 +59,10 @@ func (d *dns) updateRecord(ip IPv6Geter, t Tasker, ticker *time.Ticker) {
 		}
 		d.Addr = addr
 		if err := t.Task(d.Domain, d.SubDomain, d.Addr[0].String()); err != nil {
+			if errors.Is(err, tencent.ErrIPv6NotChanged) {
+				slog.Info("IPv6 地址未改变", "domain", d.Domain, "subdomain", d.SubDomain, "ipv6", d.Addr[0].String())
+				continue
+			}
 			slog.Error("配置ddns解析失败", "err", err)
 			continue
 		}
