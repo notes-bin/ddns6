@@ -80,11 +80,19 @@ func NewCloudflare(email, key string) *cloudflare {
 }
 
 func (c *cloudflare) ListRecords(domain string, response *cloudflareResponse) error {
+
 	return nil
 }
 
 func (c *cloudflare) CreateRecord(domain, subDomain, value string, status *cloudflareStatus) error {
-	return nil
+	opts := cloudflareRequest{
+		Comment: "",
+		Content: value,
+		Name:    subDomain,
+		Ttl:     3600,
+		Type:    "AAAA",
+	}
+	return c.request("POST", endpoint, &opts, &status)
 }
 
 func (c *cloudflare) ModfiyRecord(domain string, recordId int, subDomain, recordLine, value string, status *cloudflareStatus) error {
