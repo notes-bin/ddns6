@@ -57,13 +57,20 @@ func (d *dns) updateRecord(ip IPv6Geter, t Tasker, ticker *time.Ticker) {
 			slog.Error("获取 IPv6 地址失败", "err", err)
 			continue
 		}
-		d.Addr = addr
+
+		// 检查 IPv6 地址是否改变
+		if d.Addr == nil || !d.Addr[0].Equal(*(addr[0])) {
+			d.Addr = addr
+		} else {
+			continue
+		}
+
 		if err := t.Task(d.Domain, d.SubDomain, d.Addr[0].String()); err != nil {
 			if errors.Is(err, tencent.ErrIPv6NotChanged) {
 				slog.Info("IPv6 地址未改变", "domain", d.Domain, "subdomain", d.SubDomain, "ipv6", d.Addr[0].String())
-				continue
+			} else {
+				slog.Error("配置ddns解析失败", "err", err)
 			}
-			slog.Error("配置ddns解析失败", "err", err)
 			continue
 		}
 		slog.Info("更新成功", "domain", d.Domain, "subdomain", d.SubDomain, "ipv6", d.Addr[0].String())
