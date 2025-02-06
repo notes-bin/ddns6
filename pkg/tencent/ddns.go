@@ -82,6 +82,7 @@ type tencentRequest struct {
 type tencent struct {
 	secretId  string
 	secretKey string
+	*http.Client
 }
 
 const (
@@ -99,6 +100,9 @@ func New(secretId, secretKey string) *tencent {
 	return &tencent{
 		secretId:  secretId,
 		secretKey: secretKey,
+		Client: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}
 }
 
@@ -167,8 +171,7 @@ func (tc *tencent) request(service, action, version string, params, result any) 
 	if err := signature(tc.secretId, tc.secretKey, service, action, version, string(jsonStr), req); err != nil {
 		return ErrGenerateSignature
 	}
-	cli := http.Client{Timeout: 30 * time.Second}
-	resp, err := cli.Do(req)
+	resp, err := tc.Do(req)
 	if err != nil {
 		return err
 	}
