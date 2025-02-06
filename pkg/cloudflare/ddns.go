@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -40,6 +41,7 @@ type cloudflareResponse struct {
 }
 
 type cloudflareZoneResponse struct {
+	cloudflareStatus
 	Result []struct {
 		ID   string `json:"id"`
 		Name string `json:"name"`
@@ -47,20 +49,25 @@ type cloudflareZoneResponse struct {
 }
 
 type cloudflareStatus struct {
-	Success  bool `json:"success"`
+	Errors struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+	} `json:"errors"`
 	Messages struct {
 		Code    int    `json:"code"`
 		Message string `json:"message"`
 	} `json:"messages"`
+	Success bool `json:"success"`
 }
 
 type cloudflareRequest struct {
-	Comment string `json:"comment,omitempty"`
-	Content string `json:"content,omitempty"`
-	Name    string `json:"name,omitempty"`
-	Ttl     int    `json:"ttl,omitempty"`
-	Type    string `json:"type,omitempty"`
-	Id      string `json:"id,omitempty"`
+	Comment   string `json:"comment,omitempty"`
+	Content   string `json:"content,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Ttl       int    `json:"ttl,omitempty"`
+	Type      string `json:"type,omitempty"`
+	Id        string `json:"id,omitempty"`
+	Proxiable bool   `json:"proxiable,omitempty"`
 }
 
 type cloudflare struct {
@@ -87,34 +94,48 @@ func (c *cloudflare) Task(domain, subdomain, ipv6addr string) error {
 	return nil
 }
 
-func (c *cloudflare) ListRecords(domain string, response *cloudflareResponse) error {
-	return nil
-}
-
-func (c *cloudflare) CreateRecord(domain, subDomain, value string, status *cloudflareStatus) error {
-	opts := cloudflareRequest{
-		Comment: "",
-		Content: value,
-		Name:    subDomain,
-		Ttl:     3600,
-		Type:    "AAAA",
-	}
-	return c.request("POST", endpoint, &opts, &status)
-}
-
-func (c *cloudflare) ModfiyRecord(domain string, recordId int, subDomain, recordLine, value string, status *cloudflareStatus) error {
-	return nil
-}
-
-func (c *cloudflare) DeleteRecord(domain string, RecordId int, status *cloudflareStatus) error {
-	return nil
-}
-
-func (c *cloudflare) getZoneId(domain string, respnose *cloudflareZoneResponse) error {
+func (c *cloudflare) ListRecords(domain, zoneId string, response *cloudflareResponse) error {
 	opts := cloudflareRequest{
 		Name: domain,
 	}
-	return c.request("GET", endpoint, &opts, &respnose)
+	return c.request("GET", fmt.Sprintf("%s/%s/%s", endpoint, zoneId, "dns_records"), &opts, &response)
+}
+
+func (c *cloudflare) CreateRecord(domain, subDomain, value, zoneId string, response *cloudflareResponse) error {
+	opts := cloudflareRequest{
+		Comment:   "",
+		Content:   value,
+		Name:      domain,
+		Ttl:       3600,
+		Type:      "AAAA",
+		Proxiable: false,
+	}
+	return c.request("POST", fmt.Sprintf("%s/zones/%s}/dns_records", endpoint, zoneId), &opts, &response)
+}
+
+func (c *cloudflare) ModfiyRecord(domain, subDomain, zone_id, dns_record_id, value string, response *cloudflareResponse) error {
+	opts := &cloudflareRequest{
+		Name:      domain,
+		Content:   value,
+		Proxiable: true,
+		Ttl:       3600,
+		Type:      "AAAA",
+	}
+	return c.request("PATCH", fmt.Sprintf("%s/zones/%s/dns_records/%s", endpoint, zone_id, dns_record_id), &opts, &response)
+}
+
+func (c *cloudflare) DeleteRecord(domain, zone_id, dns_record_id string, response *cloudflareResponse) error {
+	opts := &cloudflareRequest{Name: domain}
+	return c.request("DELETE", fmt.Sprintf("%s/zones/%s/dns_records/%s", endpoint, zone_id, dns_record_id), &opts, &response)
+}
+
+func (c *cloudflare) getZones(domain string, respnose *cloudflareZoneResponse) error {
+	params := url.Values{}
+	params.Add("name", domain)
+	params.Add("status", "active")
+	params.Add("per_page", "50")
+
+	return c.request("GET", fmt.Sprintf("%s?%s", endpoint, params.Encode()), nil, &respnose)
 }
 
 func (c *cloudflare) request(method, apiUrl string, params, result any) error {
