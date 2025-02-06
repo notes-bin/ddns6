@@ -23,11 +23,6 @@ import (
 	"time"
 )
 
-const (
-	ID  = "TENCENTCLOUD_SECRET_ID"
-	KEY = "TENCENTCLOUD_SECRET_KEY"
-)
-
 // Record 结构体表示一个 DNS 记录的详细信息。
 // 它包含了记录的唯一标识符、名称、值、状态、更新时间、线路、线路ID、类型、TTL（生存时间）以及是否为默认命名服务器。
 type Record struct {
@@ -190,6 +185,9 @@ func (tc *tencent) request(service, action, version string, params, result any) 
 		return err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
 
 	raw, err := io.ReadAll(resp.Body)
 	slog.Debug("http response", "response", raw, "error", err)

@@ -175,21 +175,21 @@ func main() {
 	// 获取 ddns 服务商
 	switch serviceChoice.Value {
 	case "tencent":
-		secret, err := utils.GetEnvSafe(tencent.ID, tencent.KEY)
+		secret, err := utils.GetEnvSafe("TENCENTCLOUD_SECRET_ID", "TENCENTCLOUD_SECRET_KEY")
 		if err != nil {
 			slog.Error("获取腾讯云密钥失败", "err", err)
-			os.Exit(1)
+			return
 		}
-		task = tencent.New(secret[tencent.ID], secret[tencent.KEY])
+		task = tencent.New(secret["TENCENTCLOUD_SECRET_ID"], secret["TENCENTCLOUD_SECRET_KEY"])
 	default:
 		slog.Error("不支持的ddns服务商", "service", serviceChoice.Value)
-		os.Exit(1)
+		return
 	}
 
 	// 获取可执行文件路径
 	exePath, err := os.Executable()
 	if err != nil {
-		fmt.Println("Failed to get executable path:", err)
+		fmt.Println("获取可执行程序路径失败:", err)
 		return
 	}
 
@@ -222,7 +222,7 @@ func main() {
 		ip = utils.NewIface(*iface)
 	default:
 		slog.Error("不支持的ipv6获取方式", "ipv6", ipv6Choice.Value)
-		os.Exit(1)
+		return
 	}
 
 	// 创建一个可以取消的上下文
