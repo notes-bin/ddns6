@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -26,7 +27,7 @@ var (
 
 // IPv6Geter 接口定义了一个方法 GetIPV6Addr，用于获取 IPv6 地址列表。
 // 实现该接口的类型需要提供一个返回 IPv6 地址切片和错误信息的方法。
-type IPv6Geter interface {
+type IPv6Getter interface {
 	GetIPV6Addr() (ipv6 []*net.IP, err error)
 }
 
@@ -49,31 +50,37 @@ type dns struct {
 	Addr      []*net.IP
 }
 
-func (d *dns) updateRecord(ip IPv6Geter, t Tasker, ticker *time.Ticker) {
+func (d *dns) updateRecord(ctx context.Context, ipv6Getter IPv6Getter, t Tasker, ticker *time.Ticker) {
 	defer ticker.Stop()
-	for range ticker.C {
-		addr, err := ip.GetIPV6Addr()
-		if err != nil {
-			slog.Error("获取 IPv6 地址失败", "err", err)
-			continue
-		}
-
-		// 检查 IPv6 地址是否改变
-		if d.Addr == nil || !d.Addr[0].Equal(*(addr[0])) {
-			d.Addr = addr
-		} else {
-			continue
-		}
-
-		if err := t.Task(d.Domain, d.SubDomain, d.Addr[0].String()); err != nil {
-			if errors.Is(err, tencent.ErrIPv6NotChanged) {
-				slog.Info("IPv6 地址未改变", "domain", d.Domain, "subdomain", d.SubDomain, "ipv6", d.Addr[0].String())
-			} else {
-				slog.Error("配置ddns解析失败", "err", err)
+	for {
+		select {
+		case <-ticker.C:
+			addr, err := ipv6Getter.GetIPV6Addr()
+			if err != nil {
+				slog.Error("获取 IPv6 地址失败", "err", err)
+				continue
 			}
-			continue
+			// 确保获取到 addr
+			if len(addr) == 0 {
+				slog.Warn("获取到的 IPv6 地址为空")
+				continue
+			}
+			// 检查 IPv6 地址是否改变, 如果发生改变, 则更新记录, 否则不更新
+			if d.Addr == nil || !d.Addr[0].Equal(*addr[0]) {
+				d.Addr = addr
+				if err := t.Task(d.Domain, d.SubDomain, d.Addr[0].String()); err != nil {
+					if errors.Is(err, tencent.ErrIPv6NotChanged) {
+						slog.Info("IPv6 地址未改变, 无法配置ddns", "domain", d.Domain, "subdomain", d.SubDomain, "ipv6", d.Addr[0].String())
+					} else {
+						slog.Error("配置ddns解析失败", "err", err)
+					}
+				} else {
+					slog.Info("IPv6 地址发生变化, ddns配置完成", "domain", d.Domain, "subdomain", d.SubDomain, "ipv6", d.Addr[0].String())
+				}
+			}
+		case <-ctx.Done():
+			return
 		}
-		slog.Info("更新成功", "domain", d.Domain, "subdomain", d.SubDomain, "ipv6", d.Addr[0].String())
 	}
 }
 
@@ -103,7 +110,7 @@ func showHelp() {
 func main() {
 	var (
 		task           Tasker
-		ip             IPv6Geter
+		ip             IPv6Getter
 		debug, version bool
 	)
 
@@ -165,7 +172,7 @@ func main() {
 		fmt.Printf("Version: %s\nCommit: %s\nBuild Time: %s\n", Version, Commit, BuildTime)
 		return
 	}
-
+	// 获取 ddns 服务商
 	switch serviceChoice.Value {
 	case "tencent":
 		secret, err := utils.GetEnvSafe(tencent.ID, tencent.KEY)
@@ -178,6 +185,7 @@ func main() {
 		slog.Error("不支持的ddns服务商", "service", serviceChoice.Value)
 		os.Exit(1)
 	}
+
 	// 获取可执行文件路径
 	exePath, err := os.Executable()
 	if err != nil {
@@ -204,6 +212,7 @@ func main() {
 		return
 	}
 
+	// 获取 IPv6 地址
 	switch ipv6Choice.Value {
 	case "dns":
 		ip = utils.NewPublicDNS(pdns...)
@@ -216,12 +225,21 @@ func main() {
 		os.Exit(1)
 	}
 
+	// 创建一个可以取消的上下文
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 
 	ticker := time.NewTicker(time.Duration(interval))
-	go ddns.updateRecord(ip, task, ticker)
+	go ddns.updateRecord(ctx, ip, task, ticker)
 	slog.Info("ddns6 启动成功...", "pid", os.Getpid())
+
 	<-sigCh
+
+	cancel()
+
 	slog.Info("ddns6 退出成功...")
+	os.Exit(0)
 }
