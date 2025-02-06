@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/notes-bin/ddns6/configs"
+	"github.com/notes-bin/ddns6/pkg/cloudflare"
 	"github.com/notes-bin/ddns6/pkg/tencent"
 	"github.com/notes-bin/ddns6/utils"
 )
@@ -113,7 +114,7 @@ func main() {
 	flag.Var(&ipv6Choice, "ipv6", fmt.Sprintf("选择一个IPv6 获取方式(可选值: %v)", ipv6s))
 
 	// 选择 ddns 服务商
-	services := []string{"tencent"}
+	services := []string{"tencent", "cloudflare"}
 	serviceChoice := utils.ChoiceValue{
 		Value:   services[0], // 默认值为第一个可选值
 		Options: services,
@@ -169,6 +170,13 @@ func main() {
 			return
 		}
 		task = tencent.New(secret["TENCENTCLOUD_SECRET_ID"], secret["TENCENTCLOUD_SECRET_KEY"])
+	case "cloudflare":
+		secret, err := utils.GetEnvSafe("CLOUDFLARE_AUTH_MAIL", "CLOUDFLARE_AUTH_KEY")
+		if err != nil {
+			slog.Error("获取cloudflare密钥失败", "err", err)
+			return
+		}
+		task = cloudflare.NewCloudflare(secret["CLOUDFLARE_AUTH_MAIL"], secret["CLOUDFLARE_AUTH_KEY"])
 	default:
 		slog.Error("不支持的ddns服务商", "service", serviceChoice.Value)
 		return
