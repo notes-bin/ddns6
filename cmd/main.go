@@ -25,24 +25,14 @@ var (
 	BuildTime = "unknown"
 )
 
-// IPv6Geter 接口定义了一个方法 GetIPV6Addr，用于获取 IPv6 地址列表。
-// 实现该接口的类型需要提供一个返回 IPv6 地址切片和错误信息的方法。
 type IPv6Getter interface {
 	GetIPV6Addr() (ipv6 []*net.IP, err error)
 }
 
-// Tasker 是一个接口，定义了执行 DNS 更新任务的方法。
-// Task 方法接受三个参数：域名、子域名和 IPv6 地址，
-// 并返回一个错误（如果有）。实现该接口的类型需要提供具体的任务执行逻辑。
 type Tasker interface {
 	Task(domain, subdomain, ipv6addr string) error
 }
 
-// DNS 结构体表示一个 DNS 记录，包含以下字段：
-// - Domain: 域名
-// - Name: 记录名称
-// - Type: 记录类型，例如 A、AAAA、CNAME 等
-// - Addr: 指向 IP 地址的指针
 type dns struct {
 	Domain    string
 	SubDomain string
