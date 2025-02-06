@@ -78,6 +78,12 @@ func NewCloudflare(email, key string) *cloudflare {
 }
 
 func (c *cloudflare) Task(domain, subdomain, ipv6addr string) error {
+	zones := new(cloudflareZoneResponse)
+	if err := c.getZoneId(domain, zones); err != nil {
+		return err
+	}
+	zoneId := zones.Result[0].ID
+	fmt.Println(zoneId)
 	return nil
 }
 
@@ -104,7 +110,7 @@ func (c *cloudflare) DeleteRecord(domain string, RecordId int, status *cloudflar
 	return nil
 }
 
-func (c *cloudflare) getZoneID(domain string, respnose *cloudflareZoneResponse) error {
+func (c *cloudflare) getZoneId(domain string, respnose *cloudflareZoneResponse) error {
 	opts := cloudflareRequest{
 		Name: domain,
 	}
