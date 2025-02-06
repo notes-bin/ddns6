@@ -10,11 +10,7 @@ import (
 	"time"
 )
 
-const (
-	endpoint = "https://api.cloudflare.com/client/v4/zones"
-	ID       = "CLOUDFLARE_AUTH_EMAIL"
-	KEY      = "CLOUDFLARE_AUTH_KEY"
-)
+const endpoint = "https://api.cloudflare.com/client/v4/zones"
 
 type Response struct {
 	Comment   string `json:"comment"`
@@ -70,12 +66,14 @@ type cloudflareRequest struct {
 type cloudflare struct {
 	Email string
 	Key   string
+	*http.Client
 }
 
 func NewCloudflare(email, key string) *cloudflare {
 	return &cloudflare{
-		Email: email,
-		Key:   key,
+		Email:  email,
+		Key:    key,
+		Client: &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
@@ -126,8 +124,7 @@ func (c *cloudflare) request(method, apiUrl string, params, result any) error {
 	req.Header.Set("Authorization", "Bearer "+c.Key)
 	req.Header.Set("Content-Type", "application/json")
 
-	cli := http.Client{Timeout: 30 * time.Second}
-	resp, err := cli.Do(req)
+	resp, err := c.Do(req)
 	if err != nil {
 		return err
 	}
