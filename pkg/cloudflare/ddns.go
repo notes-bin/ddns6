@@ -79,8 +79,11 @@ func NewCloudflare(email, key string) *cloudflare {
 	}
 }
 
-func (c *cloudflare) ListRecords(domain string, response *cloudflareResponse) error {
+func (c *cloudflare) Task(domain, subdomain, ipv6addr string) error {
+	return nil
+}
 
+func (c *cloudflare) ListRecords(domain string, response *cloudflareResponse) error {
 	return nil
 }
 
