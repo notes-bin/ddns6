@@ -164,8 +164,6 @@ func main() {
 	flag.Usage = showHelp
 	flag.Parse()
 
-	// 获取当前运行的可执行文件路径
-
 	logger(os.Stderr, debug)
 
 	if version {

@@ -150,18 +150,6 @@ func (tc *tencent) DeleteRecord(Domain string, RecordId int, status *TencentClou
 	return status.ErrMessage()
 }
 
-// request 向腾讯云服务发送HTTP POST请求以执行特定操作。
-// service: 服务名称，例如"cdn"。
-// action: 要执行的操作，例如"DescribeDomains"。
-// version: API版本，例如"2018-06-06"。
-// params: 包含请求参数的结构体，不能为空。
-// result: 用于接收响应数据的结构体指针。
-// 返回值: 如果请求成功，返回nil；否则返回相应的错误。
-//
-// 该函数首先将请求参数序列化为JSON格式，然后创建一个HTTP POST请求。
-// 请求URL由服务名称和端点组成。接着，使用secretId和secretKey对请求进行签名。
-// 使用HTTP客户端发送请求，并设置超时时间为30秒。读取响应体并将其反序列化为result参数指定的结构体。
-// 如果在任何步骤中遇到错误，函数将返回相应的错误。
 func (tc *tencent) request(service, action, version string, params, result any) error {
 	if params == nil {
 		return ErrNotEmptyRequestParams
