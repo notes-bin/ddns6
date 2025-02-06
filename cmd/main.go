@@ -21,9 +21,8 @@ import (
 )
 
 var (
-	Version   = "dev"
-	Commit    = "none"
-	BuildTime = "unknown"
+	Version = "dev"
+	Commit  = "none"
 )
 
 type IPv6Getter interface {
@@ -158,7 +157,7 @@ func main() {
 	logger(os.Stderr, debug)
 
 	if version {
-		fmt.Printf("Version: %s\nCommit: %s\nBuild Time: %s\n", Version, Commit, BuildTime)
+		fmt.Printf("Version: %s\nCommit: %s\n", Version, Commit)
 		return
 	}
 	// 获取 ddns 服务商
