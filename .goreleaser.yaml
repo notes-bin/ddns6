@@ -26,7 +26,6 @@ builds:
       - -s -w
       - -X main.Version={{ .Env.VERSION }}
       - -X main.Commit={{ .Commit }}
-      - -X main.BuildTime={{ date "2006-01-02T15:04:05Z07:00" (now.WithZone "Asia/Shanghai") }}
     env:
       - CGO_ENABLED=0
     goos:
