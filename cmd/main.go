@@ -99,9 +99,8 @@ func showHelp() {
 
 func main() {
 	var (
-		task           Tasker
-		ip             IPv6Getter
-		debug, version bool
+		task Tasker
+		ip   IPv6Getter
 	)
 
 	// 选择 IPv6 地址获取方式
@@ -129,34 +128,33 @@ func main() {
 	flag.Var(&site, "site", "添加一个可以查询IPv6地址的自定义网站, 多个网站用逗号分隔")
 
 	// 定时任务选项
-	var interval utils.Duration = utils.Duration(5 * time.Minute)
+	interval := utils.Duration(5 * time.Minute)
 	flag.Var(&interval, "interval", "定时任务时间间隔（例如 1s、2m、3h、5m2s、1h15m)")
 
 	// 物理网卡选项
 	iface := flag.String("iface", "eth0", "设备的物理网卡名称")
 
-	// 域名选项
-	ddns := &dns{Type: "AAAA"}
-	flag.StringVar(&ddns.Domain, "domain", "", "设置域名")
-
-	// 子域名选项
-	flag.StringVar(&ddns.SubDomain, "subdomain", "@", "设置子域名")
-
 	// 生成服务选项
 	init := flag.Bool("init", false, "生成 systemd 服务")
 
 	// 调试选项
-	flag.BoolVar(&debug, "debug", false, "开启调试模式")
+	debug := flag.Bool("debug", false, "开启调试模式")
 
 	// 版本选项
-	flag.BoolVar(&version, "version", false, "显示版本信息")
+	version := flag.Bool("version", false, "显示版本信息")
+
+	// 域名选项
+	ddns := &dns{Type: "AAAA"}
+	flag.StringVar(&ddns.Domain, "domain", "", "设置域名")
+	// 子域名选项
+	flag.StringVar(&ddns.SubDomain, "subdomain", "@", "设置子域名")
 
 	flag.Usage = showHelp
 	flag.Parse()
 
-	logger(os.Stderr, debug)
+	logger(os.Stderr, *debug)
 
-	if version {
+	if *version {
 		fmt.Printf("Version: %s\nCommit: %s\n", Version, Commit)
 		return
 	}
