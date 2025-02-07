@@ -82,17 +82,15 @@ type cloudflareRequest struct {
 }
 
 type cloudflare struct {
-	Email string
-	Key   string
+	Token string
 	*http.Client
 }
 
 var ErrIPv6NotChanged = errors.New("ipv6 address not changed")
 
-func NewCloudflare(email, key string) *cloudflare {
+func NewCloudflare(token string) *cloudflare {
 	return &cloudflare{
-		Email:  email,
-		Key:    key,
+		Token:  token,
 		Client: &http.Client{Timeout: 30 * time.Second},
 	}
 }
@@ -194,37 +192,40 @@ func (c *cloudflare) getZones(domain string, response *cloudflareZoneResponse) e
 	return nil
 }
 
-func (c *cloudflare) request(method, apiUrl string, params, result any) error {
-	jsonStr, err := json.Marshal(params)
-	if err != nil {
-		return err
-	}
-	req, err := http.NewRequest(method, apiUrl, bytes.NewBuffer(jsonStr))
-	if err != nil {
-		return err
+func (c *cloudflare) request(method, apiUrl string, params, result any) (err error) {
+	var jsonStr []byte
+	if params != nil {
+		jsonStr, err = json.Marshal(params)
+		if err != nil {
+			return
+		}
 	}
 
-	req.Header.Set("Authorization", "Bearer "+c.Key)
+	req, err := http.NewRequest(method, apiUrl, bytes.NewBuffer(jsonStr))
+	if err != nil {
+		return
+	}
+
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.Token)
 
 	resp, err := c.Do(req)
 	if err != nil {
-		return err
+		return
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	defer resp.Body.Close()
-
 	raw, err := io.ReadAll(resp.Body)
 	slog.Debug("http response", "response", raw, "error", err)
 	if err != nil {
-		return err
+		return
 	}
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return err
+	if err = json.Unmarshal(raw, &result); err != nil {
+		return
 	}
 
 	return nil
