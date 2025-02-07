@@ -194,18 +194,19 @@ func main() {
 
 	// 添加可执行文件路径到参数列表
 	params := []string{filepath.Dir(exePath)}
+	flag.Visit(func(f *flag.Flag) {
+		params = append(params, fmt.Sprintf("-%s=%v", f.Name, f.Value))
+	})
+
+	for i, v := range params {
+		if v == "-init=true" {
+			// 删除索引i处的元素
+			params = append(params[:i], params[i+1:]...)
+		}
+	}
+	slog.Debug("参数列表", "params", params)
 
 	if *init {
-		flag.Visit(func(f *flag.Flag) {
-			params = append(params, fmt.Sprintf("-%s=%v", f.Name, f.Value))
-		})
-
-		for i, v := range params {
-			if v == "-init=true" {
-				// 删除索引i处的元素
-				params = append(params[:i], params[i+1:]...)
-			}
-		}
 
 		configs.GenerateService(params...)
 		return
