@@ -12,6 +12,7 @@ var tc = New(secret["TENCENTCLOUD_SECRET_ID"], secret["TENCENTCLOUD_SECRET_KEY"]
 var domain = secret["DOMAIN"]
 
 func TestListRecords(t *testing.T) {
+	t.Logf("secret -> %#v\n", secret)
 	response := new(tencentCloudResponse)
 	err := tc.ListRecords(domain, response)
 	if err != nil {
