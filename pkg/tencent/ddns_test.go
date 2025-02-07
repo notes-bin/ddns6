@@ -19,7 +19,7 @@ var domain = os.Getenv("DOMAIN")
 var tc = New(secretId, secretKey)
 
 func TestListRecords(t *testing.T) {
-	response := new(TencentCloudResponse)
+	response := new(tencentCloudResponse)
 	err := tc.ListRecords(domain, response)
 	if err != nil {
 		t.Error(err)
@@ -28,7 +28,7 @@ func TestListRecords(t *testing.T) {
 }
 
 func TestCreateRecord(t *testing.T) {
-	response := new(TencentCloudStatus)
+	response := new(tencentCloudStatus)
 	ipv6, _ := utils.NewPublicDNS("2400:3200:baba::1").GetIPV6Addr()
 	err := tc.CreateRecord(domain, "www", ipv6[0].String(), response)
 	if err != nil {
@@ -38,7 +38,7 @@ func TestCreateRecord(t *testing.T) {
 }
 
 func TestModifyRecord(t *testing.T) {
-	response := new(TencentCloudStatus)
+	response := new(tencentCloudStatus)
 	ipv6, _ := utils.NewPublicDNS("2400:3200:baba::1").GetIPV6Addr()
 	err := tc.ModfiyRecord(domain, 1956278994, "www", "默认", ipv6[0].String(), response)
 	if err != nil {
@@ -48,7 +48,7 @@ func TestModifyRecord(t *testing.T) {
 }
 
 func TestDeleteRecord(t *testing.T) {
-	response := new(TencentCloudStatus)
+	response := new(tencentCloudStatus)
 	err := tc.DeleteRecord(domain, 1959780499, response)
 	if err != nil {
 		t.Error(err)
