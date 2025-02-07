@@ -1,8 +1,11 @@
+// 包 cloudflare 提供了与 Cloudflare API 交互的功能，用于实现动态 DNS 更新。
+// 它包含了处理 DNS 记录更新、删除以及查询等操作的函数和类型。
 package cloudflare
 
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -13,7 +16,23 @@ import (
 
 const endpoint = "https://api.cloudflare.com/client/v4/zones"
 
-type Response struct {
+type cloudflareStatus struct {
+	Errors struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+	} `json:"errors"`
+	Messages struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+	} `json:"messages"`
+	Success bool `json:"success"`
+}
+
+func (ss *cloudflareStatus) Error() string {
+	return fmt.Sprintf("code: %d, message: %s", ss.Errors.Code, ss.Errors.Message)
+}
+
+type Result struct {
 	Comment   string `json:"comment"`
 	Content   string `json:"content"`
 	Name      string `json:"name"`
@@ -29,9 +48,13 @@ type Response struct {
 	Tags []string `json:"tags"`
 }
 
+func (res *Result) String() string {
+	return fmt.Sprintf("id: %s, name: %s, type: %s, content: %s", res.Id, res.Name, res.Type, res.Content)
+}
+
 type cloudflareResponse struct {
 	cloudflareStatus
-	Result     []Response
+	Result     []Result `json:"result"`
 	ResultInfo struct {
 		Count       int `json:"count"`
 		Page        int `json:"page"`
@@ -46,18 +69,6 @@ type cloudflareZoneResponse struct {
 		ID   string `json:"id"`
 		Name string `json:"name"`
 	} `json:"result"`
-}
-
-type cloudflareStatus struct {
-	Errors struct {
-		Code    int    `json:"code"`
-		Message string `json:"message"`
-	} `json:"errors"`
-	Messages struct {
-		Code    int    `json:"code"`
-		Message string `json:"message"`
-	} `json:"messages"`
-	Success bool `json:"success"`
 }
 
 type cloudflareRequest struct {
@@ -76,6 +87,8 @@ type cloudflare struct {
 	*http.Client
 }
 
+var ErrIPv6NotChanged = errors.New("ipv6 address not changed")
+
 func NewCloudflare(email, key string) *cloudflare {
 	return &cloudflare{
 		Email:  email,
@@ -86,11 +99,30 @@ func NewCloudflare(email, key string) *cloudflare {
 
 func (c *cloudflare) Task(domain, subdomain, ipv6addr string) error {
 	zones := new(cloudflareZoneResponse)
+	response := new(cloudflareResponse)
 	if err := c.getZones(domain, zones); err != nil {
 		return err
 	}
 	zoneId := zones.Result[0].ID
-	fmt.Println(zoneId)
+	if err := c.ListRecords(domain, zoneId, response); err != nil {
+		return err
+	}
+	if response.ResultInfo.Count == 0 {
+		return c.CreateRecord(domain, subdomain, ipv6addr, zoneId, response)
+	}
+	for _, record := range response.Result {
+		if record.Name == subdomain {
+			if record.Content == ipv6addr {
+				slog.Info("IPv6 地址未改变, 无法配置ddns", "domain", domain, "subdomain", subdomain, "ipv6", ipv6addr)
+				return ErrIPv6NotChanged
+			}
+			if err := c.ModfiyRecord(domain, subdomain, zoneId, record.Id, ipv6addr, response); err != nil {
+				return err
+			}
+			slog.Info("IPv6 地址发生变化, ddns配置完成", "domain", domain, "subdomain", subdomain, "ipv6", ipv6addr)
+			return nil
+		}
+	}
 	return nil
 }
 
@@ -98,7 +130,13 @@ func (c *cloudflare) ListRecords(domain, zoneId string, response *cloudflareResp
 	opts := cloudflareRequest{
 		Name: domain,
 	}
-	return c.request("GET", fmt.Sprintf("%s/%s/%s", endpoint, zoneId, "dns_records"), &opts, &response)
+	if err := c.request("GET", fmt.Sprintf("%s/%s/%s", endpoint, zoneId, "dns_records"), &opts, &response); err != nil {
+		return err
+	}
+	if !response.cloudflareStatus.Success {
+		return &response.cloudflareStatus
+	}
+	return nil
 }
 
 func (c *cloudflare) CreateRecord(domain, subDomain, value, zoneId string, response *cloudflareResponse) error {
@@ -110,7 +148,13 @@ func (c *cloudflare) CreateRecord(domain, subDomain, value, zoneId string, respo
 		Type:      "AAAA",
 		Proxiable: false,
 	}
-	return c.request("POST", fmt.Sprintf("%s/zones/%s}/dns_records", endpoint, zoneId), &opts, &response)
+	if err := c.request("POST", fmt.Sprintf("%s/%s/dns_records", endpoint, zoneId), &opts, &response); err != nil {
+		return err
+	}
+	if !response.cloudflareStatus.Success {
+		return &response.cloudflareStatus
+	}
+	return nil
 }
 
 func (c *cloudflare) ModfiyRecord(domain, subDomain, zone_id, dns_record_id, value string, response *cloudflareResponse) error {
@@ -121,21 +165,33 @@ func (c *cloudflare) ModfiyRecord(domain, subDomain, zone_id, dns_record_id, val
 		Ttl:       3600,
 		Type:      "AAAA",
 	}
-	return c.request("PATCH", fmt.Sprintf("%s/zones/%s/dns_records/%s", endpoint, zone_id, dns_record_id), &opts, &response)
+	if err := c.request("PATCH", fmt.Sprintf("%s/%s/dns_records/%s", endpoint, zone_id, dns_record_id), &opts, &response); err != nil {
+		return err
+	}
+	if !response.cloudflareStatus.Success {
+		return &response.cloudflareStatus
+	}
+	return nil
 }
 
 func (c *cloudflare) DeleteRecord(domain, zone_id, dns_record_id string, response *cloudflareResponse) error {
 	opts := &cloudflareRequest{Name: domain}
-	return c.request("DELETE", fmt.Sprintf("%s/zones/%s/dns_records/%s", endpoint, zone_id, dns_record_id), &opts, &response)
+	return c.request("DELETE", fmt.Sprintf("%s/%s/dns_records/%s", endpoint, zone_id, dns_record_id), &opts, &response)
 }
 
-func (c *cloudflare) getZones(domain string, respnose *cloudflareZoneResponse) error {
+func (c *cloudflare) getZones(domain string, response *cloudflareZoneResponse) error {
 	params := url.Values{}
 	params.Add("name", domain)
 	params.Add("status", "active")
 	params.Add("per_page", "50")
 
-	return c.request("GET", fmt.Sprintf("%s?%s", endpoint, params.Encode()), nil, &respnose)
+	if err := c.request("GET", fmt.Sprintf("%s?%s", endpoint, params.Encode()), nil, &response); err != nil {
+		return err
+	}
+	if !response.cloudflareStatus.Success {
+		return &response.cloudflareStatus
+	}
+	return nil
 }
 
 func (c *cloudflare) request(method, apiUrl string, params, result any) error {
