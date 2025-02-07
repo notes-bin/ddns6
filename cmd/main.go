@@ -168,12 +168,12 @@ func main() {
 		}
 		task = tencent.New(secret["TENCENTCLOUD_SECRET_ID"], secret["TENCENTCLOUD_SECRET_KEY"])
 	case "cloudflare":
-		secret, err := utils.GetEnvSafe("CLOUDFLARE_AUTH_MAIL", "CLOUDFLARE_AUTH_KEY")
+		secret, err := utils.GetEnvSafe("CLOUDFLARE_AUTH_TOKEN")
 		if err != nil {
 			slog.Error("获取cloudflare密钥失败", "err", err)
 			return
 		}
-		task = cloudflare.NewCloudflare(secret["CLOUDFLARE_AUTH_MAIL"], secret["CLOUDFLARE_AUTH_KEY"])
+		task = cloudflare.NewCloudflare(secret["CLOUDFLARE_AUTH_TOKEN"])
 	default:
 		slog.Error("不支持的ddns服务商", "service", serviceChoice.Value)
 		return
