@@ -78,6 +78,10 @@ type tencentRequest struct {
 	TTL          int    `json:"TTL,omitempty"`          // TTL 值
 }
 
+func (t *tencentRequest) String() string {
+	return fmt.Sprintf("domain: %s, subdomain: %s, type: %s, value: %s", t.Domain, t.SubDomain, t.RecordType, t.Value)
+}
+
 type tencent struct {
 	secretId  string
 	secretKey string
@@ -123,6 +127,7 @@ func (tc *tencent) Task(domain, subdomain, ipv6addr string) error {
 func (tc *tencent) ListRecords(domain string, response *tencentCloudResponse) error {
 	opt := tencentRequest{Domain: domain, RecordType: "AAAA"}
 	if err := tc.request(service, "DescribeRecordList", version, &opt, &response); err != nil {
+		slog.Debug("获取域名记录列表", "params", fmt.Sprint(opt), "response", response)
 		return err
 	}
 
@@ -180,7 +185,7 @@ func (tc *tencent) request(service, action, version string, params, result any) 
 	}
 
 	req, err := http.NewRequest("POST", fmt.Sprintf("https://%s.%s", service, endpoint), bytes.NewBuffer(jsonStr))
-	slog.Debug("创建 http 请求", "request", req, "error", err)
+	slog.Debug("创建 http 请求", "params", string(jsonStr), "error", err)
 	if err != nil {
 		return
 	}
