@@ -55,11 +55,11 @@ changelog:
       - "^docs:"
       - "^test:"
 
-upx:
-  - 
-    enabled: true
-    goos: [linux, darwin]
-    goarch: [arm64, amd64]
-    compress: best
-    lzma: true
-    brute: true
+# upx:
+#   - 
+#     enabled: true
+#     goos: [linux, darwin]
+#     goarch: [arm64, amd64]
+#     compress: best
+#     lzma: true
+#     brute: true
