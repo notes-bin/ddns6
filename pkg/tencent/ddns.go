@@ -23,8 +23,17 @@ import (
 	"time"
 )
 
-// Record 结构体表示一个 DNS 记录的详细信息。
-// 它包含了记录的唯一标识符、名称、值、状态、更新时间、线路、线路ID、类型、TTL（生存时间）以及是否为默认命名服务器。
+type tencentCloudStatus struct {
+	Errors struct {
+		Code    string `json:"Code"`
+		Message string `json:"Message"`
+	} `json:"Error"`
+}
+
+func (e *tencentCloudStatus) Error() string {
+	return fmt.Sprintf("code: %s, message: %s", e.Errors.Code, e.Errors.Message)
+}
+
 type Record struct {
 	RecordId  int    `json:"RecordId"`  // 记录的唯一标识符
 	Name      string `json:"Name"`      // 记录的名称
@@ -38,7 +47,12 @@ type Record struct {
 	DefaultNS bool   `json:"DefaultNS"` // 是否为默认命名服务器
 }
 
-type TencentCloudResponse struct {
+func (r *Record) String() string {
+	return fmt.Sprintf("id: %d, name: %s, type: %s, value: %s", r.RecordId, r.Name, r.Type, r.Value)
+}
+
+type tencentCloudResponse struct {
+	tencentCloudStatus
 	Response struct {
 		RecordCountInfo struct {
 			TotalCount int `json:"TotalCount"`
@@ -47,23 +61,6 @@ type TencentCloudResponse struct {
 	}
 }
 
-type TencentCloudStatus struct {
-	Error struct {
-		Code    string `json:"Code"`
-		Message string `json:"Message"`
-	} `json:"Error"`
-}
-
-func (e *TencentCloudStatus) ErrMessage() error {
-	if e.Error.Code != "" {
-		return fmt.Errorf("code: %s, message: %s", e.Error.Code, e.Error.Message)
-	}
-	return nil
-}
-
-// TencentDomain 结构体表示腾讯云 DNS 记录的相关信息。
-// 它包含了域名、记录 ID、子域名、记录类型、记录线路、记录线路 ID、值以及 TTL 等字段。
-// 这些字段用于描述和管理 DNS 记录的各种属性。
 type tencentRequest struct {
 	Domain       string `json:"Domain"`                 // 域名
 	DomainId     int    `json:"DomainId,omitempty"`     // 域名 ID
@@ -76,9 +73,6 @@ type tencentRequest struct {
 	TTL          int    `json:"TTL,omitempty"`          // TTL 值
 }
 
-// Tencent 结构体包含了用于腾讯云 API 调用的认证信息。
-// secretId 是用户的唯一标识符，用于身份验证。
-// secretKey 是与 secretId 配对使用的密钥，用于加密签名验证。
 type tencent struct {
 	secretId  string
 	secretKey string
@@ -107,7 +101,7 @@ func New(secretId, secretKey string) *tencent {
 }
 
 func (tc *tencent) Task(domain, subdomain, ipv6addr string) error {
-	response, status := new(TencentCloudResponse), new(TencentCloudStatus)
+	response, status := new(tencentCloudResponse), new(tencentCloudStatus)
 	tc.ListRecords(domain, response)
 	if response.Response.RecordCountInfo.TotalCount == 0 {
 		return tc.CreateRecord(domain, subdomain, ipv6addr, status)
@@ -120,20 +114,29 @@ func (tc *tencent) Task(domain, subdomain, ipv6addr string) error {
 	return tc.ModfiyRecord(domain, record.RecordId, record.Name, record.Line, ipv6addr, status)
 }
 
-func (tc *tencent) ListRecords(domain string, response *TencentCloudResponse) error {
+func (tc *tencent) ListRecords(domain string, response *tencentCloudResponse) error {
 	opt := tencentRequest{Domain: domain, RecordType: "AAAA"}
-	return tc.request(service, "DescribeRecordList", version, &opt, &response)
+	if err := tc.request(service, "DescribeRecordList", version, &opt, &response); err != nil {
+		return err
+	}
+	if response.tencentCloudStatus.Errors.Code != "" {
+		return &response.tencentCloudStatus
+	}
+	return nil
 }
 
-func (tc *tencent) CreateRecord(domain, subDomain, value string, status *TencentCloudStatus) error {
+func (tc *tencent) CreateRecord(domain, subDomain, value string, status *tencentCloudStatus) error {
 	opt := tencentRequest{Domain: domain, SubDomain: subDomain, RecordType: "AAAA", RecordLine: "默认", Value: value}
 	if err := tc.request(service, "CreateRecord", version, &opt, &status); err != nil {
 		return err
 	}
-	return status.ErrMessage()
+	if status.Errors.Code != "" {
+		return status
+	}
+	return nil
 }
 
-func (tc *tencent) ModfiyRecord(domain string, recordId int, subDomain, recordLine, value string, status *TencentCloudStatus) error {
+func (tc *tencent) ModfiyRecord(domain string, recordId int, subDomain, recordLine, value string, status *tencentCloudStatus) error {
 	opt := tencentRequest{Domain: domain, SubDomain: subDomain, RecordId: recordId, RecordType: "AAAA", RecordLine: "默认", Value: value}
 
 	if recordLine != "" {
@@ -143,15 +146,21 @@ func (tc *tencent) ModfiyRecord(domain string, recordId int, subDomain, recordLi
 	if err := tc.request(service, "ModifyRecord", version, &opt, &status); err != nil {
 		return err
 	}
-	return status.ErrMessage()
+	if status.Errors.Code != "" {
+		return status
+	}
+	return nil
 }
 
-func (tc *tencent) DeleteRecord(Domain string, RecordId int, status *TencentCloudStatus) error {
+func (tc *tencent) DeleteRecord(Domain string, RecordId int, status *tencentCloudStatus) error {
 	opt := tencentRequest{Domain: Domain, RecordId: RecordId}
 	if err := tc.request(service, "DeleteRecord", version, &opt, &status); err != nil {
 		return err
 	}
-	return status.ErrMessage()
+	if status.Errors.Code != "" {
+		return status
+	}
+	return nil
 }
 
 func (tc *tencent) request(service, action, version string, params, result any) error {
