@@ -17,6 +17,5 @@ func GetEnvSafe(keys ...string) (map[string]string, error) {
 		}
 	}
 	slog.Debug("获取环境变量成功", "result", result)
-	// return result, nil
-	return nil, nil
+	return result, nil
 }
