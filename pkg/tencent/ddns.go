@@ -85,9 +85,8 @@ const (
 )
 
 var (
-	ErrGenerateSignature     = errors.New("failed to generate signature")
-	ErrNotEmptyRequestParams = errors.New("not empty request params")
-	ErrIPv6NotChanged        = errors.New("ipv6 address not changed")
+	ErrGenerateSignature = errors.New("failed to generate signature")
+	ErrIPv6NotChanged    = errors.New("ipv6 address not changed")
 )
 
 func New(secretId, secretKey string) *tencent {
@@ -163,29 +162,30 @@ func (tc *tencent) DeleteRecord(Domain string, RecordId int, status *tencentClou
 	return nil
 }
 
-func (tc *tencent) request(service, action, version string, params, result any) error {
-	if params == nil {
-		return ErrNotEmptyRequestParams
+func (tc *tencent) request(service, action, version string, params, result any) (err error) {
+	var jsonStr []byte
+	if params != nil {
+		jsonStr, err = json.Marshal(params)
+		if err != nil {
+			return
+		}
 	}
 
-	jsonStr, err := json.Marshal(params)
-	if err != nil {
-		return err
-	}
 	req, err := http.NewRequest("POST", fmt.Sprintf("https://%s.%s", service, endpoint), bytes.NewBuffer(jsonStr))
 	slog.Debug("create http request", "request", req, "error", err)
 	if err != nil {
-		return err
+		return
 	}
 	if err := signature(tc.secretId, tc.secretKey, service, action, version, string(jsonStr), req); err != nil {
 		return ErrGenerateSignature
 	}
 	resp, err := tc.Do(req)
 	if err != nil {
-		return err
+		return
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		slog.Error("请求错误", "status_code", resp.StatusCode, "error", err)
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
