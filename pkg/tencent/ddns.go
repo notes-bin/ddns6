@@ -24,14 +24,16 @@ import (
 )
 
 type tencentCloudStatus struct {
-	Errors struct {
-		Code    string `json:"Code"`
-		Message string `json:"Message"`
-	} `json:"Error"`
+	Response struct {
+		Error struct {
+			Code    string `json:"Code"`
+			Message string `json:"Message"`
+		} `json:"Error"`
+	}
 }
 
 func (e *tencentCloudStatus) Error() string {
-	return fmt.Sprintf("code: %s, message: %s", e.Errors.Code, e.Errors.Message)
+	return fmt.Sprintf("code: %s, message: %s", e.Response.Error.Code, e.Response.Error.Message)
 }
 
 type Record struct {
@@ -52,8 +54,11 @@ func (r *Record) String() string {
 }
 
 type tencentCloudResponse struct {
-	tencentCloudStatus
 	Response struct {
+		Error struct {
+			Code    string `json:"Code"`
+			Message string `json:"Message"`
+		} `json:"Error"`
 		RecordCountInfo struct {
 			TotalCount int `json:"TotalCount"`
 		} `json:"RecordCountInfo"`
@@ -101,10 +106,12 @@ func New(secretId, secretKey string) *tencent {
 
 func (tc *tencent) Task(domain, subdomain, ipv6addr string) error {
 	response, status := new(tencentCloudResponse), new(tencentCloudStatus)
-	tc.ListRecords(domain, response)
+
+	if err := tc.ListRecords(domain, response); err != nil {
+		return err
+	}
 	if response.Response.RecordCountInfo.TotalCount == 0 {
 		return tc.CreateRecord(domain, subdomain, ipv6addr, status)
-
 	}
 	record := response.Response.RecordList[0]
 	if net.ParseIP(record.Value).Equal(net.ParseIP(ipv6addr)) {
@@ -118,8 +125,9 @@ func (tc *tencent) ListRecords(domain string, response *tencentCloudResponse) er
 	if err := tc.request(service, "DescribeRecordList", version, &opt, &response); err != nil {
 		return err
 	}
-	if response.tencentCloudStatus.Errors.Code != "" {
-		return &response.tencentCloudStatus
+
+	if response.Response.Error.Code != "" {
+		return fmt.Errorf("code: %s, message: %s", response.Response.Error.Code, response.Response.Error.Message)
 	}
 	return nil
 }
@@ -129,7 +137,7 @@ func (tc *tencent) CreateRecord(domain, subDomain, value string, status *tencent
 	if err := tc.request(service, "CreateRecord", version, &opt, &status); err != nil {
 		return err
 	}
-	if status.Errors.Code != "" {
+	if status.Response.Error.Code != "" {
 		return status
 	}
 	return nil
@@ -145,7 +153,7 @@ func (tc *tencent) ModfiyRecord(domain string, recordId int, subDomain, recordLi
 	if err := tc.request(service, "ModifyRecord", version, &opt, &status); err != nil {
 		return err
 	}
-	if status.Errors.Code != "" {
+	if status.Response.Error.Code != "" {
 		return status
 	}
 	return nil
@@ -156,7 +164,7 @@ func (tc *tencent) DeleteRecord(Domain string, RecordId int, status *tencentClou
 	if err := tc.request(service, "DeleteRecord", version, &opt, &status); err != nil {
 		return err
 	}
-	if status.Errors.Code != "" {
+	if status.Response.Error.Code != "" {
 		return status
 	}
 	return nil
@@ -172,13 +180,15 @@ func (tc *tencent) request(service, action, version string, params, result any) 
 	}
 
 	req, err := http.NewRequest("POST", fmt.Sprintf("https://%s.%s", service, endpoint), bytes.NewBuffer(jsonStr))
-	slog.Debug("create http request", "request", req, "error", err)
+	slog.Debug("创建 http 请求", "request", req, "error", err)
 	if err != nil {
 		return
 	}
+
 	if err := signature(tc.secretId, tc.secretKey, service, action, version, string(jsonStr), req); err != nil {
 		return ErrGenerateSignature
 	}
+
 	resp, err := tc.Do(req)
 	if err != nil {
 		return
@@ -190,7 +200,7 @@ func (tc *tencent) request(service, action, version string, params, result any) 
 	}
 
 	raw, err := io.ReadAll(resp.Body)
-	slog.Debug("http response", "response", raw, "error", err)
+	slog.Debug("http 响应结果", "response", raw, "error", err)
 	if err != nil {
 		return err
 	}

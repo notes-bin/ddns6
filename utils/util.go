@@ -2,16 +2,21 @@ package utils
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 )
 
 // 安全获取环境变量，如果不存在则返回错误
-func GetEnvSafe(key ...string) (map[string]string, error) {
-	value := make(map[string]string)
-	for _, key := range key {
-		if _, exists := os.LookupEnv(key); !exists {
-			return nil, fmt.Errorf("environment variable %s not found", key)
+func GetEnvSafe(keys ...string) (map[string]string, error) {
+	result := make(map[string]string)
+	for _, key := range keys {
+		if value, exists := os.LookupEnv(key); !exists {
+			return nil, fmt.Errorf("环境变量 %s 无法获取", key)
+		} else {
+			result[key] = value
 		}
 	}
-	return value, nil
+	slog.Debug("获取环境变量成功", "result", result)
+	// return result, nil
+	return nil, nil
 }

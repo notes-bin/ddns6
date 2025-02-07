@@ -40,6 +40,10 @@ type dns struct {
 	Addr      []*net.IP
 }
 
+func (d *dns) String() string {
+	return fmt.Sprintf("domain: %s, subdomain: %s, type: %s, addr: %s", d.Domain, d.SubDomain, d.Type, d.Addr)
+}
+
 func (d *dns) updateRecord(ctx context.Context, ipv6Getter IPv6Getter, t Tasker, ticker *time.Ticker) {
 	defer ticker.Stop()
 	for {
@@ -50,11 +54,13 @@ func (d *dns) updateRecord(ctx context.Context, ipv6Getter IPv6Getter, t Tasker,
 				slog.Error("获取 IPv6 地址失败", "err", err)
 				continue
 			}
+
 			// 确保获取到 addr
 			if len(addr) == 0 {
 				slog.Warn("获取到的 IPv6 地址为空")
 				continue
 			}
+
 			// 检查 IPv6 地址是否改变, 如果发生改变, 则更新记录, 否则不更新
 			if d.Addr == nil || !d.Addr[0].Equal(*addr[0]) {
 				d.Addr = addr
