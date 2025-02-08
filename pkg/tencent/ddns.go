@@ -200,7 +200,6 @@ func (tc *tencent) request(service, action, version string, params, result any) 
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		slog.Error("请求错误", "status_code", resp.StatusCode, "error", err)
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
