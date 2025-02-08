@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"time"
 
@@ -37,45 +38,49 @@ type dns struct {
 	SubDomain string
 	Type      string
 	Addr      []*net.IP
+	err       error
+	mu        *sync.Mutex
 }
 
 func (d *dns) String() string {
 	return fmt.Sprintf("fullDomain: %s.%s, type: %s, addr: %s", d.SubDomain, d.Domain, d.Type, d.Addr)
 }
 
-func (d *dns) updateRecord(ctx context.Context, ipv6Getter IPv6Getter, t Tasker, ticker *time.Ticker) {
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			addr, err := ipv6Getter.GetIPV6Addr()
-			if err != nil {
-				slog.Error("获取 IPv6 地址失败", "err", err)
-				continue
-			}
-
-			// 确保获取到 addr
-			if len(addr) == 0 {
-				slog.Warn("获取到的 IPv6 地址为空")
-				continue
-			}
-
-			// 检查 IPv6 地址是否改变, 如果发生改变, 则更新记录, 否则不更新
-			if d.Addr == nil || !d.Addr[0].Equal(*addr[0]) {
-				d.Addr = addr
-				if err := t.Task(d.Domain, d.SubDomain, d.Addr[0].String()); err != nil {
-					if errors.Is(err, tencent.ErrIPv6NotChanged) {
-						slog.Info("IPv6 地址未改变, 无法配置ddns", "domain", d.Domain, "subdomain", d.SubDomain, "ipv6", d.Addr[0].String())
-					} else {
-						slog.Error("配置ddns解析失败", "err", err)
-					}
-				} else {
-					slog.Info("IPv6 地址发生变化, ddns配置完成", "domain", d.Domain, "subdomain", d.SubDomain, "ipv6", d.Addr[0].String())
-				}
-			}
-		case <-ctx.Done():
+func (d *dns) updateRecord(ctx context.Context, ipv6Getter IPv6Getter, t Tasker) {
+	select {
+	case <-ctx.Done():
+		return
+	default:
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		addr, err := ipv6Getter.GetIPV6Addr()
+		if err != nil {
+			slog.Error("获取 IPv6 地址失败", "err", err)
+			d.err = err
 			return
 		}
+
+		// 确保获取到 addr
+		if len(addr) == 0 {
+			slog.Warn("获取到的 IPv6 地址为空")
+			d.err = fmt.Errorf("获取到的 IPv6 地址为空")
+			return
+		}
+
+		// 检查 IPv6 地址是否改变, 如果发生改变, 则更新记录, 否则不更新
+		if d.Addr == nil || !d.Addr[0].Equal(*addr[0]) {
+			d.Addr = addr
+			if err := t.Task(d.Domain, d.SubDomain, d.Addr[0].String()); err != nil {
+				if errors.Is(err, tencent.ErrIPv6NotChanged) {
+					slog.Info("IPv6 地址未改变, 无法配置ddns", "domain", d.Domain, "subdomain", d.SubDomain, "ipv6", d.Addr[0].String())
+				} else {
+					slog.Error("配置ddns解析失败", "err", err)
+				}
+			} else {
+				slog.Info("IPv6 地址发生变化, ddns配置完成", "domain", d.Domain, "subdomain", d.SubDomain, "ipv6", d.Addr[0].String())
+			}
+		}
+		return
 	}
 }
 
@@ -206,8 +211,13 @@ func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 
-	ticker := time.NewTicker(time.Duration(interval))
-	go ddns.updateRecord(ctx, ip, task, ticker)
+	go ddns.updateRecord(ctx, ip, task)
+	if ddns.err != nil {
+		slog.Error("更新记录失败", "err", ddns.err)
+		return
+	}
+
+	go scheduler(ctx, ddns, task, ip, time.Duration(interval))
 	slog.Info("ddns6 启动成功...", "pid", os.Getpid())
 
 	<-sigCh
@@ -216,4 +226,18 @@ func main() {
 
 	slog.Info("ddns6 退出成功...")
 	os.Exit(0)
+}
+
+func scheduler(ctx context.Context, d *dns, task Tasker, ipv6Getter IPv6Getter, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			go d.updateRecord(ctx, ipv6Getter, task)
+		}
+	}
 }
