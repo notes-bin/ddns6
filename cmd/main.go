@@ -39,7 +39,7 @@ type dns struct {
 	Type      string
 	Addr      []*net.IP
 	err       error
-	mu        *sync.Mutex
+	sync.Mutex
 }
 
 func (d *dns) String() string {
@@ -51,8 +51,8 @@ func (d *dns) updateRecord(ctx context.Context, ipv6Getter IPv6Getter, t Tasker)
 	case <-ctx.Done():
 		return
 	default:
-		d.mu.Lock()
-		defer d.mu.Unlock()
+		d.Lock()
+		defer d.Unlock()
 		addr, err := ipv6Getter.GetIPV6Addr()
 		if err != nil {
 			slog.Error("获取 IPv6 地址失败", "err", err)
