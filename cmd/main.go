@@ -5,7 +5,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -41,7 +40,7 @@ type dns struct {
 }
 
 func (d *dns) String() string {
-	return fmt.Sprintf("domain: %s, subdomain: %s, type: %s, addr: %s", d.Domain, d.SubDomain, d.Type, d.Addr)
+	return fmt.Sprintf("fullDomain: %s.%s, type: %s, addr: %s", d.SubDomain, d.Domain, d.Type, d.Addr)
 }
 
 func (d *dns) updateRecord(ctx context.Context, ipv6Getter IPv6Getter, t Tasker, ticker *time.Ticker) {
@@ -78,29 +77,6 @@ func (d *dns) updateRecord(ctx context.Context, ipv6Getter IPv6Getter, t Tasker,
 			return
 		}
 	}
-}
-
-func logger(w io.Writer, debug bool) {
-	level := slog.LevelInfo
-	if debug {
-		level = slog.LevelDebug
-	}
-
-	opts := &slog.HandlerOptions{
-		AddSource: debug,
-		Level:     level,
-	}
-	handler := slog.NewJSONHandler(w, opts)
-	logger := slog.New(handler)
-	slog.SetDefault(logger)
-}
-
-func showHelp() {
-	fmt.Fprintf(os.Stderr, "简单的dnns6 命令行工具\n\n在全局命令或子命令选项使用 -h 或 --help 查看帮助\n\n")
-	fmt.Fprintf(os.Stderr, "用法: %s [选项]\n\n", os.Args[0])
-	flag.PrintDefaults()
-	fmt.Fprintf(os.Stderr, "\n示例:\n")
-	fmt.Fprintf(os.Stderr, "  %s -domain 域名 -service tencent \n", os.Args[0])
 }
 
 func main() {
@@ -158,7 +134,7 @@ func main() {
 	flag.Usage = showHelp
 	flag.Parse()
 
-	logger(os.Stderr, *debug)
+	utils.Logger(os.Stderr, *debug)
 
 	if *version {
 		fmt.Printf("Version: %s\nCommit: %s\n", Version, Commit)
@@ -207,7 +183,6 @@ func main() {
 	slog.Debug("参数列表", "params", params)
 
 	if *init {
-
 		configs.GenerateService(params...)
 		return
 	}
@@ -225,7 +200,6 @@ func main() {
 		return
 	}
 
-	// 创建一个可以取消的上下文
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
