@@ -136,7 +136,7 @@ func main() {
 	// 子域名选项
 	flag.StringVar(&ddns.SubDomain, "subdomain", "@", "设置子域名")
 
-	flag.Usage = showHelp
+	flag.Usage = usages
 	flag.Parse()
 
 	utils.Logger(os.Stderr, *debug)
@@ -240,4 +240,11 @@ func scheduler(ctx context.Context, d *dns, task Tasker, ipv6Getter IPv6Getter, 
 			go d.updateRecord(ctx, ipv6Getter, task)
 		}
 	}
+}
+func usages() {
+	fmt.Fprintf(os.Stderr, "简单的dnns6 命令行工具\n\n在全局命令或子命令选项使用 -h 或 --help 查看帮助\n\n")
+	fmt.Fprintf(os.Stderr, "用法: %s [选项]\n\n", os.Args[0])
+	flag.PrintDefaults()
+	fmt.Fprintf(os.Stderr, "\n示例:\n")
+	fmt.Fprintf(os.Stderr, "  %s -domain 域名 -service tencent \n", os.Args[0])
 }
