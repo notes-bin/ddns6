@@ -9,7 +9,6 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
@@ -26,11 +25,11 @@ var (
 )
 
 type IPv6Getter interface {
-	GetIPV6Addr() (ipv6 []*net.IP, err error)
+	GetIPV6Addr() ([]*net.IP, error)
 }
 
 type Tasker interface {
-	Task(domain, subdomain, ipv6addr string) error
+	Task(string, string, string) error
 }
 
 type dns struct {
@@ -43,7 +42,10 @@ type dns struct {
 }
 
 func (d *dns) String() string {
-	return fmt.Sprintf("fullDomain: %s.%s, type: %s, addr: %s", d.SubDomain, d.Domain, d.Type, d.Addr)
+	if d.SubDomain != "" {
+		return fmt.Sprintf("fullDomain: %s.%s, type: %s, addr: %s", d.SubDomain, d.Domain, d.Type, d.Addr)
+	}
+	return fmt.Sprintf("fullDomain: %s, type: %s, addr: %s", d.Domain, d.Type, d.Addr)
 }
 
 func (d *dns) updateRecord(ctx context.Context, ipv6Getter IPv6Getter, t Tasker) {
@@ -91,7 +93,7 @@ func main() {
 	)
 
 	// 选择 IPv6 地址获取方式
-	ipv6s := []string{"dns", "site", "iface"}
+	ipv6s := []string{"dns", "site"}
 	ipv6Choice := utils.ChoiceValue{
 		Value:   ipv6s[0], // 默认值为第一个可选值
 		Options: ipv6s,
@@ -166,6 +168,7 @@ func main() {
 		return
 	}
 
+	params := make([]string, 0, len(flag.Args()))
 	// 获取可执行文件路径
 	exePath, err := os.Executable()
 	if err != nil {
@@ -174,7 +177,7 @@ func main() {
 	}
 
 	// 添加可执行文件路径到参数列表
-	params := []string{filepath.Dir(exePath)}
+	params = append(params, exePath)
 	flag.Visit(func(f *flag.Flag) {
 		params = append(params, fmt.Sprintf("-%s=%v", f.Name, f.Value))
 	})
