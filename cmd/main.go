@@ -42,10 +42,11 @@ type dns struct {
 }
 
 func (d *dns) String() string {
+	fullDomain := d.Domain
 	if d.SubDomain != "" {
-		return fmt.Sprintf("fullDomain: %s.%s, type: %s, addr: %s", d.SubDomain, d.Domain, d.Type, d.Addr)
+		fullDomain = fmt.Sprintf("%s.%s", d.SubDomain, d.Domain)
 	}
-	return fmt.Sprintf("fullDomain: %s, type: %s, addr: %s", d.Domain, d.Type, d.Addr)
+	return fmt.Sprintf("fullDomain: %s, type: %s, addr: %s", fullDomain, d.Type, d.Addr)
 }
 
 func (d *dns) updateRecord(ctx context.Context, ipv6Getter IPv6Getter, t Tasker) {
