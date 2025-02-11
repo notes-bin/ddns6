@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -81,12 +82,24 @@ func main() {
 	flag.Usage = usages
 	flag.Parse()
 
-	utils.Logger(os.Stderr, *debug)
+	if *debug {
+		logFile, err := os.OpenFile("ddns6.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			slog.Error("创建日志文件失败", "err", err)
+			return
+		}
+		defer logFile.Close()
+		utils.Logger(io.MultiWriter(os.Stderr, logFile), *debug)
+	} else {
+		utils.Logger(os.Stderr, *debug)
+	}
 
+	// 显示版本信息
 	if *version {
 		fmt.Printf("Version: %s\nCommit: %s\n", Version, Commit)
 		return
 	}
+
 	// 获取 ddns 服务商
 	switch serviceChoice.Value {
 	case "tencent":
