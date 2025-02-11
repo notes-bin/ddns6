@@ -82,13 +82,14 @@ func main() {
 	flag.Usage = usages
 	flag.Parse()
 
+	var logFile *os.File
+	defer logFile.Close()
 	if *debug {
 		logFile, err := os.OpenFile("ddns6.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
 			slog.Error("创建日志文件失败", "err", err)
 			return
 		}
-		defer logFile.Close()
 		utils.Logger(io.MultiWriter(os.Stderr, logFile), *debug)
 	} else {
 		utils.Logger(os.Stderr, *debug)
@@ -110,12 +111,12 @@ func main() {
 		}
 		task = tencent.New(secret["Tencent_SecretId"], secret["Tencent_SecretKey"])
 	case "cloudflare":
-		secret, err := utils.GetEnvSafe("CLOUDFLARE_AUTH_TOKEN")
+		secret, err := utils.GetEnvSafe("CF_Token")
 		if err != nil {
 			slog.Error("获取cloudflare密钥失败", "err", err)
 			return
 		}
-		task = cloudflare.NewCloudflare(secret["CLOUDFLARE_AUTH_TOKEN"])
+		task = cloudflare.NewCloudflare(secret["CF_Token"])
 	default:
 		slog.Error("不支持的ddns服务商", "service", serviceChoice.Value)
 		return
