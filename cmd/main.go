@@ -30,6 +30,7 @@ func main() {
 	var (
 		task domain.Tasker
 		ip   domain.IPv6Getter
+		ddns = &domain.Domain{Type: "AAAA"}
 	)
 
 	// 选择 IPv6 地址获取方式
@@ -73,7 +74,6 @@ func main() {
 	version := flag.Bool("version", false, "显示版本信息")
 
 	// 域名选项
-	ddns := &domain.Domain{Type: "AAAA"}
 	flag.StringVar(&ddns.Domain, "domain", "", "设置域名")
 	// 子域名选项
 	flag.StringVar(&ddns.SubDomain, "subdomain", "@", "设置子域名")
@@ -90,12 +90,12 @@ func main() {
 	// 获取 ddns 服务商
 	switch serviceChoice.Value {
 	case "tencent":
-		secret, err := utils.GetEnvSafe("TENCENTCLOUD_SECRET_ID", "TENCENTCLOUD_SECRET_KEY")
+		secret, err := utils.GetEnvSafe("Tencent_SecretId", "Tencent_SecretKey")
 		if err != nil {
 			slog.Error("获取腾讯云密钥失败", "err", err)
 			return
 		}
-		task = tencent.New(secret["TENCENTCLOUD_SECRET_ID"], secret["TENCENTCLOUD_SECRET_KEY"])
+		task = tencent.New(secret["Tencent_SecretId"], secret["Tencent_SecretKey"])
 	case "cloudflare":
 		secret, err := utils.GetEnvSafe("CLOUDFLARE_AUTH_TOKEN")
 		if err != nil {
@@ -130,6 +130,7 @@ func main() {
 	}
 	slog.Debug("参数列表", "params", params)
 
+	// 生成 systemd 服务
 	if *init {
 		configs.GenerateService(params...)
 		return
