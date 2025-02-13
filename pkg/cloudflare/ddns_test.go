@@ -16,3 +16,10 @@ func TestGetZones(t *testing.T) {
 	}
 	t.Logf("%+v", resp)
 }
+
+func TestValidateToken(t *testing.T) {
+	c := NewCloudflare(token["CLOUDFLARE_AUTH_TOKEN"])
+	if err := c.validateToken(); err != nil {
+		t.Error(err)
+	}
+}
