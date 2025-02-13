@@ -16,6 +16,9 @@ type IPv6Getter interface {
 type Tasker interface {
 	Task(string, string, string) error
 }
+type UpdateRecorder interface {
+	UpdateRecord(context.Context, IPv6Getter, Tasker, error)
+}
 
 type Domain struct {
 	Domain    string

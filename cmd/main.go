@@ -18,10 +18,6 @@ import (
 	"github.com/notes-bin/ddns6/utils"
 )
 
-type UpdateRecorder interface {
-	UpdateRecord(context.Context, domain.IPv6Getter, domain.Tasker, error)
-}
-
 var (
 	Version = "dev"
 	Commit  = "none"
@@ -186,7 +182,7 @@ func main() {
 	os.Exit(0)
 }
 
-func scheduler(ctx context.Context, record UpdateRecorder, task domain.Tasker, ipv6Getter domain.IPv6Getter, interval time.Duration, e error) {
+func scheduler(ctx context.Context, record domain.UpdateRecorder, task domain.Tasker, ipv6Getter domain.IPv6Getter, interval time.Duration, e error) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
