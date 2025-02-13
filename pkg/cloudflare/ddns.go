@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const endpoint = "https://api.cloudflare.com/client/v4/zones"
+const endpoint = "https://api.cloudflare.com/client/v4"
 
 type cloudflareStatus struct {
 	Errors struct {
@@ -183,11 +183,37 @@ func (c *cloudflare) getZones(domain string, response *cloudflareZoneResponse) e
 	params.Add("status", "active")
 	params.Add("per_page", "50")
 
-	if err := c.request("GET", fmt.Sprintf("%s?%s", endpoint, params.Encode()), nil, &response); err != nil {
+	if err := c.request("GET", fmt.Sprintf("%s/zones?%s", endpoint, params.Encode()), nil, &response); err != nil {
 		return err
 	}
 	if !response.cloudflareStatus.Success {
 		return &response.cloudflareStatus
+	}
+	return nil
+}
+
+func (c *cloudflare) validateToken() error {
+	response := new(struct {
+		Result struct {
+			Id         string `json:"id"`
+			Status     string `json:"status"`
+			Not_before string `json:"not_before"`
+			Expires_on string `json:"expires_on"`
+		} `json:"result"`
+		Success  bool     `json:"success"`
+		Errors   []string `json:"errors"`
+		Messages []struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+			Type    string `json:"type"`
+		} `json:"messages"`
+	})
+	if err := c.request("GET", fmt.Sprintf("%s/%s", endpoint, "user/tokens/verify"), nil, response); err != nil {
+		return err
+	}
+	slog.Debug("token is valid", "id", response.Result.Id, "status", response.Result.Status, "not_before", response.Result.Not_before, "expires_on", response.Result.Expires_on)
+	if !response.Success {
+		return errors.New("token is not valid")
 	}
 	return nil
 }
@@ -207,7 +233,7 @@ func (c *cloudflare) request(method, apiUrl string, params, result any) (err err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+c.Token)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token))
 
 	resp, err := c.Do(req)
 	if err != nil {
@@ -216,15 +242,17 @@ func (c *cloudflare) request(method, apiUrl string, params, result any) (err err
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return fmt.Errorf("unexpected status code: %d, error: %s", resp.StatusCode, resp.Status)
 	}
 
 	raw, err := io.ReadAll(resp.Body)
-	slog.Debug("http response", "response", raw, "error", err)
+	slog.Debug("http response", "response", string(raw), "error", err)
 	if err != nil {
 		return
 	}
+
 	if err = json.Unmarshal(raw, &result); err != nil {
+		slog.Error("json unmarshal error", "response", string(raw), "error", err)
 		return
 	}
 
