@@ -102,6 +102,9 @@ func NewCloudflare(token string) *cloudflare {
 }
 
 func (c *cloudflare) Task(domain, subdomain, ipv6addr string) error {
+	if subdomain != "" {
+		domain = fmt.Sprintf("%s.%s", subdomain, domain)
+	}
 	zones := new(cloudflareZoneResponse)
 	response := new(cloudflareResponse)
 	if err := c.getZones(domain, zones); err != nil {
@@ -112,7 +115,7 @@ func (c *cloudflare) Task(domain, subdomain, ipv6addr string) error {
 		return err
 	}
 	if response.Result_info.Count == 0 {
-		return c.CreateRecord(domain, subdomain, ipv6addr, zoneId, response)
+		return c.CreateRecord(domain, ipv6addr, zoneId, response)
 	}
 	for _, record := range response.Result {
 		if record.Name == subdomain {
@@ -120,7 +123,7 @@ func (c *cloudflare) Task(domain, subdomain, ipv6addr string) error {
 				slog.Info("IPv6 地址未改变, 无法配置ddns", "domain", domain, "subdomain", subdomain, "ipv6", ipv6addr)
 				return ErrIPv6NotChanged
 			}
-			if err := c.ModfiyRecord(domain, subdomain, zoneId, record.Id, ipv6addr, response); err != nil {
+			if err := c.ModfiyRecord(domain, zoneId, record.Id, ipv6addr, response); err != nil {
 				return err
 			}
 			slog.Info("IPv6 地址发生变化, ddns配置完成", "domain", domain, "subdomain", subdomain, "ipv6", ipv6addr)
@@ -134,7 +137,7 @@ func (c *cloudflare) ListRecords(domain, zoneId string, response *cloudflareResp
 	opts := cloudflareRequest{
 		Name: domain,
 	}
-	if err := c.request("GET", fmt.Sprintf("%s/%s/%s", endpoint, zoneId, "dns_records"), &opts, &response); err != nil {
+	if err := c.request("GET", fmt.Sprintf("%s/zones/%s/dns_records", endpoint, zoneId), &opts, &response); err != nil {
 		return err
 	}
 	if !response.cloudflareStatus.Success {
@@ -143,7 +146,7 @@ func (c *cloudflare) ListRecords(domain, zoneId string, response *cloudflareResp
 	return nil
 }
 
-func (c *cloudflare) CreateRecord(domain, subDomain, value, zoneId string, response *cloudflareResponse) error {
+func (c *cloudflare) CreateRecord(domain, value, zoneId string, response *cloudflareResponse) error {
 	opts := cloudflareRequest{
 		Comment:   "",
 		Content:   value,
@@ -161,7 +164,7 @@ func (c *cloudflare) CreateRecord(domain, subDomain, value, zoneId string, respo
 	return nil
 }
 
-func (c *cloudflare) ModfiyRecord(domain, subDomain, zone_id, dns_record_id, value string, response *cloudflareResponse) error {
+func (c *cloudflare) ModfiyRecord(domain, zone_id, dns_record_id, value string, response *cloudflareResponse) error {
 	opts := &cloudflareRequest{
 		Name:      domain,
 		Content:   value,
@@ -192,9 +195,9 @@ func (c *cloudflare) getZones(domain string, response *cloudflareZoneResponse) e
 	if err := c.request("GET", fmt.Sprintf("%s/zones?%s", endpoint, params.Encode()), nil, &response); err != nil {
 		return err
 	}
-	// if !response.cloudflareStatus.Success {
-	// 	return &response.cloudflareStatus
-	// }
+	if !response.cloudflareStatus.Success {
+		return &response.cloudflareStatus
+	}
 	return nil
 }
 
