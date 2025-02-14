@@ -29,7 +29,7 @@ type cloudflareStatus struct {
 }
 
 func (ss *cloudflareStatus) Error() string {
-	if len(ss.Errors) != 0 {
+	if ss.Success {
 		return ""
 	}
 	return fmt.Sprintf("code: %d, message: %s", ss.Errors[0].Code, ss.Errors[0].Message)
@@ -110,10 +110,16 @@ func (c *cloudflare) Task(domain, subdomain, ipv6addr string) error {
 	if err := c.getZones(domain, zones); err != nil {
 		return err
 	}
+
+	if len(zones.Result) == 0 {
+		return errors.New("域名不存在")
+	}
 	zoneId := zones.Result[0].ID
+
 	if err := c.ListRecords(domain, zoneId, response); err != nil {
 		return err
 	}
+
 	if response.Result_info.Count == 0 {
 		return c.CreateRecord(domain, ipv6addr, zoneId, response)
 	}
@@ -220,7 +226,7 @@ func (c *cloudflare) validateToken() error {
 	if err := c.request("GET", fmt.Sprintf("%s/%s", endpoint, "user/tokens/verify"), nil, response); err != nil {
 		return err
 	}
-	slog.Debug("token is valid", "id", response.Result.Id, "status", response.Result.Status, "not_before", response.Result.Not_before, "expires_on", response.Result.Expires_on)
+	slog.Debug("token is valid", "id", response.Result.Id, "status", response.Result.Status)
 	if !response.Success {
 		return errors.New("token is not valid")
 	}
