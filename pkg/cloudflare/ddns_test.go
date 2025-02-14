@@ -14,7 +14,9 @@ func TestGetZones(t *testing.T) {
 	if err := c.getZones("notes-bin.top", resp); err != nil {
 		t.Error(err)
 	}
-	t.Logf("%+v", resp)
+	if len(resp.Result) == 0 {
+		t.Error("获取域名列表失败")
+	}
 }
 
 func TestValidateToken(t *testing.T) {

@@ -17,11 +17,11 @@ import (
 const endpoint = "https://api.cloudflare.com/client/v4"
 
 type cloudflareStatus struct {
-	Errors struct {
+	Errors []struct {
 		Code    int    `json:"code"`
 		Message string `json:"message"`
 	} `json:"errors"`
-	Messages struct {
+	Messages []struct {
 		Code    int    `json:"code"`
 		Message string `json:"message"`
 	} `json:"messages"`
@@ -29,7 +29,10 @@ type cloudflareStatus struct {
 }
 
 func (ss *cloudflareStatus) Error() string {
-	return fmt.Sprintf("code: %d, message: %s", ss.Errors.Code, ss.Errors.Message)
+	if len(ss.Errors) != 0 {
+		return ""
+	}
+	return fmt.Sprintf("code: %d, message: %s", ss.Errors[0].Code, ss.Errors[0].Message)
 }
 
 type Result struct {
@@ -52,15 +55,17 @@ func (res *Result) String() string {
 	return fmt.Sprintf("id: %s, name: %s, type: %s, content: %s", res.Id, res.Name, res.Type, res.Content)
 }
 
+type cloudflareResultInfo struct {
+	Count       int `json:"count"`
+	Page        int `json:"page"`
+	Per_page    int `json:"per_page"`
+	Total_count int `json:"total_count"`
+}
+
 type cloudflareResponse struct {
 	cloudflareStatus
-	Result     []Result `json:"result"`
-	ResultInfo struct {
-		Count       int `json:"count"`
-		Page        int `json:"page"`
-		Per_page    int `json:"per_page"`
-		Total_count int `json:"total_count"`
-	} `json:"result_info"`
+	Result      []Result             `json:"result"`
+	Result_info cloudflareResultInfo `json:"result_info"`
 }
 
 type cloudflareZoneResponse struct {
@@ -69,6 +74,7 @@ type cloudflareZoneResponse struct {
 		ID   string `json:"id"`
 		Name string `json:"name"`
 	} `json:"result"`
+	Result_info cloudflareResultInfo `json:"result_info"`
 }
 
 type cloudflareRequest struct {
@@ -105,7 +111,7 @@ func (c *cloudflare) Task(domain, subdomain, ipv6addr string) error {
 	if err := c.ListRecords(domain, zoneId, response); err != nil {
 		return err
 	}
-	if response.ResultInfo.Count == 0 {
+	if response.Result_info.Count == 0 {
 		return c.CreateRecord(domain, subdomain, ipv6addr, zoneId, response)
 	}
 	for _, record := range response.Result {
@@ -186,9 +192,9 @@ func (c *cloudflare) getZones(domain string, response *cloudflareZoneResponse) e
 	if err := c.request("GET", fmt.Sprintf("%s/zones?%s", endpoint, params.Encode()), nil, &response); err != nil {
 		return err
 	}
-	if !response.cloudflareStatus.Success {
-		return &response.cloudflareStatus
-	}
+	// if !response.cloudflareStatus.Success {
+	// 	return &response.cloudflareStatus
+	// }
 	return nil
 }
 
