@@ -111,7 +111,7 @@ func New(secretId, secretKey string) *tencent {
 func (tc *tencent) Task(domain, subdomain, ipv6addr string) error {
 	response, status := new(tencentCloudResponse), new(tencentCloudStatus)
 
-	if err := tc.ListRecords(domain, response); err != nil {
+	if err := tc.listRecords(domain, response); err != nil {
 		return err
 	}
 	if response.Response.RecordCountInfo.TotalCount == 0 {
@@ -124,7 +124,7 @@ func (tc *tencent) Task(domain, subdomain, ipv6addr string) error {
 	return tc.modfiyRecord(domain, record.RecordId, record.Name, record.Line, ipv6addr, status)
 }
 
-func (tc *tencent) ListRecords(domain string, response *tencentCloudResponse) error {
+func (tc *tencent) listRecords(domain string, response *tencentCloudResponse) error {
 	opt := tencentRequest{Domain: domain, RecordType: "AAAA"}
 	if err := tc.request(service, "DescribeRecordList", version, &opt, &response); err != nil {
 		slog.Debug("获取域名记录列表", "params", fmt.Sprint(opt), "response", response)
