@@ -69,12 +69,13 @@ type cloudflareResponse struct {
 }
 
 type cloudflareZoneResponse struct {
-	cloudflareStatus
 	Result []struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
+		ID     string `json:"id"`
+		Name   string `json:"name"`
+		Status string `json:"status"`
 	} `json:"result"`
 	Result_info cloudflareResultInfo `json:"result_info"`
+	cloudflareStatus
 }
 
 type cloudflareRequest struct {
@@ -146,6 +147,7 @@ func (c *cloudflare) ListRecords(domain, zoneId string, response *cloudflareResp
 	if err := c.request("GET", fmt.Sprintf("%s/zones/%s/dns_records", endpoint, zoneId), &opts, &response); err != nil {
 		return err
 	}
+	slog.Debug("get records", "response", response)
 	if !response.cloudflareStatus.Success {
 		return &response.cloudflareStatus
 	}
@@ -154,16 +156,17 @@ func (c *cloudflare) ListRecords(domain, zoneId string, response *cloudflareResp
 
 func (c *cloudflare) CreateRecord(domain, value, zoneId string, response *cloudflareResponse) error {
 	opts := cloudflareRequest{
-		Comment:   "",
+		Comment:   fmt.Sprintf("create doman %s by ddns6", domain),
 		Content:   value,
 		Name:      domain,
-		Ttl:       3600,
+		Ttl:       1,
 		Type:      "AAAA",
 		Proxiable: false,
 	}
 	if err := c.request("POST", fmt.Sprintf("%s/%s/dns_records", endpoint, zoneId), &opts, &response); err != nil {
 		return err
 	}
+	slog.Info("create record", "params", opts, "response", response)
 	if !response.cloudflareStatus.Success {
 		return &response.cloudflareStatus
 	}
@@ -181,6 +184,7 @@ func (c *cloudflare) ModfiyRecord(domain, zone_id, dns_record_id, value string, 
 	if err := c.request("PATCH", fmt.Sprintf("%s/%s/dns_records/%s", endpoint, zone_id, dns_record_id), &opts, &response); err != nil {
 		return err
 	}
+	slog.Debug("modify record", "response", response)
 	if !response.cloudflareStatus.Success {
 		return &response.cloudflareStatus
 	}
@@ -189,7 +193,14 @@ func (c *cloudflare) ModfiyRecord(domain, zone_id, dns_record_id, value string, 
 
 func (c *cloudflare) DeleteRecord(domain, zone_id, dns_record_id string, response *cloudflareResponse) error {
 	opts := &cloudflareRequest{Name: domain}
-	return c.request("DELETE", fmt.Sprintf("%s/%s/dns_records/%s", endpoint, zone_id, dns_record_id), &opts, &response)
+	if err := c.request("DELETE", fmt.Sprintf("%s/%s/dns_records/%s", endpoint, zone_id, dns_record_id), &opts, &response); err != nil {
+		return err
+	}
+	slog.Debug("delete record", "response", response)
+	if !response.cloudflareStatus.Success {
+		return &response.cloudflareStatus
+	}
+	return nil
 }
 
 func (c *cloudflare) getZones(domain string, response *cloudflareZoneResponse) error {
@@ -201,6 +212,7 @@ func (c *cloudflare) getZones(domain string, response *cloudflareZoneResponse) e
 	if err := c.request("GET", fmt.Sprintf("%s/zones?%s", endpoint, params.Encode()), nil, &response); err != nil {
 		return err
 	}
+	slog.Info("get zones", "params", params, "response", response)
 	if !response.cloudflareStatus.Success {
 		return &response.cloudflareStatus
 	}
@@ -215,13 +227,7 @@ func (c *cloudflare) validateToken() error {
 			Not_before string `json:"not_before"`
 			Expires_on string `json:"expires_on"`
 		} `json:"result"`
-		Success  bool     `json:"success"`
-		Errors   []string `json:"errors"`
-		Messages []struct {
-			Code    int    `json:"code"`
-			Message string `json:"message"`
-			Type    string `json:"type"`
-		} `json:"messages"`
+		cloudflareStatus
 	})
 	if err := c.request("GET", fmt.Sprintf("%s/%s", endpoint, "user/tokens/verify"), nil, response); err != nil {
 		return err
@@ -256,9 +262,9 @@ func (c *cloudflare) request(method, apiUrl string, params, result any) (err err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected status code: %d, error: %s", resp.StatusCode, resp.Status)
-	}
+	// if resp.StatusCode != http.StatusOK {
+	// 	return fmt.Errorf("unexpected status code: %d, error: %s", resp.StatusCode, resp.Status)
+	// }
 
 	raw, err := io.ReadAll(resp.Body)
 	slog.Debug("http response", "response", string(raw), "error", err)
