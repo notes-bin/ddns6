@@ -9,9 +9,20 @@ import (
 var token, _ = utils.GetEnvSafe("CLOUDFLARE_AUTH_TOKEN")
 var c = NewCloudflare(token["CLOUDFLARE_AUTH_TOKEN"])
 
+func TestCreateRecord(t *testing.T) {
+	resp := new(cloudflareResponse)
+	ipv6, _ := utils.NewPublicDNS("2400:3200:baba::1").GetIPV6Addr()
+	if err := c.CreateRecord("www.notes-bin.top", ipv6[0].String(), "6ea09c33602945f8bc582f9bab3646cb", resp); err != nil {
+		t.Error(err)
+	}
+	if len(resp.Result) == 0 {
+		t.Error("创建记录失败")
+	}
+}
+
 func TestListRecords(t *testing.T) {
 	resp := new(cloudflareResponse)
-	if err := c.ListRecords("notes-bin.top", "1234567890", resp); err != nil {
+	if err := c.ListRecords("notes-bin.top", "6ea09c33602945f8bc582f9bab3646cb", resp); err != nil {
 		t.Error(err)
 	}
 	if len(resp.Result) == 0 {
@@ -26,6 +37,8 @@ func TestGetZones(t *testing.T) {
 	}
 	if len(resp.Result) == 0 {
 		t.Error("获取域名列表失败")
+	} else {
+		t.Logf("%+v", resp)
 	}
 }
 
