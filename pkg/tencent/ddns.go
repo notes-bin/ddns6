@@ -115,13 +115,13 @@ func (tc *tencent) Task(domain, subdomain, ipv6addr string) error {
 		return err
 	}
 	if response.Response.RecordCountInfo.TotalCount == 0 {
-		return tc.CreateRecord(domain, subdomain, ipv6addr, status)
+		return tc.createRecord(domain, subdomain, ipv6addr, status)
 	}
 	record := response.Response.RecordList[0]
 	if net.ParseIP(record.Value).Equal(net.ParseIP(ipv6addr)) {
 		return ErrIPv6NotChanged
 	}
-	return tc.ModfiyRecord(domain, record.RecordId, record.Name, record.Line, ipv6addr, status)
+	return tc.modfiyRecord(domain, record.RecordId, record.Name, record.Line, ipv6addr, status)
 }
 
 func (tc *tencent) ListRecords(domain string, response *tencentCloudResponse) error {
@@ -137,7 +137,7 @@ func (tc *tencent) ListRecords(domain string, response *tencentCloudResponse) er
 	return nil
 }
 
-func (tc *tencent) CreateRecord(domain, subDomain, value string, status *tencentCloudStatus) error {
+func (tc *tencent) createRecord(domain, subDomain, value string, status *tencentCloudStatus) error {
 	opt := tencentRequest{Domain: domain, SubDomain: subDomain, RecordType: "AAAA", RecordLine: "默认", Value: value}
 	if err := tc.request(service, "CreateRecord", version, &opt, &status); err != nil {
 		return err
@@ -148,7 +148,7 @@ func (tc *tencent) CreateRecord(domain, subDomain, value string, status *tencent
 	return nil
 }
 
-func (tc *tencent) ModfiyRecord(domain string, recordId int, subDomain, recordLine, value string, status *tencentCloudStatus) error {
+func (tc *tencent) modfiyRecord(domain string, recordId int, subDomain, recordLine, value string, status *tencentCloudStatus) error {
 	opt := tencentRequest{Domain: domain, SubDomain: subDomain, RecordId: recordId, RecordType: "AAAA", RecordLine: "默认", Value: value}
 
 	if recordLine != "" {
@@ -164,7 +164,7 @@ func (tc *tencent) ModfiyRecord(domain string, recordId int, subDomain, recordLi
 	return nil
 }
 
-func (tc *tencent) DeleteRecord(Domain string, RecordId int, status *tencentCloudStatus) error {
+func (tc *tencent) deleteRecord(Domain string, RecordId int, status *tencentCloudStatus) error {
 	opt := tencentRequest{Domain: Domain, RecordId: RecordId}
 	if err := tc.request(service, "DeleteRecord", version, &opt, &status); err != nil {
 		return err
