@@ -35,6 +35,10 @@ func (ss *cloudflareStatus) Error() string {
 	return fmt.Sprintf("code: %d, message: %s", ss.Errors[0].Code, ss.Errors[0].Message)
 }
 
+func (ss *cloudflareStatus) String() string {
+	return fmt.Sprintf("code: %d, message: %s", ss.Messages[0].Code, ss.Messages[0].Message)
+}
+
 type Result struct {
 	Comment   string `json:"comment"`
 	Content   string `json:"content"`
@@ -117,12 +121,12 @@ func (c *cloudflare) Task(domain, subdomain, ipv6addr string) error {
 	}
 	zoneId := zones.Result[0].ID
 
-	if err := c.ListRecords(domain, zoneId, response); err != nil {
+	if err := c.listRecords(domain, zoneId, response); err != nil {
 		return err
 	}
 
 	if response.Result_info.Count == 0 {
-		return c.CreateRecord(domain, ipv6addr, zoneId, response)
+		return c.createRecord(domain, ipv6addr, zoneId, response)
 	}
 	for _, record := range response.Result {
 		if record.Name == subdomain {
@@ -130,7 +134,7 @@ func (c *cloudflare) Task(domain, subdomain, ipv6addr string) error {
 				slog.Info("IPv6 地址未改变, 无法配置ddns", "domain", domain, "subdomain", subdomain, "ipv6", ipv6addr)
 				return ErrIPv6NotChanged
 			}
-			if err := c.ModfiyRecord(domain, zoneId, record.Id, ipv6addr, response); err != nil {
+			if err := c.modifyRecord(domain, zoneId, record.Id, ipv6addr, response); err != nil {
 				return err
 			}
 			slog.Info("IPv6 地址发生变化, ddns配置完成", "domain", domain, "subdomain", subdomain, "ipv6", ipv6addr)
@@ -140,22 +144,22 @@ func (c *cloudflare) Task(domain, subdomain, ipv6addr string) error {
 	return nil
 }
 
-func (c *cloudflare) ListRecords(domain, zoneId string, response *cloudflareResponse) error {
-	opts := cloudflareRequest{
+func (c *cloudflare) listRecords(domain, zoneId string, response *cloudflareResponse) error {
+	opts := &cloudflareRequest{
 		Name: domain,
 	}
-	if err := c.request("GET", fmt.Sprintf("%s/zones/%s/dns_records", endpoint, zoneId), &opts, &response); err != nil {
+	if err := c.request("GET", fmt.Sprintf("%s/zones/%s/dns_records", endpoint, zoneId), opts, response); err != nil {
 		return err
 	}
-	slog.Debug("get records", "response", response)
+	slog.Debug("get records", "response", *response)
 	if !response.cloudflareStatus.Success {
 		return &response.cloudflareStatus
 	}
 	return nil
 }
 
-func (c *cloudflare) CreateRecord(domain, value, zoneId string, response *cloudflareResponse) error {
-	opts := cloudflareRequest{
+func (c *cloudflare) createRecord(domain, value, zoneId string, response *cloudflareResponse) error {
+	opts := &cloudflareRequest{
 		Comment:   fmt.Sprintf("create doman %s by ddns6", domain),
 		Content:   value,
 		Name:      domain,
@@ -163,17 +167,17 @@ func (c *cloudflare) CreateRecord(domain, value, zoneId string, response *cloudf
 		Type:      "AAAA",
 		Proxiable: false,
 	}
-	if err := c.request("POST", fmt.Sprintf("%s/%s/dns_records", endpoint, zoneId), &opts, &response); err != nil {
+	if err := c.request("POST", fmt.Sprintf("%s/%s/dns_records", endpoint, zoneId), opts, response); err != nil {
 		return err
 	}
-	slog.Info("create record", "params", opts, "response", response)
+	slog.Debug("create record", "params", opts, "response", *response)
 	if !response.cloudflareStatus.Success {
 		return &response.cloudflareStatus
 	}
 	return nil
 }
 
-func (c *cloudflare) ModfiyRecord(domain, zone_id, dns_record_id, value string, response *cloudflareResponse) error {
+func (c *cloudflare) modifyRecord(domain, zone_id, dns_record_id, value string, response *cloudflareResponse) error {
 	opts := &cloudflareRequest{
 		Name:      domain,
 		Content:   value,
@@ -181,22 +185,22 @@ func (c *cloudflare) ModfiyRecord(domain, zone_id, dns_record_id, value string, 
 		Ttl:       3600,
 		Type:      "AAAA",
 	}
-	if err := c.request("PATCH", fmt.Sprintf("%s/%s/dns_records/%s", endpoint, zone_id, dns_record_id), &opts, &response); err != nil {
+	if err := c.request("PUT", fmt.Sprintf("%s/%s/dns_records/%s", endpoint, zone_id, dns_record_id), opts, response); err != nil {
 		return err
 	}
-	slog.Debug("modify record", "response", response)
+	slog.Debug("modify record", "response", *response)
 	if !response.cloudflareStatus.Success {
 		return &response.cloudflareStatus
 	}
 	return nil
 }
 
-func (c *cloudflare) DeleteRecord(domain, zone_id, dns_record_id string, response *cloudflareResponse) error {
+func (c *cloudflare) deleteRecord(domain, zone_id, dns_record_id string, response *cloudflareResponse) error {
 	opts := &cloudflareRequest{Name: domain}
-	if err := c.request("DELETE", fmt.Sprintf("%s/%s/dns_records/%s", endpoint, zone_id, dns_record_id), &opts, &response); err != nil {
+	if err := c.request("DELETE", fmt.Sprintf("%s/%s/dns_records/%s", endpoint, zone_id, dns_record_id), opts, response); err != nil {
 		return err
 	}
-	slog.Debug("delete record", "response", response)
+	slog.Debug("delete record", "response", *response)
 	if !response.cloudflareStatus.Success {
 		return &response.cloudflareStatus
 	}
@@ -209,10 +213,10 @@ func (c *cloudflare) getZones(domain string, response *cloudflareZoneResponse) e
 	params.Add("status", "active")
 	params.Add("per_page", "50")
 
-	if err := c.request("GET", fmt.Sprintf("%s/zones?%s", endpoint, params.Encode()), nil, &response); err != nil {
+	if err := c.request("GET", fmt.Sprintf("%s/zones?%s", endpoint, params.Encode()), nil, response); err != nil {
 		return err
 	}
-	slog.Info("get zones", "params", params, "response", response)
+	slog.Debug("get zones", "params", params.Encode(), "response", *response)
 	if !response.cloudflareStatus.Success {
 		return &response.cloudflareStatus
 	}
@@ -236,6 +240,7 @@ func (c *cloudflare) validateToken() error {
 	if !response.Success {
 		return errors.New("token is not valid")
 	}
+	slog.Info(response.cloudflareStatus.String(), "status", response.Result.Status, "expires_on", response.Result.Expires_on)
 	return nil
 }
 
@@ -267,15 +272,15 @@ func (c *cloudflare) request(method, apiUrl string, params, result any) (err err
 	// }
 
 	raw, err := io.ReadAll(resp.Body)
-	slog.Debug("http response", "response", string(raw), "error", err)
+	slog.Debug("cloudflare http response", "response", string(raw), "error", err)
 	if err != nil {
 		return
 	}
 
 	if err = json.Unmarshal(raw, &result); err != nil {
-		slog.Error("json unmarshal error", "response", string(raw), "error", err)
+		slog.Error("cloudflare json data unmarshal error", "response", string(raw), "error", err)
 		return
 	}
-
+	slog.Debug("Unmarshal cloudflare response", "response", result)
 	return nil
 }
