@@ -13,6 +13,7 @@ var content string
 
 type ServiceConfig struct {
 	Description      string
+	Environment      string
 	ExecStart        string
 	WorkingDirectory string
 }

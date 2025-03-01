@@ -4,6 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
+Environment={{.Environment}}
 ExecStart={{.ExecStart}}
 WorkingDirectory={{.WorkingDirectory}}
 Restart=always
