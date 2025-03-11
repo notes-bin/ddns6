@@ -8,8 +8,8 @@ import (
 )
 
 // 需要设置环境变量 TENCENTCLOUD_SECRET_ID
-var secret, _ = common.GetEnvSafe("TENCENTCLOUD_SECRET_ID", "TENCENTCLOUD_SECRET_KEY", "DOMAIN")
-var tc = New(secret["TENCENTCLOUD_SECRET_ID"], secret["TENCENTCLOUD_SECRET_KEY"])
+var secret, _ = common.GetEnvSafe("DOMAIN")
+var tc = New()
 var domain = secret["DOMAIN"]
 
 func TestListRecords(t *testing.T) {
