@@ -102,12 +102,7 @@ func main() {
 	// 获取 ddns 服务商
 	switch serviceChoice.Value {
 	case "tencent":
-		secret, err := common.GetEnvSafe("Tencent_SecretId", "Tencent_SecretKey")
-		if err != nil {
-			slog.Error("获取腾讯云密钥失败", "err", err)
-			return
-		}
-		task = tencent.New(secret["Tencent_SecretId"], secret["Tencent_SecretKey"])
+		task = tencent.New()
 	case "cloudflare":
 		secret, err := common.GetEnvSafe("CF_Token")
 		if err != nil {
