@@ -83,16 +83,14 @@ func (t *tencentRequest) String() string {
 }
 
 type tencent struct {
-	secretId  string
-	secretKey string
+	secretId  string `env:"Tencent_SecretId"`
+	secretKey string `env:"Tencent_SecretKey"`
 	*http.Client
 }
 
 const (
-	service    = "dnspod"
-	version    = "2021-03-23"
-	SECRET_ID  = "Tencent_SecretId"
-	SECRET_KEY = "Tencent_SecretKey"
+	service = "dnspod"
+	version = "2021-03-23"
 )
 
 var (
@@ -100,18 +98,10 @@ var (
 	ErrIPv6NotChanged    = errors.New("ipv6 address not changed")
 )
 
-func New(secretId, secretKey string) *tencent {
+func New() *tencent {
 	return &tencent{
-		secretId:  secretId,
-		secretKey: secretKey,
-		Client: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		Client: &http.Client{Timeout: 30 * time.Second},
 	}
-}
-
-func (tc *tencent) String() string {
-	return fmt.Sprintf("%s=%s %s=%s", SECRET_ID, tc.secretId, SECRET_KEY, tc.secretKey)
 }
 
 func (tc *tencent) Task(domain, subdomain, ipv6addr string) error {
