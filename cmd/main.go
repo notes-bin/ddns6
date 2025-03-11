@@ -15,7 +15,9 @@ import (
 	"github.com/notes-bin/ddns6/internal/domain"
 	"github.com/notes-bin/ddns6/pkg/cloudflare"
 	"github.com/notes-bin/ddns6/pkg/tencent"
-	"github.com/notes-bin/ddns6/utils"
+	"github.com/notes-bin/ddns6/utils/command"
+	"github.com/notes-bin/ddns6/utils/common"
+	"github.com/notes-bin/ddns6/utils/network"
 )
 
 var (
@@ -32,7 +34,7 @@ func main() {
 
 	// 选择 IPv6 地址获取方式
 	ipv6s := []string{"dns", "site"}
-	ipv6Choice := utils.ChoiceValue{
+	ipv6Choice := command.ChoiceValue{
 		Value:   ipv6s[0], // 默认值为第一个可选值
 		Options: ipv6s,
 	}
@@ -40,22 +42,22 @@ func main() {
 
 	// 选择 ddns 服务商
 	services := []string{"tencent", "cloudflare"}
-	serviceChoice := utils.ChoiceValue{
+	serviceChoice := command.ChoiceValue{
 		Value:   services[0], // 默认值为第一个可选值
 		Options: services,
 	}
 	flag.Var(&serviceChoice, "service", fmt.Sprintf("选择一个 ddns 服务商(可选值: %v)", services))
 
 	// 公共DNS 选项
-	pdns := utils.StringSlice{"2400:3200:baba::1", "2001:4860:4860::8888"}
+	pdns := command.StringSlice{"2400:3200:baba::1", "2001:4860:4860::8888"}
 	flag.Var(&pdns, "public-dns", "添加自定义公共IPv6 DNS, 多个DNS用逗号分隔")
 
 	//	自定义网站选项
-	site := utils.StringSlice{"https://6.ipw.cn"}
+	site := command.StringSlice{"https://6.ipw.cn"}
 	flag.Var(&site, "site", "添加一个可以查询IPv6地址的自定义网站, 多个网站用逗号分隔")
 
 	// 定时任务选项
-	interval := utils.Duration(5 * time.Minute)
+	interval := command.Duration(5 * time.Minute)
 	flag.Var(&interval, "interval", "定时任务时间间隔（例如 1s、2m、3h、5m2s、1h15m)")
 
 	// 物理网卡选项
@@ -86,9 +88,9 @@ func main() {
 			slog.Error("创建日志文件失败", "err", err)
 			return
 		}
-		utils.Logger(io.MultiWriter(os.Stderr, logFile), *debug)
+		common.Logger(io.MultiWriter(os.Stderr, logFile), *debug)
 	} else {
-		utils.Logger(os.Stderr, *debug)
+		common.Logger(os.Stderr, *debug)
 	}
 
 	// 显示版本信息
@@ -100,14 +102,14 @@ func main() {
 	// 获取 ddns 服务商
 	switch serviceChoice.Value {
 	case "tencent":
-		secret, err := utils.GetEnvSafe("Tencent_SecretId", "Tencent_SecretKey")
+		secret, err := common.GetEnvSafe("Tencent_SecretId", "Tencent_SecretKey")
 		if err != nil {
 			slog.Error("获取腾讯云密钥失败", "err", err)
 			return
 		}
 		task = tencent.New(secret["Tencent_SecretId"], secret["Tencent_SecretKey"])
 	case "cloudflare":
-		secret, err := utils.GetEnvSafe("CF_Token")
+		secret, err := common.GetEnvSafe("CF_Token")
 		if err != nil {
 			slog.Error("获取cloudflare密钥失败", "err", err)
 			return
@@ -149,11 +151,11 @@ func main() {
 	// 获取 IPv6 地址
 	switch ipv6Choice.Value {
 	case "dns":
-		ip = utils.NewPublicDNS(pdns...)
+		ip = network.NewPublicDNS(pdns...)
 	case "site":
-		ip = utils.NewSite(site...)
+		ip = network.NewSite(site...)
 	case "iface":
-		ip = utils.NewIface(*iface)
+		ip = network.NewIface(*iface)
 	default:
 		slog.Error("不支持的ipv6获取方式", "ipv6", ipv6Choice.Value)
 		return

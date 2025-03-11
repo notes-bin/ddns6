@@ -3,15 +3,16 @@ package cloudflare
 import (
 	"testing"
 
-	"github.com/notes-bin/ddns6/utils"
+	"github.com/notes-bin/ddns6/utils/common"
+	"github.com/notes-bin/ddns6/utils/network"
 )
 
-var token, _ = utils.GetEnvSafe("CLOUDFLARE_AUTH_TOKEN")
+var token, _ = common.GetEnvSafe("CLOUDFLARE_AUTH_TOKEN")
 var c = NewCloudflare(token["CLOUDFLARE_AUTH_TOKEN"])
 
 func TestModfiyRecord(t *testing.T) {
 	resp := new(cloudflareResponse)
-	ipv6, _ := utils.NewPublicDNS("2400:3200:baba::1").GetIPV6Addr()
+	ipv6, _ := network.NewPublicDNS("2400:3200:baba::1").GetIPV6Addr()
 	if err := c.modifyRecord("www.notes-bin.top", "6ea09c33602945f8bc582f9bab3646cb", "", ipv6[0].String(), resp); err != nil {
 		t.Error(err)
 	}
@@ -22,7 +23,7 @@ func TestModfiyRecord(t *testing.T) {
 
 func TestCreateRecord(t *testing.T) {
 	resp := new(cloudflareResponse)
-	ipv6, _ := utils.NewPublicDNS("2400:3200:baba::1").GetIPV6Addr()
+	ipv6, _ := network.NewPublicDNS("2400:3200:baba::1").GetIPV6Addr()
 	if err := c.createRecord("www.notes-bin.top", ipv6[0].String(), "6ea09c33602945f8bc582f9bab3646cb", resp); err != nil {
 		t.Error(err)
 	}

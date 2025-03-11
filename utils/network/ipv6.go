@@ -1,6 +1,6 @@
 // get ipv6 address
 // use three methods, from network card, ipv6 website, dns server
-package utils
+package network
 
 import (
 	"fmt"
