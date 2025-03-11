@@ -2,7 +2,6 @@ package common
 
 import (
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 )
@@ -19,20 +18,4 @@ func GetEnvSafe(keys ...string) (map[string]string, error) {
 	}
 	slog.Debug("获取环境变量成功", "result", result)
 	return result, nil
-}
-
-// 日志记录器
-func Logger(w io.Writer, debug bool) {
-	level := slog.LevelInfo
-	if debug {
-		level = slog.LevelDebug
-	}
-
-	opts := &slog.HandlerOptions{
-		AddSource: debug,
-		Level:     level,
-	}
-	handler := slog.NewJSONHandler(w, opts)
-	logger := slog.New(handler)
-	slog.SetDefault(logger)
 }
