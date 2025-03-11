@@ -15,7 +15,7 @@ import (
 	"github.com/notes-bin/ddns6/internal/domain"
 	"github.com/notes-bin/ddns6/pkg/cloudflare"
 	"github.com/notes-bin/ddns6/pkg/tencent"
-	"github.com/notes-bin/ddns6/utils/command"
+	"github.com/notes-bin/ddns6/utils/cli"
 	"github.com/notes-bin/ddns6/utils/common"
 	"github.com/notes-bin/ddns6/utils/network"
 )
@@ -34,7 +34,7 @@ func main() {
 
 	// 选择 IPv6 地址获取方式
 	ipv6s := []string{"dns", "site"}
-	ipv6Choice := command.ChoiceValue{
+	ipv6Choice := cli.ChoiceValue{
 		Value:   ipv6s[0], // 默认值为第一个可选值
 		Options: ipv6s,
 	}
@@ -42,22 +42,22 @@ func main() {
 
 	// 选择 ddns 服务商
 	services := []string{"tencent", "cloudflare"}
-	serviceChoice := command.ChoiceValue{
+	serviceChoice := cli.ChoiceValue{
 		Value:   services[0], // 默认值为第一个可选值
 		Options: services,
 	}
 	flag.Var(&serviceChoice, "service", fmt.Sprintf("选择一个 ddns 服务商(可选值: %v)", services))
 
 	// 公共DNS 选项
-	pdns := command.StringSlice{"2400:3200:baba::1", "2001:4860:4860::8888"}
+	pdns := cli.StringSlice{"2400:3200:baba::1", "2001:4860:4860::8888"}
 	flag.Var(&pdns, "public-dns", "添加自定义公共IPv6 DNS, 多个DNS用逗号分隔")
 
 	//	自定义网站选项
-	site := command.StringSlice{"https://6.ipw.cn"}
+	site := cli.StringSlice{"https://6.ipw.cn"}
 	flag.Var(&site, "site", "添加一个可以查询IPv6地址的自定义网站, 多个网站用逗号分隔")
 
 	// 定时任务选项
-	interval := command.Duration(5 * time.Minute)
+	interval := cli.Duration(5 * time.Minute)
 	flag.Var(&interval, "interval", "定时任务时间间隔（例如 1s、2m、3h、5m2s、1h15m)")
 
 	// 物理网卡选项

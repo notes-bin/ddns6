@@ -111,7 +111,7 @@ func New(secretId, secretKey string) *tencent {
 }
 
 func (tc *tencent) String() string {
-	return fmt.Sprintf("secretId: %s, secretKey: %s", tc.secretId, tc.secretKey)
+	return fmt.Sprintf("%s=%s %s=%s", SECRET_ID, tc.secretId, SECRET_KEY, tc.secretKey)
 }
 
 func (tc *tencent) Task(domain, subdomain, ipv6addr string) error {
