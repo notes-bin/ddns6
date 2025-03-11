@@ -89,8 +89,10 @@ type tencent struct {
 }
 
 const (
-	service = "dnspod"
-	version = "2021-03-23"
+	service    = "dnspod"
+	version    = "2021-03-23"
+	SECRET_ID  = "Tencent_SecretId"
+	SECRET_KEY = "Tencent_SecretKey"
 )
 
 var (
@@ -106,6 +108,10 @@ func New(secretId, secretKey string) *tencent {
 			Timeout: 30 * time.Second,
 		},
 	}
+}
+
+func (tc *tencent) String() string {
+	return fmt.Sprintf("secretId: %s, secretKey: %s", tc.secretId, tc.secretKey)
 }
 
 func (tc *tencent) Task(domain, subdomain, ipv6addr string) error {
