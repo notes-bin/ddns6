@@ -21,9 +21,9 @@ type UpdateRecorder interface {
 }
 
 type Domain struct {
-	Domain    string
-	SubDomain string
-	Type      string
+	Domain    string `env:"DOMAIN"`
+	SubDomain string `env:"SUBDOMAIN"`
+	Type      string `env:"TYPE"`
 	Addr      []*net.IP
 	Err       error
 	sync.Mutex

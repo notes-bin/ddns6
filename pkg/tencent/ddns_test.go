@@ -8,12 +8,11 @@ import (
 )
 
 // 需要设置环境变量 TENCENTCLOUD_SECRET_ID
-var secret, _ = common.GetEnvSafe("DOMAIN")
 var tc = New()
-var domain = secret["DOMAIN"]
+var domain, _ = common.EnvToString("DOMAIN")
 
 func TestListRecords(t *testing.T) {
-	t.Logf("secret -> %#v\n", secret)
+	common.EnvToStruct(tc, true)
 	response := new(tencentCloudResponse)
 	err := tc.listRecords(domain, response)
 	if err != nil {
@@ -26,7 +25,9 @@ func TestListRecords(t *testing.T) {
 
 func TestCreateRecord(t *testing.T) {
 	response := new(tencentCloudStatus)
-	ipv6, _ := network.NewPublicDNS("2400:3200:baba::1").GetIPV6Addr()
+	ipv6method := network.NewPublicDNS()
+	common.EnvToStruct(ipv6method, true)
+	ipv6, _ := ipv6method.GetIPV6Addr()
 	err := tc.createRecord(domain, "www", ipv6[0].String(), response)
 	if err != nil {
 		t.Error(err)
@@ -37,7 +38,9 @@ func TestCreateRecord(t *testing.T) {
 
 func TestModifyRecord(t *testing.T) {
 	response := new(tencentCloudStatus)
-	ipv6, _ := network.NewPublicDNS("2400:3200:baba::1").GetIPV6Addr()
+	ipv6method := network.NewPublicDNS()
+	common.EnvToStruct(ipv6method, true)
+	ipv6, _ := ipv6method.GetIPV6Addr()
 	err := tc.modfiyRecord(domain, 1956278994, "www", "默认", ipv6[0].String(), response)
 	if err != nil {
 		t.Error(err)
@@ -57,7 +60,9 @@ func TestDeleteRecord(t *testing.T) {
 }
 
 func TestTask(t *testing.T) {
-	ipv6, _ := network.NewPublicDNS("2400:3200:baba::1").GetIPV6Addr()
+	ipv6method := network.NewPublicDNS()
+	common.EnvToStruct(ipv6method, true)
+	ipv6, _ := ipv6method.GetIPV6Addr()
 	err := tc.Task(domain, "www", ipv6[0].String())
 	if err != nil {
 		t.Error(err)

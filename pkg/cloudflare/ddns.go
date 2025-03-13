@@ -93,17 +93,14 @@ type cloudflareRequest struct {
 }
 
 type cloudflare struct {
-	Token string
+	Token string `env:"CF_Token"`
 	*http.Client
 }
 
 var ErrIPv6NotChanged = errors.New("ipv6 address not changed")
 
-func NewCloudflare(token string) *cloudflare {
-	return &cloudflare{
-		Token:  token,
-		Client: &http.Client{Timeout: 30 * time.Second},
-	}
+func New() *cloudflare {
+	return &cloudflare{Client: &http.Client{Timeout: 30 * time.Second}}
 }
 
 func (c *cloudflare) Task(domain, subdomain, ipv6addr string) error {
