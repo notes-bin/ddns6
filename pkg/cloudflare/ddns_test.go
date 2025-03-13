@@ -7,13 +7,16 @@ import (
 	"github.com/notes-bin/ddns6/utils/network"
 )
 
-var token, _ = common.GetEnvSafe("CLOUDFLARE_AUTH_TOKEN")
-var c = NewCloudflare(token["CLOUDFLARE_AUTH_TOKEN"])
+var c = New()
+var domain, _ = common.EnvToString("DOMAIN")
 
 func TestModfiyRecord(t *testing.T) {
+	common.EnvToStruct(c, true)
 	resp := new(cloudflareResponse)
-	ipv6, _ := network.NewPublicDNS("2400:3200:baba::1").GetIPV6Addr()
-	if err := c.modifyRecord("www.notes-bin.top", "6ea09c33602945f8bc582f9bab3646cb", "", ipv6[0].String(), resp); err != nil {
+	ipv6method := network.NewPublicDNS()
+	common.EnvToStruct(ipv6method, true)
+	ipv6, _ := ipv6method.GetIPV6Addr()
+	if err := c.modifyRecord(domain, "6ea09c33602945f8bc582f9bab3646cb", "", ipv6[0].String(), resp); err != nil {
 		t.Error(err)
 	}
 	if len(resp.Result) == 0 {
@@ -23,8 +26,10 @@ func TestModfiyRecord(t *testing.T) {
 
 func TestCreateRecord(t *testing.T) {
 	resp := new(cloudflareResponse)
-	ipv6, _ := network.NewPublicDNS("2400:3200:baba::1").GetIPV6Addr()
-	if err := c.createRecord("www.notes-bin.top", ipv6[0].String(), "6ea09c33602945f8bc582f9bab3646cb", resp); err != nil {
+	ipv6method := network.NewPublicDNS()
+	common.EnvToStruct(ipv6method, true)
+	ipv6, _ := ipv6method.GetIPV6Addr()
+	if err := c.createRecord(domain, ipv6[0].String(), "6ea09c33602945f8bc582f9bab3646cb", resp); err != nil {
 		t.Error(err)
 	}
 	if len(resp.Result) == 0 {
@@ -34,7 +39,7 @@ func TestCreateRecord(t *testing.T) {
 
 func TestListRecords(t *testing.T) {
 	resp := new(cloudflareResponse)
-	if err := c.listRecords("notes-bin.top", "6ea09c33602945f8bc582f9bab3646cb", resp); err != nil {
+	if err := c.listRecords(domain, "6ea09c33602945f8bc582f9bab3646cb", resp); err != nil {
 		t.Error(err)
 	}
 	if len(resp.Result) == 0 {
@@ -44,7 +49,7 @@ func TestListRecords(t *testing.T) {
 
 func TestGetZones(t *testing.T) {
 	resp := new(cloudflareZoneResponse)
-	if err := c.getZones("notes-bin.top", resp); err != nil {
+	if err := c.getZones(domain, resp); err != nil {
 		t.Error(err)
 	}
 	if len(resp.Result) == 0 {

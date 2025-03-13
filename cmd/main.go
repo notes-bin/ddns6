@@ -11,7 +11,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/notes-bin/ddns6/configs"
 	"github.com/notes-bin/ddns6/internal/domain"
 	"github.com/notes-bin/ddns6/pkg/cloudflare"
 	"github.com/notes-bin/ddns6/pkg/tencent"
@@ -25,12 +24,32 @@ var (
 	Commit  = "none"
 )
 
+type config struct {
+	// 选择 IPv6 地址获取方式
+	IPv6Method string `env:"IPV6_METHOD"`
+	// 选择 ddns 服务商
+	Service string `env:"DNS_SERVICE"`
+	// 定时任务选项
+	Interval cli.Duration `env:"INTERVAL"`
+	// 调试选项
+	Debug bool `env:"DEBUG"`
+	// 域名选项
+	Domain string `env:"DOMAIN"`
+	// 子域名选项
+	SubDomain string `env:"SUB_DOMAIN"`
+}
+
 func main() {
 	var (
 		task domain.Tasker
 		ip   domain.IPv6Getter
 		ddns = &domain.Domain{Type: "AAAA"}
 	)
+
+	if err := common.EnvToStruct(ddns, true); err != nil {
+		slog.Error("获取域名环境变量失败", "err", err)
+		return
+	}
 
 	// 选择 IPv6 地址获取方式
 	ipv6s := []string{"dns", "site"}
@@ -48,23 +67,9 @@ func main() {
 	}
 	flag.Var(&serviceChoice, "service", fmt.Sprintf("选择一个 ddns 服务商(可选值: %v)", services))
 
-	// 公共DNS 选项
-	pdns := cli.StringSlice{"2400:3200:baba::1", "2001:4860:4860::8888"}
-	flag.Var(&pdns, "public-dns", "添加自定义公共IPv6 DNS, 多个DNS用逗号分隔")
-
-	//	自定义网站选项
-	site := cli.StringSlice{"https://6.ipw.cn"}
-	flag.Var(&site, "site", "添加一个可以查询IPv6地址的自定义网站, 多个网站用逗号分隔")
-
 	// 定时任务选项
 	interval := cli.Duration(5 * time.Minute)
 	flag.Var(&interval, "interval", "定时任务时间间隔（例如 1s、2m、3h、5m2s、1h15m)")
-
-	// 物理网卡选项
-	iface := flag.String("iface", "eth0", "设备的物理网卡名称")
-
-	// 生成服务选项
-	init := flag.Bool("init", false, "生成 systemd 服务")
 
 	// 调试选项
 	debug := flag.Bool("debug", false, "开启调试模式")
@@ -104,14 +109,14 @@ func main() {
 	case "tencent":
 		task = tencent.New()
 	case "cloudflare":
-		secret, err := common.GetEnvSafe("CF_Token")
-		if err != nil {
-			slog.Error("获取cloudflare密钥失败", "err", err)
-			return
-		}
-		task = cloudflare.NewCloudflare(secret["CF_Token"])
+		task = cloudflare.New()
 	default:
 		slog.Error("不支持的ddns服务商", "service", serviceChoice.Value)
+		return
+	}
+
+	if err := common.EnvToStruct(task, true); err != nil {
+		slog.Error("获取服务商环境变量失败", "err", err)
 		return
 	}
 
@@ -128,31 +133,10 @@ func main() {
 	flag.Visit(func(f *flag.Flag) {
 		params = append(params, fmt.Sprintf("-%s=%v", f.Name, f.Value))
 	})
-
-	for i, v := range params {
-		if v == "-init=true" {
-			// 删除索引i处的元素
-			params = append(params[:i], params[i+1:]...)
-		}
-	}
 	slog.Debug("参数列表", "params", params)
 
-	// 生成 systemd 服务
-	if *init {
-		configs.GenerateService(params...)
-		return
-	}
-
-	// 获取 IPv6 地址
-	switch ipv6Choice.Value {
-	case "dns":
-		ip = network.NewPublicDNS(pdns...)
-	case "site":
-		ip = network.NewSite(site...)
-	case "iface":
-		ip = network.NewIface(*iface)
-	default:
-		slog.Error("不支持的ipv6获取方式", "ipv6", ipv6Choice.Value)
+	if ip, err = GetIPv6Getter(ipv6Choice.Value); err != nil {
+		slog.Error("获取IPv6地址失败", "err", err)
 		return
 	}
 
@@ -177,6 +161,24 @@ func main() {
 
 	slog.Info("ddns6 退出成功...")
 	os.Exit(0)
+}
+
+func GetIPv6Getter(method string) (domain.IPv6Getter, error) {
+	var ipv6 domain.IPv6Getter
+	switch method {
+	case "iface":
+		ipv6 = network.NewIface()
+	case "site":
+		ipv6 = network.NewSite()
+	case "dns":
+		ipv6 = network.NewPublicDNS()
+	default:
+		ipv6 = network.NewPublicDNS()
+	}
+	if err := common.EnvToStruct(ipv6, false); err != nil {
+		return nil, err
+	}
+	return ipv6, nil
 }
 
 func scheduler(ctx context.Context, record domain.UpdateRecorder, task domain.Tasker, ipv6Getter domain.IPv6Getter, interval time.Duration, e error) {
