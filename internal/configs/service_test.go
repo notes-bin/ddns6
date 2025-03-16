@@ -1,7 +1,11 @@
-package configs
+package configs_test
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/notes-bin/ddns6/internal/configs"
+)
 
 func TestGenerateService(t *testing.T) {
-	GenerateService("test")
+	configs.GenerateService("test")
 }

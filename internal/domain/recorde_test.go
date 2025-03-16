@@ -1,10 +1,12 @@
-package domain
+package domain_test
 
 import (
 	"context"
 	"errors"
 	"net"
 	"testing"
+
+	"github.com/notes-bin/ddns6/internal/domain"
 )
 
 var ErrIPv6NotChanged = errors.New("IPv6 地址未改变")
@@ -33,8 +35,8 @@ func TestDomain_UpdateRecord(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		ipv6Getter  IPv6Getter
-		tasker      Tasker
+		ipv6Getter  domain.IPv6Getter
+		tasker      domain.Tasker
 		expectedErr error
 	}{
 		{
@@ -64,7 +66,7 @@ func TestDomain_UpdateRecord(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d := &Domain{
+			d := &domain.Domain{
 				Domain:    "example.com",
 				SubDomain: "sub",
 				Type:      "AAAA",
