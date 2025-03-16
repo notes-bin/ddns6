@@ -10,8 +10,6 @@ import (
 	"time"
 )
 
-const endpoint = "tencentcloudapi.com"
-
 func sha256hex(s string) string {
 	b := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(b[:])
@@ -24,7 +22,7 @@ func hmacsha256(s, key string) string {
 }
 
 func signature(secretId, secretKey, service, action, version, payload string, r *http.Request) error {
-	host := fmt.Sprintf("%s.%s", service, endpoint)
+	host := fmt.Sprintf("%s.tencentcloudapi.com", service)
 	algorithm := "TC3-HMAC-SHA256"
 	var timestamp int64 = time.Now().Unix()
 

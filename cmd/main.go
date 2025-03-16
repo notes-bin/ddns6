@@ -12,11 +12,11 @@ import (
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/domain"
-	"github.com/notes-bin/ddns6/pkg/cloudflare"
-	"github.com/notes-bin/ddns6/pkg/tencent"
+	"github.com/notes-bin/ddns6/internal/providers/cloudflare"
+	"github.com/notes-bin/ddns6/internal/providers/tencent"
 	"github.com/notes-bin/ddns6/utils/cli"
-	"github.com/notes-bin/ddns6/utils/common"
-	"github.com/notes-bin/ddns6/utils/network"
+	"github.com/notes-bin/ddns6/utils/env"
+	"github.com/notes-bin/ddns6/utils/logging"
 )
 
 var (
@@ -30,7 +30,7 @@ type config struct {
 	// 选择 ddns 服务商
 	Service string `env:"DNS_SERVICE"`
 	// 定时任务选项
-	Interval cli.Duration `env:"INTERVAL"`
+	Interval time.Duration `env:"INTERVAL"`
 	// 调试选项
 	Debug bool `env:"DEBUG"`
 	// 域名选项
@@ -46,7 +46,7 @@ func main() {
 		ddns = &domain.Domain{Type: "AAAA"}
 	)
 
-	if err := common.EnvToStruct(ddns, true); err != nil {
+	if err := env.EnvToStruct(ddns, true); err != nil {
 		slog.Error("获取域名环境变量失败", "err", err)
 		return
 	}
@@ -68,8 +68,8 @@ func main() {
 	flag.Var(&serviceChoice, "service", fmt.Sprintf("选择一个 ddns 服务商(可选值: %v)", services))
 
 	// 定时任务选项
-	interval := cli.Duration(5 * time.Minute)
-	flag.Var(&interval, "interval", "定时任务时间间隔（例如 1s、2m、3h、5m2s、1h15m)")
+	interval := time.Duration(5 * time.Minute)
+	flag.DurationVar(&interval, "interval", interval, "定时任务时间间隔（例如 1s、2m、3h、5m2s、1h15m)")
 
 	// 调试选项
 	debug := flag.Bool("debug", false, "开启调试模式")
@@ -93,9 +93,9 @@ func main() {
 			slog.Error("创建日志文件失败", "err", err)
 			return
 		}
-		common.Logger(io.MultiWriter(os.Stderr, logFile), *debug)
+		logging.Logger(*debug, io.MultiWriter(os.Stderr, logFile))
 	} else {
-		common.Logger(os.Stderr, *debug)
+		logging.Logger(*debug, os.Stderr)
 	}
 
 	// 显示版本信息
@@ -115,7 +115,7 @@ func main() {
 		return
 	}
 
-	if err := common.EnvToStruct(task, true); err != nil {
+	if err := env.EnvToStruct(task, true); err != nil {
 		slog.Error("获取服务商环境变量失败", "err", err)
 		return
 	}
@@ -134,11 +134,6 @@ func main() {
 		params = append(params, fmt.Sprintf("-%s=%v", f.Name, f.Value))
 	})
 	slog.Debug("参数列表", "params", params)
-
-	if ip, err = GetIPv6Getter(ipv6Choice.Value); err != nil {
-		slog.Error("获取IPv6地址失败", "err", err)
-		return
-	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -161,24 +156,6 @@ func main() {
 
 	slog.Info("ddns6 退出成功...")
 	os.Exit(0)
-}
-
-func GetIPv6Getter(method string) (domain.IPv6Getter, error) {
-	var ipv6 domain.IPv6Getter
-	switch method {
-	case "iface":
-		ipv6 = network.NewIface()
-	case "site":
-		ipv6 = network.NewSite()
-	case "dns":
-		ipv6 = network.NewPublicDNS()
-	default:
-		ipv6 = network.NewPublicDNS()
-	}
-	if err := common.EnvToStruct(ipv6, false); err != nil {
-		return nil, err
-	}
-	return ipv6, nil
 }
 
 func scheduler(ctx context.Context, record domain.UpdateRecorder, task domain.Tasker, ipv6Getter domain.IPv6Getter, interval time.Duration, e error) {

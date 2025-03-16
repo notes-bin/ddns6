@@ -96,6 +96,8 @@ const (
 var (
 	ErrGenerateSignature = errors.New("failed to generate signature")
 	ErrIPv6NotChanged    = errors.New("ipv6 address not changed")
+	ErrInvalidResponse   = errors.New("invalid response from Tencent API")
+	ErrRecordNotFound    = errors.New("record not found")
 )
 
 func New() *tencent {
@@ -172,18 +174,15 @@ func (tc *tencent) deleteRecord(Domain string, RecordId int, status *tencentClou
 }
 
 func (tc *tencent) request(service, action, version string, params, result any) (err error) {
-	var jsonStr []byte
-	if params != nil {
-		jsonStr, err = json.Marshal(params)
-		if err != nil {
-			return
-		}
-	}
-
-	req, err := http.NewRequest("POST", fmt.Sprintf("https://%s.%s", service, endpoint), bytes.NewBuffer(jsonStr))
-	slog.Debug("创建 http 请求", "params", string(jsonStr), "error", err)
+	jsonStr, err := json.Marshal(params)
 	if err != nil {
 		return
+	}
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("https://%s.tencentcloudapi.com", service), bytes.NewBuffer(jsonStr))
+	slog.Debug("创建 http 请求", "params", string(jsonStr), "error", err)
+	if err != nil {
+		return fmt.Errorf("failed to marshal params: %w", err)
 	}
 
 	if err := signature(tc.secretId, tc.secretKey, service, action, version, string(jsonStr), req); err != nil {
