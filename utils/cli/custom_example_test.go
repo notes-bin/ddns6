@@ -2,7 +2,7 @@ package cli
 
 import (
 	"flag"
-	"testing"
+	"fmt"
 	"time"
 )
 
@@ -16,9 +16,13 @@ func init() {
 	flag.Var(mode, "mode", "Operation mode (fast, slow, auto)")
 }
 
-func TestCustomCmd(t *testing.T) {
+func ExampleCustomCmd() {
 	flag.Parse()
-	t.Log("Interval: ", interval)
-	t.Log("Tags: ", tags)
-	t.Log("Mode: ", mode)
+	fmt.Println("Interval:", interval)
+	fmt.Println("Tags: ", tags)
+	fmt.Println("Mode: ", mode)
+	// Output:
+	// Interval: 5s
+	// Tags:  [default]
+	// Mode:  fast
 }
