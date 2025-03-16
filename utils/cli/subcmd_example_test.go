@@ -1,14 +1,16 @@
-package cli
+package cli_test
 
 import (
 	"fmt"
 	"os"
 	"time"
+
+	"github.com/notes-bin/ddns6/utils/cli"
 )
 
 func ExampleSubCmd() {
 	// 创建子命令
-	cmd := NewSubCmd("example", "An example subcommand")
+	cmd := cli.NewSubCmd("example", "An example subcommand")
 
 	// 定义参数
 	name := cmd.String("name", "world", "Your name")
@@ -38,7 +40,7 @@ func ExampleSubCmd() {
 }
 
 func ExampleHelp() {
-	cmd := NewSubCmd("example", "An example subcommand")
+	cmd := cli.NewSubCmd("example", "An example subcommand")
 	cmd.String("name", "world", "Your name")
 	cmd.Int("age", 30, "Your age")
 	cmd.Duration("duration", 5*time.Second, "Time duration")
