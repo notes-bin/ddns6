@@ -9,6 +9,9 @@ import (
 	"sync"
 )
 
+// 定义自定义错误类型
+var ErrEmptyIPv6Address = errors.New("获取到的 IPv6 地址为空")
+
 // IPv6Getter 定义获取 IPv6 地址的接口，使用 context 支持取消操作
 type IPv6Getter interface {
 	GetIPv6Addr(ctx context.Context) (net.IP, error)
@@ -17,11 +20,6 @@ type IPv6Getter interface {
 // Tasker 定义执行 DNS 更新任务的接口
 type Tasker interface {
 	Task(domain, subdomain, ipv6addr string) error
-}
-
-// UpdateRecorder 定义更新 DNS 记录的接口
-type UpdateRecorder interface {
-	UpdateRecord(ctx context.Context, ipv6Getter IPv6Getter, tasker Tasker) error
 }
 
 // Domain 表示一个域名及其相关配置
@@ -66,16 +64,33 @@ func (d *Domain) UpdateRecord(ctx context.Context, ipv6Getter IPv6Getter, tasker
 	}
 }
 
-// getIPv6Address 获取 IPv6 地址
+// getIPv6Address 获取 IPv6 地址，增加重试机制和日志记录
 func (d *Domain) getIPv6Address(ctx context.Context, ipv6Getter IPv6Getter) (net.IP, error) {
-	addr, err := ipv6Getter.GetIPv6Addr(ctx)
-	if err != nil {
-		return nil, err
+	const maxRetries = 3 // 最大重试次数
+	var addr net.IP
+	var err error
+
+	for i := range maxRetries {
+		if ctx.Err() != nil {
+			return nil, ctx.Err() // 如果上下文已取消，直接返回错误
+		}
+
+		slog.Info("尝试获取 IPv6 地址", "domain", d.Domain, "subdomain", d.SubDomain, "attempt", i+1)
+		addr, err = ipv6Getter.GetIPv6Addr(ctx)
+
+		if err == nil {
+			if addr == nil {
+				err = ErrEmptyIPv6Address
+			} else {
+				slog.Info("成功获取 IPv6 地址", "domain", d.Domain, "subdomain", d.SubDomain, "ipv6", addr.String())
+				return addr, nil
+			}
+		}
+
+		slog.Error("获取 IPv6 地址失败", "domain", d.Domain, "subdomain", d.SubDomain, "err", err, "attempt", i+1)
 	}
-	if addr == nil {
-		return nil, errors.New("获取到的 IPv6 地址为空")
-	}
-	return addr, nil
+
+	return nil, fmt.Errorf("多次尝试后仍无法获取 IPv6 地址: %w", err)
 }
 
 // updateDNSRecord 更新 DNS 记录
