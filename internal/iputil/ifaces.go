@@ -29,7 +29,7 @@ func (i *IfaceProvider) GetIPv6Addr() (net.IP, error) {
 
 	for _, addr := range addrs {
 		ipNet, ok := addr.(*net.IPNet)
-		if!ok {
+		if !ok {
 			continue
 		}
 
