@@ -24,6 +24,7 @@ import (
 var (
 	Version = "dev"
 	Commit  = "none"
+	buildAt = "unknown"
 )
 
 type Config struct {
@@ -54,7 +55,7 @@ func main() {
 
 	// 显示版本信息
 	if config.showVersion {
-		fmt.Printf("Version: %s\nCommit: %s\n", Version, Commit)
+		fmt.Printf("Version: %s\nCommit: %s\nbuildAt: %s\n", Version, Commit, buildAt)
 		return
 	}
 

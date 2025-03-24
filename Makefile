@@ -1,7 +1,8 @@
 # 定义变量
 BINARY_NAME=ddns6
 VERSION=$(shell git describe --tags --always --dirty)
-BUILD_FLAGS=-ldflags "-X main.Version=$(VERSION) -X main.Commit=$(shell git rev-parse HEAD)"
+BUILD_TIME=$(shell date +%Y-%m-%dT%H:%M:%S%z)
+BUILD_FLAGS=-ldflags "-X main.Version=$(VERSION) -X main.Commit=$(shell git rev-parse HEAD) -X main.buildAt=$(BUILD_TIME)"
 GO=go
 
 # 默认目标
