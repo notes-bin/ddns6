@@ -36,16 +36,14 @@ type Job struct {
 type Scheduler struct {
 	jobs    sync.Map
 	wg      sync.WaitGroup
-	logger  *slog.Logger
 	errCh   chan error
 	stopCh  chan struct{}
 	stopped atomic.Bool
 }
 
 // New 创建调度器实例
-func New(logger *slog.Logger) *Scheduler {
+func New() *Scheduler {
 	return &Scheduler{
-		logger: logger,
 		errCh:  make(chan error, 100),
 		stopCh: make(chan struct{}),
 	}
@@ -122,7 +120,7 @@ func (s *Scheduler) runJob(job *Job) {
 	defer s.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			s.logger.Error("job panic recovered",
+			slog.Error("job panic recovered",
 				"job_id", job.ID,
 				"panic", r,
 			)
@@ -137,28 +135,28 @@ func (s *Scheduler) runJob(job *Job) {
 		select {
 		case <-ticker.C:
 			if !job.state.CompareAndSwap(int32(StateIdle), int32(StateRunning)) {
-				s.logger.Warn("job skipped: not idle",
+				slog.Warn("job skipped: not idle",
 					"job_id", job.ID,
 					"state", JobState(job.state.Load()))
 				continue
 			}
 
-			s.logger.Debug("job starting", "job_id", job.ID)
+			slog.Debug("job starting", "job_id", job.ID)
 			err := job.task(job.ctx)
 			if err != nil {
 				s.sendError(fmt.Errorf("job %q failed: %w", job.ID, err))
 			}
 
 			if !job.state.CompareAndSwap(int32(StateRunning), int32(StateIdle)) {
-				s.logger.Warn("job state inconsistency",
+				slog.Warn("job state inconsistency",
 					"job_id", job.ID,
 					"state", JobState(job.state.Load()))
 			}
-			s.logger.Debug("job completed", "job_id", job.ID)
+			slog.Debug("job completed", "job_id", job.ID)
 
 		case <-job.ctx.Done():
 			job.state.Store(int32(StateStopped))
-			s.logger.Info("job stopped", "job_id", job.ID)
+			slog.Info("job stopped", "job_id", job.ID)
 			return
 		case <-s.stopCh:
 			job.state.Store(int32(StateStopping))
@@ -173,7 +171,7 @@ func (s *Scheduler) sendError(err error) {
 	select {
 	case s.errCh <- err:
 	default:
-		s.logger.Error("error channel full, dropping error",
+		slog.Error("error channel full, dropping error",
 			"error", err)
 	}
 }
@@ -215,9 +213,9 @@ func (s *Scheduler) GracefulShutdown() {
 
 	select {
 	case <-done:
-		s.logger.Info("all jobs stopped")
+		slog.Info("all jobs stopped")
 	case <-time.After(30 * time.Second):
-		s.logger.Warn("graceful shutdown timed out")
+		slog.Warn("graceful shutdown timed out")
 	}
 
 	close(s.errCh)

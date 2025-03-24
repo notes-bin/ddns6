@@ -17,7 +17,7 @@ func SignRequest(secretId, secretKey, service, action, version string, payload [
 
 	// 计算签名
 	hashed := hmac.New(sha256.New, []byte(secretKey))
-	hashed.Write([]byte(fmt.Sprintf("%s%d%s%s", secretId, timestamp, nonce, string(payload))))
+	hashed.Write(fmt.Appendf(nil, "%s%d%s%s", secretId, timestamp, nonce, string(payload)))
 	signature := hex.EncodeToString(hashed.Sum(nil))
 
 	// 设置请求头

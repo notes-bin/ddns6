@@ -10,6 +10,13 @@ import (
 	"time"
 )
 
+const (
+	Algorithm     = "TC3-HMAC-SHA256"
+	RequestMethod = "POST"
+	CanonicalURI  = "/"
+	ContentType   = "application/json; charset=utf-8"
+)
+
 func sha256hex(s string) string {
 	b := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(b[:])
@@ -23,31 +30,27 @@ func hmacsha256(s, key string) string {
 
 func signature(secretId, secretKey, service, action, version, payload string, r *http.Request) error {
 	host := fmt.Sprintf("%s.tencentcloudapi.com", service)
-	algorithm := "TC3-HMAC-SHA256"
-	var timestamp int64 = time.Now().Unix()
+	timestamp := time.Now().Unix()
+	date := time.Unix(timestamp, 0).UTC().Format("2006-01-02")
+	credentialScope := fmt.Sprintf("%s/%s/tc3_request", date, service)
 
 	// step 1: build canonical request string
-	httpRequestMethod := "POST"
-	canonicalURI := "/"
-	canonicalQueryString := ""
 	canonicalHeaders := fmt.Sprintf("content-type:%s\nhost:%s\nx-tc-action:%s\n",
-		"application/json; charset=utf-8", host, strings.ToLower(action))
+		ContentType, host, strings.ToLower(action))
 	signedHeaders := "content-type;host;x-tc-action"
 	hashedRequestPayload := sha256hex(payload)
 	canonicalRequest := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s",
-		httpRequestMethod,
-		canonicalURI,
-		canonicalQueryString,
+		RequestMethod,
+		CanonicalURI,
+		"",
 		canonicalHeaders,
 		signedHeaders,
 		hashedRequestPayload)
 
 	// step 2: build string to sign
-	date := time.Unix(timestamp, 0).UTC().Format("2006-01-02")
-	credentialScope := fmt.Sprintf("%s/%s/tc3_request", date, service)
 	hashedCanonicalRequest := sha256hex(canonicalRequest)
 	string2sign := fmt.Sprintf("%s\n%d\n%s\n%s",
-		algorithm,
+		Algorithm,
 		timestamp,
 		credentialScope,
 		hashedCanonicalRequest)
@@ -60,14 +63,14 @@ func signature(secretId, secretKey, service, action, version, payload string, r 
 
 	// step 4: build authorization
 	authorization := fmt.Sprintf("%s Credential=%s/%s, SignedHeaders=%s, Signature=%s",
-		algorithm,
+		Algorithm,
 		secretId,
 		credentialScope,
 		signedHeaders,
 		signature)
 
 	r.Header.Set("Authorization", authorization)
-	r.Header.Set("Content-Type", "application/json; charset=utf-8")
+	r.Header.Set("Content-Type", ContentType)
 	r.Header.Set("Host", host)
 	r.Header.Set("X-TC-Action", action)
 	r.Header.Set("X-TC-Timestamp", fmt.Sprintf("%d", timestamp))

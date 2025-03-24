@@ -6,8 +6,9 @@ After=network.target
 Type=simple
 Environment={{.Environment}}
 ExecStart={{.ExecStart}}
-WorkingDirectory={{.WorkingDirectory}}
+WorkingDirectory={{.Workingdirectory}}
 Restart=always
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target

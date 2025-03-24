@@ -83,8 +83,8 @@ func (t *tencentRequest) String() string {
 }
 
 type tencent struct {
-	secretId  string `env:"Tencent_SecretId"`
-	secretKey string `env:"Tencent_SecretKey"`
+	secretId  string `env:"Tencent_SecretId" required:"true"`
+	secretKey string `env:"Tencent_SecretKey" required:"true"`
 	*http.Client
 }
 
@@ -176,35 +176,35 @@ func (tc *tencent) deleteRecord(Domain string, RecordId int, status *tencentClou
 func (tc *tencent) request(service, action, version string, params, result any) (err error) {
 	jsonStr, err := json.Marshal(params)
 	if err != nil {
-		return
-	}
-
-	req, err := http.NewRequest("POST", fmt.Sprintf("https://%s.tencentcloudapi.com", service), bytes.NewBuffer(jsonStr))
-	slog.Debug("创建 http 请求", "params", string(jsonStr), "error", err)
-	if err != nil {
 		return fmt.Errorf("failed to marshal params: %w", err)
 	}
 
+	req, err := http.NewRequest("POST", fmt.Sprintf("https://%s.tencentcloudapi.com", service), bytes.NewBuffer(jsonStr))
+	if err != nil {
+		return fmt.Errorf("failed to create http request: %w", err)
+	}
+
 	if err := signature(tc.secretId, tc.secretKey, service, action, version, string(jsonStr), req); err != nil {
-		return ErrGenerateSignature
+		return fmt.Errorf("%w: %v", ErrGenerateSignature, err)
 	}
 
 	resp, err := tc.Do(req)
 	if err != nil {
-		return
+		return fmt.Errorf("failed to send http request: %w", err)
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	raw, err := io.ReadAll(resp.Body)
-	slog.Debug("http 响应结果", "response", raw, "error", err)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read response body: %w", err)
 	}
+
 	if err := json.Unmarshal(raw, &result); err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
 	return nil

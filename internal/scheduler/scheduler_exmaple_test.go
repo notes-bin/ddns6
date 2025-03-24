@@ -12,14 +12,14 @@ import (
 )
 
 func ExampleScheduler() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 
-	sched := scheduler.New(logger)
+	sched := scheduler.New()
 
 	// 错误处理协程
 	go func() {
 		for err := range sched.Errors() {
-			logger.Error("scheduler error", "error", err)
+			slog.Error("scheduler error", "error", err)
 		}
 	}()
 
@@ -32,7 +32,7 @@ func ExampleScheduler() {
 	// 添加任务
 	err := sched.AddJob("check_ip", 5*time.Minute, task)
 	if err != nil {
-		logger.Error("failed to add job", "error", err)
+		slog.Error("failed to add job", "error", err)
 		return
 	}
 

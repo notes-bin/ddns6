@@ -6,6 +6,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -21,40 +22,47 @@ func EnvToString(key string) (string, error) {
 }
 
 // EnvToStruct 从环境变量映射到结构体
-func EnvToStruct(obj any, errOnExit bool) error {
-	v := reflect.ValueOf(obj).Elem()
+func EnvToStruct(prefix string, obj any) error {
+	v := reflect.ValueOf(obj)
+	if v.Kind() != reflect.Ptr {
+		return fmt.Errorf("expected a pointer, got %v", reflect.TypeOf(obj))
+	}
+	v = v.Elem()
 	if v.Kind() != reflect.Struct {
 		return fmt.Errorf("expected a struct, got %v", reflect.TypeOf(obj))
 	}
-
 	t := v.Type()
-	for i := range v.NumField() {
+
+	if prefix != "" {
+		prefix = strings.ToUpper(prefix) + "_"
+	}
+
+	for i := 0; i < v.NumField(); i++ {
 		field := v.Field(i)
 		fieldType := t.Field(i)
 		envKey := fieldType.Tag.Get("env")
-
 		if envKey == "" {
 			continue
 		}
+		fullKey := prefix + envKey
 
-		value, exists := os.LookupEnv(envKey)
-		if !exists {
-			// 如果未找到环境变量，尝试从 default 标签中获取默认值
-			defaultValue := fieldType.Tag.Get("default")
-			if defaultValue == "" {
-				if errOnExit {
-					return fmt.Errorf("environment variable %s not found and no default value provided: %w", envKey, ErrEnvKeyNotFound)
-				}
-				continue
+		value, exists := os.LookupEnv(fullKey)
+		def := fieldType.Tag.Get("default")
+		if def != "" && !exists {
+			value = def
+		}
+		req := fieldType.Tag.Get("required")
+		if !exists && def == "" {
+			if isTrue(req) {
+				return fmt.Errorf("required key %s missing value", fullKey)
 			}
-			value = defaultValue
+			continue
 		}
 
 		if err := setFieldFromString(field, value); err != nil {
 			return fmt.Errorf("failed to set field %s: %w", fieldType.Name, err)
 		}
 	}
-
 	return nil
 }
 
@@ -97,6 +105,9 @@ func setFieldFromString(field reflect.Value, value string) error {
 		field.SetBool(boolValue)
 	case reflect.Slice:
 		if field.Type().Elem().Kind() == reflect.String {
+			if field.IsNil() {
+				field.Set(reflect.MakeSlice(field.Type(), 0, 1))
+			}
 			field.Set(reflect.Append(field, reflect.ValueOf(value)))
 		} else {
 			return fmt.Errorf("unsupported slice type: %s", field.Type().Elem().Kind())
@@ -104,7 +115,6 @@ func setFieldFromString(field reflect.Value, value string) error {
 	default:
 		return fmt.Errorf("unsupported field type: %s", field.Kind())
 	}
-
 	return nil
 }
 
@@ -114,27 +124,22 @@ func StructToTagValueSlice(obj any, tagKey string) ([]string, error) {
 	if v.Kind() != reflect.Struct {
 		return nil, fmt.Errorf("expected a struct, got %v", reflect.TypeOf(obj))
 	}
-
 	t := v.Type()
-	result := make([]string, 0, t.NumField())
-	for i := range v.NumField() {
+	var result []string
+	for i := 0; i < v.NumField(); i++ {
 		field := v.Field(i)
 		fieldType := t.Field(i)
 		tagValue := fieldType.Tag.Get(tagKey)
-
 		if tagValue == "" {
 			continue
 		}
-
 		value, err := getFieldAsString(field)
 		if err != nil {
 			slog.Warn("unsupported field type", "field", fieldType.Name, "type", field.Kind())
 			continue
 		}
-
 		result = append(result, fmt.Sprintf("%s=%s", tagValue, value))
 	}
-
 	return result, nil
 }
 
@@ -154,4 +159,10 @@ func getFieldAsString(field reflect.Value) (string, error) {
 	default:
 		return "", fmt.Errorf("unsupported field type: %s", field.Kind())
 	}
+}
+
+// isTrue 判断字符串是否表示布尔值 true
+func isTrue(s string) bool {
+	b, err := strconv.ParseBool(s)
+	return err == nil && b
 }

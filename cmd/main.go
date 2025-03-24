@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/domain"
+	"github.com/notes-bin/ddns6/internal/iputil"
 	"github.com/notes-bin/ddns6/internal/providers/cloudflare"
 	"github.com/notes-bin/ddns6/internal/providers/tencent"
-	"github.com/notes-bin/ddns6/utils/cli"
 	"github.com/notes-bin/ddns6/utils/env"
 	"github.com/notes-bin/ddns6/utils/logging"
 )
@@ -24,116 +24,82 @@ var (
 	Commit  = "none"
 )
 
-type config struct {
-	// 选择 IPv6 地址获取方式
-	IPv6Method string `env:"IPV6_METHOD"`
+type Config struct {
 	// 选择 ddns 服务商
-	Service string `env:"DNS_SERVICE"`
+	Service string `env:"DNS_SERVICE" default:"tencent" required:"true"`
 	// 定时任务选项
-	Interval time.Duration `env:"INTERVAL"`
+	Interval time.Duration `env:"INTERVAL" default:"5m"`
 	// 调试选项
-	Debug bool `env:"DEBUG"`
-	// 域名选项
-	Domain string `env:"DOMAIN"`
-	// 子域名选项
-	SubDomain string `env:"SUB_DOMAIN"`
+	Debug bool
+	// 查看版本
+	showVersion bool
+}
+
+var config = Config{}
+
+func init() {
+	// 调试选项
+	flag.BoolVar(&config.Debug, "debug", false, "开启调试模式")
+
+	// 版本选项
+	flag.BoolVar(&config.showVersion, "version", false, "显示版本信息")
+
+	flag.Usage = usages
 }
 
 func main() {
-	var (
-		task domain.Tasker
-		ip   domain.IPv6Getter
-		ddns = &domain.Domain{Type: "AAAA"}
-	)
+	flag.Parse()
 
-	if err := env.EnvToStruct(ddns, true); err != nil {
-		slog.Error("获取域名环境变量失败", "err", err)
+	// 显示版本信息
+	if config.showVersion {
+		fmt.Printf("Version: %s\nCommit: %s\n", Version, Commit)
 		return
 	}
 
-	// 选择 IPv6 地址获取方式
-	ipv6s := []string{"dns", "site"}
-	ipv6Choice := cli.ChoiceValue{
-		Value:   ipv6s[0], // 默认值为第一个可选值
-		Options: ipv6s,
-	}
-	flag.Var(&ipv6Choice, "ipv6", fmt.Sprintf("选择一个IPv6 获取方式(可选值: %v)", ipv6s))
-
-	// 选择 ddns 服务商
-	services := []string{"tencent", "cloudflare"}
-	serviceChoice := cli.ChoiceValue{
-		Value:   services[0], // 默认值为第一个可选值
-		Options: services,
-	}
-	flag.Var(&serviceChoice, "service", fmt.Sprintf("选择一个 ddns 服务商(可选值: %v)", services))
-
-	// 定时任务选项
-	interval := time.Duration(5 * time.Minute)
-	flag.DurationVar(&interval, "interval", interval, "定时任务时间间隔（例如 1s、2m、3h、5m2s、1h15m)")
-
-	// 调试选项
-	debug := flag.Bool("debug", false, "开启调试模式")
-
-	// 版本选项
-	version := flag.Bool("version", false, "显示版本信息")
-
-	// 域名选项
-	flag.StringVar(&ddns.Domain, "domain", "", "设置域名")
-	// 子域名选项
-	flag.StringVar(&ddns.SubDomain, "subdomain", "@", "设置子域名")
-
-	flag.Usage = usages
-	flag.Parse()
-
-	var logFile *os.File
-	defer logFile.Close()
-	if *debug {
+	var logWriter io.Writer
+	if config.Debug {
 		logFile, err := os.OpenFile("ddns6.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
 			slog.Error("创建日志文件失败", "err", err)
 			return
 		}
-		logging.Logger(*debug, io.MultiWriter(os.Stderr, logFile))
+		defer logFile.Close()
+		logWriter = io.MultiWriter(os.Stderr, logFile)
 	} else {
-		logging.Logger(*debug, os.Stderr)
+		logWriter = os.Stderr
 	}
+	logging.Logger(config.Debug, logWriter)
 
-	// 显示版本信息
-	if *version {
-		fmt.Printf("Version: %s\nCommit: %s\n", Version, Commit)
+	ddns := &domain.Domain{Type: "AAAA"}
+	if err := env.EnvToStruct("", ddns); err != nil {
+		slog.Error("获取域名环境变量失败", "err", err)
 		return
 	}
 
 	// 获取 ddns 服务商
-	switch serviceChoice.Value {
+	var task domain.Tasker
+	switch config.Service {
 	case "tencent":
 		task = tencent.New()
 	case "cloudflare":
 		task = cloudflare.New()
 	default:
-		slog.Error("不支持的ddns服务商", "service", serviceChoice.Value)
+		slog.Error("不支持的ddns服务商", "service", config.Service)
 		return
 	}
 
-	if err := env.EnvToStruct(task, true); err != nil {
+	if err := env.EnvToStruct("", task); err != nil {
 		slog.Error("获取服务商环境变量失败", "err", err)
 		return
 	}
 
-	params := make([]string, 0, len(flag.Args()))
-	// 获取可执行文件路径
-	exePath, err := os.Executable()
-	if err != nil {
-		fmt.Println("获取可执行程序路径失败:", err)
-		return
+	// 创建多 IPv6 地址提供者
+	providers := []iputil.IPv6Provider{
+		iputil.NewDNSProvider(),
+		iputil.NewIfaceProvider(),
+		iputil.NewSiteProvider(),
 	}
-
-	// 添加可执行文件路径到参数列表
-	params = append(params, exePath)
-	flag.Visit(func(f *flag.Flag) {
-		params = append(params, fmt.Sprintf("-%s=%v", f.Name, f.Value))
-	})
-	slog.Debug("参数列表", "params", params)
+	multiProvider := iputil.NewMultiProvider(providers...)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -141,24 +107,22 @@ func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 
-	go ddns.UpdateRecord(ctx, ip, task, tencent.ErrIPv6NotChanged)
-	if ddns.Err != nil {
-		slog.Error("更新记录失败", "err", ddns.Err)
+	// 首次更新记录
+	if err := ddns.UpdateRecord(ctx, multiProvider, task); err != nil {
+		slog.Error("更新记录失败", "err", err)
 		return
 	}
 
-	go scheduler(ctx, ddns, task, ip, time.Duration(interval), tencent.ErrIPv6NotChanged)
+	// 启动定时任务
+	go scheduler(ctx, ddns, task, multiProvider, config.Interval)
 	slog.Info("ddns6 启动成功...", "pid", os.Getpid())
 
 	<-sigCh
-
 	cancel()
-
 	slog.Info("ddns6 退出成功...")
-	os.Exit(0)
 }
 
-func scheduler(ctx context.Context, record domain.UpdateRecorder, task domain.Tasker, ipv6Getter domain.IPv6Getter, interval time.Duration, e error) {
+func scheduler(ctx context.Context, record domain.UpdateRecorder, task domain.Tasker, ipv6Getter domain.IPv6Getter, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -167,14 +131,26 @@ func scheduler(ctx context.Context, record domain.UpdateRecorder, task domain.Ta
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			go record.UpdateRecord(ctx, ipv6Getter, task, e)
+			if err := record.UpdateRecord(ctx, ipv6Getter, task); err != nil {
+				slog.Error("定时更新记录失败", "err", err)
+			}
 		}
 	}
 }
+
 func usages() {
-	fmt.Fprintf(os.Stderr, "简单的dnns6 命令行工具\n\n在全局命令或子命令选项使用 -h 或 --help 查看帮助\n\n")
+	fmt.Fprintf(os.Stderr, "简单的 ddns6 命令行工具，用于动态更新 DNS 记录以支持 IPv6 地址。\n\n")
+	fmt.Fprintf(os.Stderr, "在全局命令或子命令选项使用 -h 或 --help 查看帮助。\n\n")
 	fmt.Fprintf(os.Stderr, "用法: %s [选项]\n\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "可用选项:\n")
 	flag.PrintDefaults()
+	fmt.Fprintf(os.Stderr, "\n环境变量:\n")
+	fmt.Fprintf(os.Stderr, "  DNS_SERVICE: 选择 DDNS 服务商，可选值为 'tencent' 或 'cloudflare'，默认值为 'tencent'。\n")
+	fmt.Fprintf(os.Stderr, "  INTERVAL: 定时任务的执行间隔，格式为 Go 语言的时间间隔字符串，例如 '5m' 表示 5 分钟，默认值为 '5m'。\n")
+	fmt.Fprintf(os.Stderr, "  其他与域名和服务商相关的环境变量，用于配置域名和服务商的认证信息。\n")
 	fmt.Fprintf(os.Stderr, "\n示例:\n")
-	fmt.Fprintf(os.Stderr, "  %s -domain 域名 -service tencent \n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "  %s -debug -service cloudflare \n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "    以调试模式启动，使用 Cloudflare 作为 DDNS 服务商。\n")
+	fmt.Fprintf(os.Stderr, "  %s -version\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "    显示程序的版本信息。\n")
 }

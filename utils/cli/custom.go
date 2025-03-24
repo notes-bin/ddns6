@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"flag"
 	"fmt"
 	"slices"
 	"strings"
@@ -8,6 +9,12 @@ import (
 
 // StringSlice 是一个自定义的字符串切片类型，支持 flag.Value 接口
 type StringSlice []string
+
+func StringsSlice(name string, value []string, usage string) *[]string {
+	p := &value
+	flag.Var((*StringSlice)(p), name, usage)
+	return p
+}
 
 // String 返回 StringSlice 的字符串表示
 func (s *StringSlice) String() string {
@@ -33,6 +40,15 @@ type ChoiceValue struct {
 	Default string   // 默认值
 }
 
+// NewChoiceValue 创建一个新的 ChoiceValue 实例
+func NewChoiceValue(defaultVal string, options []string) *ChoiceValue {
+	return &ChoiceValue{
+		Value:   defaultVal,
+		Options: options,
+		Default: defaultVal,
+	}
+}
+
 // String 返回 ChoiceValue 的字符串表示
 func (c *ChoiceValue) String() string {
 	if c.Value == "" {
@@ -48,13 +64,4 @@ func (c *ChoiceValue) Set(value string) error {
 		return nil
 	}
 	return fmt.Errorf("invalid choice %q, options are: %v", value, c.Options)
-}
-
-// NewChoiceValue 创建一个新的 ChoiceValue 实例
-func NewChoiceValue(defaultVal string, options []string) *ChoiceValue {
-	return &ChoiceValue{
-		Value:   defaultVal,
-		Options: options,
-		Default: defaultVal,
-	}
 }
