@@ -1,0 +1,10 @@
+version: '3'
+services:
+  ddns6:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      - DOMAIN=yourdomain.com  # 根据实际情况设置环境变量
+      - SUBDOMAIN=subdomain    # 根据实际情况设置环境变量
