@@ -39,7 +39,7 @@ func ExampleSubCmd() {
 	// Operation mode: fast
 }
 
-func ExampleHelp() {
+func ExampleSubCmd_Help() {
 	cmd := cli.NewSubCmd("example", "An example subcommand")
 	cmd.String("name", "world", "Your name")
 	cmd.Int("age", 30, "Your age")

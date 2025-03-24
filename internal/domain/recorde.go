@@ -9,9 +9,9 @@ import (
 	"sync"
 )
 
-// IPv6Getter 定义获取 IPv6 地址的接口
+// IPv6Getter 定义获取 IPv6 地址的接口，使用 context 支持取消操作
 type IPv6Getter interface {
-	GetIPv6Addr() (net.IP, error)
+	GetIPv6Addr(ctx context.Context) (net.IP, error)
 }
 
 // Tasker 定义执行 DNS 更新任务的接口
@@ -21,14 +21,14 @@ type Tasker interface {
 
 // UpdateRecorder 定义更新 DNS 记录的接口
 type UpdateRecorder interface {
-	UpdateRecord(ctx context.Context, ipv6Getter IPv6Getter, tasker Tasker, err error)
+	UpdateRecord(ctx context.Context, ipv6Getter IPv6Getter, tasker Tasker) error
 }
 
 // Domain 表示一个域名及其相关配置
 type Domain struct {
-	Domain    string     `env:"DOMAIN"`    // 主域名
-	SubDomain string     `env:"SUBDOMAIN"` // 子域名
-	Type      string     `env:"TYPE"`      // 记录类型
+	Domain    string     `env:"DOMAIN" required:"true"` // 主域名
+	SubDomain string     `env:"SUB_DOMAIN" default:"@"` // 子域名
+	Type      string     `env:"TYPE" default:"AAAA"`    // 记录类型
 	Addr      net.IP     // IPv6 地址
 	Err       error      // 错误信息
 	mu        sync.Mutex // 互斥锁
@@ -44,41 +44,53 @@ func (d *Domain) String() string {
 }
 
 // UpdateRecord 更新 DNS 记录
-func (d *Domain) UpdateRecord(ctx context.Context, ipv6Getter IPv6Getter, tasker Tasker, err error) {
+func (d *Domain) UpdateRecord(ctx context.Context, ipv6Getter IPv6Getter, tasker Tasker) error {
 	select {
 	case <-ctx.Done():
-		return
+		slog.Info("更新任务被取消", "domain", d.Domain, "subdomain", d.SubDomain)
+		return ctx.Err()
 	default:
 		d.mu.Lock()
 		defer d.mu.Unlock()
 
-		// 获取 IPv6 地址
-		addr, err := ipv6Getter.GetIPv6Addr()
+		addr, err := d.getIPv6Address(ctx, ipv6Getter)
 		if err != nil {
-			d.handleError("获取 IPv6 地址失败", err)
-			return
+			return d.handleError("获取 IPv6 地址失败", err)
 		}
 
-		// 检查是否获取到地址
-		if addr == nil {
-			d.handleError("获取到的 IPv6 地址为空", fmt.Errorf("获取到的 IPv6 地址为空"))
-			return
-		}
-
-		// 检查 IPv6 地址是否改变
 		if d.hasAddressChanged(addr) {
-			d.Addr = addr
-			if err := tasker.Task(d.Domain, d.SubDomain, d.Addr.String()); err != nil {
-				d.handleTaskError(err, err)
-			} else {
-				slog.Info("IPv6 地址发生变化, ddns配置完成",
-					"domain", d.Domain,
-					"subdomain", d.SubDomain,
-					"ipv6", d.Addr.String(),
-				)
-			}
+			return d.updateDNSRecord(tasker, addr)
 		}
+		slog.Info("IPv6 地址未改变，无需更新", "domain", d.Domain, "subdomain", d.SubDomain)
+		return nil
 	}
+}
+
+// getIPv6Address 获取 IPv6 地址
+func (d *Domain) getIPv6Address(ctx context.Context, ipv6Getter IPv6Getter) (net.IP, error) {
+	addr, err := ipv6Getter.GetIPv6Addr(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if addr == nil {
+		return nil, errors.New("获取到的 IPv6 地址为空")
+	}
+	return addr, nil
+}
+
+// updateDNSRecord 更新 DNS 记录
+func (d *Domain) updateDNSRecord(tasker Tasker, addr net.IP) error {
+	d.Addr = addr
+	err := tasker.Task(d.Domain, d.SubDomain, d.Addr.String())
+	if err != nil {
+		return d.handleTaskError(err)
+	}
+	slog.Info("IPv6 地址发生变化，DDNS 配置完成",
+		"domain", d.Domain,
+		"subdomain", d.SubDomain,
+		"ipv6", d.Addr.String(),
+	)
+	return nil
 }
 
 // hasAddressChanged 检查 IPv6 地址是否改变
@@ -87,25 +99,19 @@ func (d *Domain) hasAddressChanged(newAddr net.IP) bool {
 }
 
 // handleError 处理错误并记录日志
-func (d *Domain) handleError(msg string, err error) {
+func (d *Domain) handleError(msg string, err error) error {
 	d.Err = err
-	slog.Error(msg, "err", err)
+	slog.Error(msg, "domain", d.Domain, "subdomain", d.SubDomain, "err", err)
+	return err
 }
 
 // handleTaskError 处理任务错误并记录日志
-func (d *Domain) handleTaskError(taskErr, expectedErr error) {
-	if errors.Is(taskErr, expectedErr) {
-		slog.Info("IPv6 地址未改变, 无法配置ddns",
-			"domain", d.Domain,
-			"subdomain", d.SubDomain,
-			"ipv6", d.Addr.String(),
-		)
-	} else {
-		slog.Error("配置ddns解析失败",
-			"domain", d.Domain,
-			"subdomain", d.SubDomain,
-			"ipv6", d.Addr.String(),
-			"err", taskErr,
-		)
-	}
+func (d *Domain) handleTaskError(taskErr error) error {
+	slog.Error("配置 DDNS 解析失败",
+		"domain", d.Domain,
+		"subdomain", d.SubDomain,
+		"ipv6", d.Addr.String(),
+		"err", taskErr,
+	)
+	return taskErr
 }
