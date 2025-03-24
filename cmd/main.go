@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 	"github.com/notes-bin/ddns6/internal/iputil"
 	"github.com/notes-bin/ddns6/internal/providers/cloudflare"
 	"github.com/notes-bin/ddns6/internal/providers/tencent"
+	"github.com/notes-bin/ddns6/internal/scheduler" // 新增调度器导入
 	"github.com/notes-bin/ddns6/utils/env"
 	"github.com/notes-bin/ddns6/utils/logging"
 )
@@ -56,6 +58,7 @@ func main() {
 		return
 	}
 
+	// 初始化日志
 	var logWriter io.Writer
 	if config.Debug {
 		logFile, err := os.OpenFile("ddns6.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
@@ -70,6 +73,7 @@ func main() {
 	}
 	logging.Logger(config.Debug, logWriter)
 
+	// 获取域名环境变量
 	ddns := &domain.Domain{Type: "AAAA"}
 	if err := env.EnvToStruct("", ddns); err != nil {
 		slog.Error("获取域名环境变量失败", "err", err)
@@ -101,11 +105,23 @@ func main() {
 	}
 	multiProvider := iputil.NewMultiProvider(providers...)
 
+	// 创建上下文
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+	// 创建调度器实例
+	sched := scheduler.New()
+
+	// 优化错误处理协程
+	go func() {
+		for err := range sched.Errors() {
+			if errors.Is(err, context.Canceled) {
+				slog.Info("任务被取消", "err", err)
+				continue
+			}
+			slog.Error("调度器错误", "err", err)
+		}
+	}()
 
 	// 首次更新记录
 	if err := ddns.UpdateRecord(ctx, multiProvider, task); err != nil {
@@ -114,28 +130,30 @@ func main() {
 	}
 
 	// 启动定时任务
-	go scheduler(ctx, ddns, task, multiProvider, config.Interval)
+	// 添加定时任务到调度器
+	taskFunc := func(ctx context.Context) error {
+		return ddns.UpdateRecord(ctx, multiProvider, task)
+	}
+	if err := sched.AddJob("ddns_update", config.Interval, taskFunc); err != nil {
+		slog.Error("创建定时任务失败", "err", err)
+		return
+	}
+
+	// 首次立即执行
+	if err := taskFunc(context.Background()); err != nil {
+		slog.Error("首次更新记录失败", "err", err)
+	}
+
 	slog.Info("ddns6 启动成功...", "pid", os.Getpid())
 
+	// 信号处理
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	<-sigCh
-	cancel()
+
+	// 优雅关闭
+	sched.GracefulShutdown()
 	slog.Info("ddns6 退出成功...")
-}
-
-func scheduler(ctx context.Context, record domain.UpdateRecorder, task domain.Tasker, ipv6Getter domain.IPv6Getter, interval time.Duration) {
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if err := record.UpdateRecord(ctx, ipv6Getter, task); err != nil {
-				slog.Error("定时更新记录失败", "err", err)
-			}
-		}
-	}
 }
 
 func usages() {
