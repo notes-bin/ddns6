@@ -1,28 +1,112 @@
-package tencent_test
+package tencent
 
 import (
-	"fmt"
-	"log"
+	"net/http"
+	"net/http/httptest"
 	"testing"
-
-	"github.com/notes-bin/ddns6/internal/providers/tencent"
 )
 
-func TestMain(t *testing.T) {
-	// Create client with API credentials
-	client := tencent.NewClient("your-secret-id", "your-secret-key")
+func TestAddDomainRecord(t *testing.T) {
+	// 创建测试服务器
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"Response": {"RecordId": "123456"}}`))
+	}))
+	defer ts.Close()
 
-	// Add TXT record
-	err := client.AddTxtRecord("_acme-challenge.www.example.com", "XKrxpRBosdIKFzxW_CT3KLZNf6q0HG9i01zxXp5CPBs")
-	if err != nil {
-		log.Fatalf("Error adding TXT record: %v", err)
-	}
-	fmt.Println("TXT record added successfully")
+	// 创建客户端
+	client := NewClient("testId", "testKey", WithBaseURL(ts.URL))
 
-	// Remove TXT record
-	err = client.RemoveTxtRecord("_acme-challenge.www.example.com", "XKrxpRBosdIKFzxW_CT3KLZNf6q0HG9i01zxXp5CPBs")
+	// 测试添加记录
+	err := client.AddDomainRecord("test.example.com", "A", "192.168.1.1", 600)
 	if err != nil {
-		log.Fatalf("Error removing TXT record: %v", err)
+		t.Errorf("AddDomainRecord failed: %v", err)
 	}
-	fmt.Println("TXT record removed successfully")
+}
+
+func TestModifyDomainRecord(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"Response": {"RequestId": "req-123"}}`))
+	}))
+	defer ts.Close()
+
+	client := NewClient("testId", "testKey", WithBaseURL(ts.URL))
+
+	err := client.ModifyDomainRecord("test.example.com", "123456", "A", "192.168.1.2", 600)
+	if err != nil {
+		t.Errorf("ModifyDomainRecord failed: %v", err)
+	}
+}
+
+func TestDeleteDomainRecord(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"Response": {"RequestId": "req-123"}}`))
+	}))
+	defer ts.Close()
+
+	client := NewClient("testId", "Key", WithBaseURL(ts.URL))
+
+	err := client.DeleteDomainRecord("test.example.com", "123456")
+	if err != nil {
+		t.Errorf("DeleteDomainRecord failed: %v", err)
+	}
+}
+
+func TestGetDomainRecords(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"Response": {"RecordList": [{"RecordId": "123456", "Domain": "example.com", "SubDomain": "test", "RecordType": "A", "Value": "192.168.1.1", "TTL": 600}]}}`))
+	}))
+	defer ts.Close()
+
+	client := NewClient("testId", "testKey", WithBaseURL(ts.URL))
+
+	records, err := client.GetDomainRecords("test.example.com")
+	if err != nil {
+		t.Errorf("GetDomainRecords failed: %v", err)
+	}
+
+	if len(records) != 1 {
+		t.Errorf("Expected 1 record, got %d", len(records))
+	}
+}
+
+func TestGetDomainRecord(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"Response": {"RecordInfo": {"RecordId": "123456", "Domain": "example.com", "SubDomain": "test", "RecordType": "A", "Value": "192.168.1.1", "TTL": 600}}}`))
+	}))
+	defer ts.Close()
+
+	client := NewClient("testId", "testKey", WithBaseURL(ts.URL))
+
+	record, err := client.GetDomainRecord("test.example.com", "123456")
+	if err != nil {
+		t.Errorf("GetDomainRecord failed: %v", err)
+	}
+
+	if record.RecordId != "123456" {
+		t.Errorf("Expected record ID 123456, got %s", record.RecordId)
+	}
+}
+
+func TestFindDomainRecord(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"Response": {"RecordList": [{"RecordId": "123456", "Domain": "example.com", "SubDomain": "test", "RecordType": "A", "Value": "192.168.1.1", "TTL": 600}]}}`))
+	}))
+	defer ts.Close()
+
+	client := NewClient("testId", "testKey", WithBaseURL(ts.URL))
+
+	record, err := client.FindDomainRecord("test.example.com", "A", "192.168.1.1")
+	if err != nil {
+		t.Errorf("FindDomainRecord failed: %v", err)
+	}
+
+	if record == nil {
+		t.Error("Expected a record, got nil")
+	}
 }

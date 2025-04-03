@@ -22,6 +22,11 @@ type TencentClient struct {
 	HTTPClient *http.Client
 }
 
+// Task implements domain.Tasker.
+func (c *TencentClient) Task(domain string, subdomain string, ipv6addr string) error {
+	panic("unimplemented")
+}
+
 // NewClient creates a new TencentClient
 func NewClient(secretId, secretKey string, options ...func(*TencentClient)) *TencentClient {
 	client := &TencentClient{
@@ -64,8 +69,8 @@ type DNSRecord struct {
 	TTL          int    `json:"TTL,omitempty"`
 }
 
-// AddTxtRecord adds a TXT record to Tencent Cloud DNS
-func (c *TencentClient) AddTxtRecord(fulldomain, txtvalue string) error {
+// AddDomainRecord 添加域名解析记录
+func (c *TencentClient) AddDomainRecord(fulldomain, recordType, value string, ttl int) error {
 	domain, subDomain, err := c.getRootDomain(fulldomain)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %v", err)
@@ -74,48 +79,115 @@ func (c *TencentClient) AddTxtRecord(fulldomain, txtvalue string) error {
 	record := DNSRecord{
 		Domain:       domain,
 		SubDomain:    subDomain,
-		RecordType:   "TXT",
+		RecordType:   recordType,
 		RecordLine:   "0",
 		RecordLineId: "0",
-		Value:        txtvalue,
-		TTL:          600,
+		Value:        value,
+		TTL:          ttl,
 	}
 
 	_, err = c.createRecord(record)
 	return err
 }
 
-// RemoveTxtRecord removes a TXT record from Tencent Cloud DNS
-func (c *TencentClient) RemoveTxtRecord(fulldomain, txtvalue string) error {
-	domain, subDomain, err := c.getRootDomain(fulldomain)
+// ModifyDomainRecord 修改域名解析记录
+func (c *TencentClient) ModifyDomainRecord(fulldomain, recordId, recordType, newValue string, ttl int) error {
+	domain, _, err := c.getRootDomain(fulldomain)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %v", err)
 	}
 
-	// Try multiple times due to potential API synchronization delay
-	var recordId string
-	maxAttempts := 5
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		recordId, err = c.findRecordId(domain, subDomain, txtvalue)
-		if err != nil {
-			return fmt.Errorf("failed to find record: %v", err)
-		}
-
-		if recordId != "" {
-			break
-		}
-
-		if attempt < maxAttempts {
-			time.Sleep(10 * time.Second)
-		}
+	payload := map[string]any{
+		"Domain":     domain,
+		"RecordId":   recordId,
+		"RecordType": recordType,
+		"Value":      newValue,
+		"TTL":        ttl,
 	}
 
-	if recordId == "" {
-		// Record not found, nothing to do
-		return nil
+	var response struct {
+		Response struct {
+			RequestId string `json:"RequestId"`
+		} `json:"Response"`
 	}
 
+	return c.makeRequest("ModifyRecord", payload, &response)
+}
+
+// DeleteDomainRecord 删除域名解析记录
+func (c *TencentClient) DeleteDomainRecord(fulldomain, recordId string) error {
+	domain, _, err := c.getRootDomain(fulldomain)
+	if err != nil {
+		return fmt.Errorf("failed to get root domain: %v", err)
+	}
 	return c.deleteRecord(domain, recordId)
+}
+
+// GetDomainRecords 查询域名的所有解析记录
+func (c *TencentClient) GetDomainRecords(fulldomain string) ([]DNSRecord, error) {
+	domain, subDomain, err := c.getRootDomain(fulldomain)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get root domain: %v", err)
+	}
+	return c.describeRecords(domain, subDomain)
+}
+
+// GetDomainRecord 查询特定解析记录
+func (c *TencentClient) GetDomainRecord(fulldomain, recordId string) (*DNSRecord, error) {
+	domain, _, err := c.getRootDomain(fulldomain)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get root domain: %v", err)
+	}
+
+	payload := map[string]any{
+		"Domain":   domain,
+		"RecordId": recordId,
+	}
+
+	var response struct {
+		Response struct {
+			RecordInfo DNSRecord `json:"RecordInfo"`
+		} `json:"Response"`
+	}
+
+	err = c.makeRequest("DescribeRecord", payload, &response)
+	if err != nil {
+		return nil, err
+	}
+
+	return &response.Response.RecordInfo, nil
+}
+
+// FindDomainRecord 根据子域名和值查找解析记录
+func (c *TencentClient) FindDomainRecord(fulldomain, recordType, value string) (*DNSRecord, error) {
+	domain, subDomain, err := c.getRootDomain(fulldomain)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get root domain: %v", err)
+	}
+
+	payload := map[string]any{
+		"Domain":      domain,
+		"SubDomain":   subDomain,
+		"RecordType":  recordType,
+		"RecordValue": value,
+	}
+
+	var response struct {
+		Response struct {
+			RecordList []DNSRecord `json:"RecordList"`
+		} `json:"Response"`
+	}
+
+	err = c.makeRequest("DescribeRecordFilterList", payload, &response)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(response.Response.RecordList) > 0 {
+		return &response.Response.RecordList[0], nil
+	}
+
+	return nil, nil
 }
 
 // getRootDomain finds the root domain and subdomain
@@ -167,34 +239,6 @@ func (c *TencentClient) describeRecords(domain, subDomain string) ([]DNSRecord, 
 	return response.Response.RecordList, nil
 }
 
-// findRecordId finds the ID of a specific TXT record
-func (c *TencentClient) findRecordId(domain, subDomain, value string) (string, error) {
-	payload := map[string]any{
-		"Domain":      domain,
-		"SubDomain":   subDomain,
-		"RecordValue": value,
-	}
-
-	var response struct {
-		Response struct {
-			RecordList []struct {
-				RecordId string `json:"RecordId"`
-			} `json:"RecordList"`
-		} `json:"Response"`
-	}
-
-	err := c.makeRequest("DescribeRecordFilterList", payload, &response)
-	if err != nil {
-		return "", err
-	}
-
-	if len(response.Response.RecordList) > 0 {
-		return response.Response.RecordList[0].RecordId, nil
-	}
-
-	return "", nil
-}
-
 // createRecord creates a new DNS record
 func (c *TencentClient) createRecord(record DNSRecord) (*DNSRecord, error) {
 	payload := map[string]any{
@@ -236,6 +280,34 @@ func (c *TencentClient) deleteRecord(domain, recordId string) error {
 	}
 
 	return c.makeRequest("DeleteRecord", payload, &response)
+}
+
+// findRecordId finds the ID of a specific TXT record
+func (c *TencentClient) findRecordId(domain, subDomain, value string) (string, error) {
+	payload := map[string]any{
+		"Domain":      domain,
+		"SubDomain":   subDomain,
+		"RecordValue": value,
+	}
+
+	var response struct {
+		Response struct {
+			RecordList []struct {
+				RecordId string `json:"RecordId"`
+			} `json:"RecordList"`
+		} `json:"Response"`
+	}
+
+	err := c.makeRequest("DescribeRecordFilterList", payload, &response)
+	if err != nil {
+		return "", err
+	}
+
+	if len(response.Response.RecordList) > 0 {
+		return response.Response.RecordList[0].RecordId, nil
+	}
+
+	return "", nil
 }
 
 // makeRequest performs an authenticated request to the Tencent Cloud API

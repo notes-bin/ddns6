@@ -1,4 +1,4 @@
-package cloudflare
+package huaweicloud
 
 import (
 	"net/http"
@@ -8,12 +8,12 @@ import (
 
 func TestAddDomainRecord(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"success": true, "result": {"id": "123456"}}`))
+		w.WriteHeader(http.StatusAccepted)
+		w.Write([]byte(`{"id": "123456"}`))
 	}))
 	defer ts.Close()
 
-	client := NewClient(WithAPIToken("test-token"), WithBaseURL(ts.URL))
+	client := NewClient("testUser", "testPass", "testDomain", WithDNSURL(ts.URL))
 
 	err := client.AddDomainRecord("test.example.com", "A", "192.168.1.1", 600)
 	if err != nil {
@@ -23,12 +23,12 @@ func TestAddDomainRecord(t *testing.T) {
 
 func TestModifyDomainRecord(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"success": true, "result": {"id": "123456"}}`))
+		w.WriteHeader(http.StatusAccepted)
+		w.Write([]byte(`{"id": "123456"}`))
 	}))
 	defer ts.Close()
 
-	client := NewClient(WithAPIToken("test-token"), WithBaseURL(ts.URL))
+	client := NewClient("testUser", "testPass", "testDomain", WithDNSURL(ts.URL))
 
 	err := client.ModifyDomainRecord("test.example.com", "123456", "A", "192.168.1.2", 600)
 	if err != nil {
@@ -38,12 +38,11 @@ func TestModifyDomainRecord(t *testing.T) {
 
 func TestDeleteDomainRecord(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"success": true}`))
+		w.WriteHeader(http.StatusAccepted)
 	}))
 	defer ts.Close()
 
-	client := NewClient(WithAPIToken("test-token"), WithBaseURL(ts.URL))
+	client := NewClient("testUser", "testPass", "testDomain", WithDNSURL(ts.URL))
 
 	err := client.DeleteDomainRecord("test.example.com", "123456")
 	if err != nil {
@@ -54,13 +53,13 @@ func TestDeleteDomainRecord(t *testing.T) {
 func TestGetDomainRecords(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"success": true, "result": [{"id": "123456", "type": "A", "name": "test.example.com", "content": "192.168.1.1", "ttl": 600}]}`))
+		w.Write([]byte(`{"recordsets": [{"id": "123456", "name": "test.example.com.", "type": "A", "records": ["192.168.1.1"], "ttl": 600}]}`))
 	}))
 	defer ts.Close()
 
-	client := NewClient(WithAPIToken("test-token"), WithBaseURL(ts.URL))
+	client := NewClient("testUser", "testPass", "testDomain", WithDNSURL(ts.URL))
 
-	records, err := client.GetDomainRecords("test.example.com", "A")
+	records, err := client.GetDomainRecords("test.example.com")
 	if err != nil {
 		t.Errorf("GetDomainRecords failed: %v", err)
 	}
@@ -73,11 +72,11 @@ func TestGetDomainRecords(t *testing.T) {
 func TestGetDomainRecord(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"success": true, "result": {"id": "123456", "type": "A", "name": "test.example.com", "content": "192.168.1.1", "ttl": 600}}`))
+		w.Write([]byte(`{"id": "123456", "name": "test.example.com.", "type": "A", "records": ["192.168.1.1"], "ttl": 600}`))
 	}))
 	defer ts.Close()
 
-	client := NewClient(WithAPIToken("test-token"), WithBaseURL(ts.URL))
+	client := NewClient("testUser", "testPass", "testDomain", WithDNSURL(ts.URL))
 
 	record, err := client.GetDomainRecord("test.example.com", "123456")
 	if err != nil {
@@ -89,41 +88,40 @@ func TestGetDomainRecord(t *testing.T) {
 	}
 }
 
-func TestGetZoneID(t *testing.T) {
+func TestGetToken(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"success": true, "result": [{"id": "zone123", "name": "example.com"}]}`))
+		w.Header().Set("X-Subject-Token", "test-token")
+		w.WriteHeader(http.StatusCreated)
 	}))
 	defer ts.Close()
 
-	client := NewClient(WithAPIToken("test-token"), WithBaseURL(ts.URL))
+	client := NewClient("testUser", "testPass", "testDomain", WithIAMURL(ts.URL))
 
-	zoneID, err := client.getZoneID("test.example.com")
+	token, err := client.getToken()
+	if err != nil {
+		t.Errorf("getToken failed: %v", err)
+	}
+
+	if token != "test-token" {
+		t.Errorf("Expected token 'test-token', got '%s'", token)
+	}
+}
+
+func TestGetZoneID(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"zones": [{"id": "zone123", "name": "example.com."}]}`))
+	}))
+	defer ts.Close()
+
+	client := NewClient("testUser", "testPass", "testDomain", WithDNSURL(ts.URL))
+
+	zoneID, err := client.getZoneID("test-token", "test.example.com")
 	if err != nil {
 		t.Errorf("getZoneID failed: %v", err)
 	}
 
 	if zoneID != "zone123" {
 		t.Errorf("Expected zone ID 'zone123', got '%s'", zoneID)
-	}
-}
-
-func TestMakeRequest(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"success": true, "result": {"status": "ok"}}`))
-	}))
-	defer ts.Close()
-
-	client := NewClient(WithAPIToken("test-token"), WithBaseURL(ts.URL))
-
-	var result map[string]interface{}
-	err := client.makeRequest("GET", ts.URL, nil, &result)
-	if err != nil {
-		t.Errorf("makeRequest failed: %v", err)
-	}
-
-	if result["status"] != "ok" {
-		t.Errorf("Expected status 'ok', got '%v'", result["status"])
 	}
 }

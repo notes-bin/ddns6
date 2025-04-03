@@ -7,7 +7,7 @@ import (
 )
 
 // 日志记录器
-func Logger(debug bool, out io.Writer) {
+func SetLogger(debug bool, out io.Writer) {
 	opts := new(slog.HandlerOptions)
 	if debug {
 		opts.Level = slog.LevelDebug
