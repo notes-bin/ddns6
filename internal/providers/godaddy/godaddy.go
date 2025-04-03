@@ -55,79 +55,89 @@ type DNSRecord struct {
 	TTL  int    `json:"ttl,omitempty"`
 }
 
-// AddTxtRecord adds a TXT record to GoDaddy DNS
-func (c *GoDaddyClient) AddTxtRecord(fulldomain, txtvalue string) error {
+// AddDomainRecord 添加域名解析记录
+func (c *GoDaddyClient) AddDomainRecord(fulldomain, recordType, value string, ttl int) error {
 	subDomain, domain, err := c.getRootDomain(fulldomain)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %v", err)
 	}
 
-	// Get existing records
-	existingRecords, err := c.getTxtRecords(domain, subDomain)
+	// 获取现有记录
+	existingRecords, err := c.getRecords(domain, subDomain, recordType)
 	if err != nil {
 		return fmt.Errorf("failed to get existing records: %v", err)
 	}
 
-	// Check if record already exists
+	// 检查记录是否已存在
 	for _, record := range existingRecords {
-		if record.Data == txtvalue {
-			// Record already exists
-			return nil
+		if record.Data == value {
+			return nil // 记录已存在
 		}
 	}
 
-	// Prepare new records (keep existing and add new one)
-	newRecords := append(existingRecords, DNSRecord{
-		Data: txtvalue,
-		Type: "TXT",
+	// 添加新记录
+	newRecord := DNSRecord{
+		Data: value,
+		Type: recordType,
 		Name: subDomain,
-	})
+		TTL:  ttl,
+	}
+	newRecords := append(existingRecords, newRecord)
 
-	// Update records
-	err = c.updateTxtRecords(domain, subDomain, newRecords)
+	// 更新记录
+	return c.updateRecords(domain, subDomain, recordType, newRecords)
+}
+
+// ModifyDomainRecord 修改域名解析记录
+func (c *GoDaddyClient) ModifyDomainRecord(fulldomain, recordType, oldValue, newValue string, ttl int) error {
+	subDomain, domain, err := c.getRootDomain(fulldomain)
 	if err != nil {
-		return fmt.Errorf("failed to update records: %v", err)
+		return fmt.Errorf("failed to get root domain: %v", err)
 	}
 
-	// Verify the record was added
-	updatedRecords, err := c.getTxtRecords(domain, subDomain)
+	// 获取现有记录
+	existingRecords, err := c.getRecords(domain, subDomain, recordType)
 	if err != nil {
-		return fmt.Errorf("failed to verify record addition: %v", err)
+		return fmt.Errorf("failed to get existing records: %v", err)
 	}
 
-	found := false
-	for _, record := range updatedRecords {
-		if record.Data == txtvalue {
-			found = true
+	// 查找并修改记录
+	var modified bool
+	for i, record := range existingRecords {
+		if record.Data == oldValue {
+			existingRecords[i].Data = newValue
+			existingRecords[i].TTL = ttl
+			modified = true
 			break
 		}
 	}
 
-	if !found {
-		return fmt.Errorf("failed to add TXT record, value not found after addition")
+	if !modified {
+		return fmt.Errorf("record not found")
 	}
 
-	return nil
+	// 更新记录
+	return c.updateRecords(domain, subDomain, recordType, existingRecords)
 }
 
-// RemoveTxtRecord removes a TXT record from GoDaddy DNS
-func (c *GoDaddyClient) RemoveTxtRecord(fulldomain, txtvalue string) error {
+// DeleteDomainRecord 删除域名解析记录
+func (c *GoDaddyClient) DeleteDomainRecord(fulldomain, recordType, value string) error {
 	subDomain, domain, err := c.getRootDomain(fulldomain)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %v", err)
 	}
 
-	// Get existing records
-	existingRecords, err := c.getTxtRecords(domain, subDomain)
+	// 获取现有记录
+	existingRecords, err := c.getRecords(domain, subDomain, recordType)
 	if err != nil {
 		return fmt.Errorf("failed to get existing records: %v", err)
 	}
 
-	// Filter out the record to remove
+	// 过滤要删除的记录
 	var newRecords []DNSRecord
-	found := false
+	var found bool
 	for _, record := range existingRecords {
-		if record.Data != txtvalue {
+		if record.Data != value {
 			newRecords = append(newRecords, record)
 		} else {
 			found = true
@@ -135,25 +145,50 @@ func (c *GoDaddyClient) RemoveTxtRecord(fulldomain, txtvalue string) error {
 	}
 
 	if !found {
-		// Record doesn't exist, nothing to do
-		return nil
+		return nil // 记录不存在
 	}
 
 	if len(newRecords) == 0 {
-		// No records left, delete the entry completely
-		err = c.deleteTxtRecords(domain, subDomain)
-		if err != nil {
-			return fmt.Errorf("failed to delete empty TXT record: %v", err)
-		}
-	} else {
-		// Update with remaining records
-		err = c.updateTxtRecords(domain, subDomain, newRecords)
-		if err != nil {
-			return fmt.Errorf("failed to update records: %v", err)
-		}
+		// 如果没有剩余记录，则完全删除
+		return c.deleteRecords(domain, subDomain, recordType)
 	}
 
-	return nil
+	// 更新剩余记录
+	return c.updateRecords(domain, subDomain, recordType, newRecords)
+}
+
+// GetDomainRecords 获取域名的所有解析记录
+func (c *GoDaddyClient) GetDomainRecords(fulldomain, recordType string) ([]DNSRecord, error) {
+	subDomain, domain, err := c.getRootDomain(fulldomain)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get root domain: %v", err)
+	}
+
+	return c.getRecords(domain, subDomain, recordType)
+}
+
+// getRecords 获取指定类型的记录
+func (c *GoDaddyClient) getRecords(domain, subDomain, recordType string) ([]DNSRecord, error) {
+	url := fmt.Sprintf("%s/domains/%s/records/%s/%s", c.BaseURL, domain, recordType, subDomain)
+	var records []DNSRecord
+	err := c.makeRequest("GET", url, nil, &records)
+	return records, err
+}
+
+// updateRecords 更新记录
+func (c *GoDaddyClient) updateRecords(domain, subDomain, recordType string, records []DNSRecord) error {
+	url := fmt.Sprintf("%s/domains/%s/records/%s/%s", c.BaseURL, domain, recordType, subDomain)
+	body, err := json.Marshal(records)
+	if err != nil {
+		return err
+	}
+	return c.makeRequest("PUT", url, bytes.NewBuffer(body), nil)
+}
+
+// deleteRecords 删除所有记录
+func (c *GoDaddyClient) deleteRecords(domain, subDomain, recordType string) error {
+	url := fmt.Sprintf("%s/domains/%s/records/%s/%s", c.BaseURL, domain, recordType, subDomain)
+	return c.makeRequest("DELETE", url, nil, nil)
 }
 
 // getRootDomain finds the root domain and subdomain
@@ -179,32 +214,6 @@ func (c *GoDaddyClient) getDomain(domain string) (map[string]interface{}, error)
 	var result map[string]interface{}
 	err := c.makeRequest("GET", url, nil, &result)
 	return result, err
-}
-
-// getTxtRecords retrieves TXT records for a subdomain
-func (c *GoDaddyClient) getTxtRecords(domain, subDomain string) ([]DNSRecord, error) {
-	url := fmt.Sprintf("%s/domains/%s/records/TXT/%s", c.BaseURL, domain, subDomain)
-	var records []DNSRecord
-	err := c.makeRequest("GET", url, nil, &records)
-	return records, err
-}
-
-// updateTxtRecords updates TXT records for a subdomain
-func (c *GoDaddyClient) updateTxtRecords(domain, subDomain string, records []DNSRecord) error {
-	url := fmt.Sprintf("%s/domains/%s/records/TXT/%s", c.BaseURL, domain, subDomain)
-
-	body, err := json.Marshal(records)
-	if err != nil {
-		return err
-	}
-
-	return c.makeRequest("PUT", url, bytes.NewBuffer(body), nil)
-}
-
-// deleteTxtRecords deletes all TXT records for a subdomain
-func (c *GoDaddyClient) deleteTxtRecords(domain, subDomain string) error {
-	url := fmt.Sprintf("%s/domains/%s/records/TXT/%s", c.BaseURL, domain, subDomain)
-	return c.makeRequest("DELETE", url, nil, nil)
 }
 
 // makeRequest performs an HTTP request to the GoDaddy API

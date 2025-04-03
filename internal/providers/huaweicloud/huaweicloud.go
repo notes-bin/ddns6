@@ -68,8 +68,8 @@ type DNSRecord struct {
 	Records     []string `json:"records"`
 }
 
-// AddTxtRecord adds a TXT record to Huawei Cloud DNS
-func (c *HuaweiCloudClient) AddTxtRecord(fulldomain, txtvalue string) error {
+// AddDomainRecord 添加域名解析记录
+func (c *HuaweiCloudClient) AddDomainRecord(fulldomain, recordType, value string, ttl int) error {
 	token, err := c.getToken()
 	if err != nil {
 		return fmt.Errorf("failed to get token: %v", err)
@@ -80,47 +80,19 @@ func (c *HuaweiCloudClient) AddTxtRecord(fulldomain, txtvalue string) error {
 		return fmt.Errorf("failed to get zone ID: %v", err)
 	}
 
-	// Get existing records
-	existingRecords, err := c.getRecordSet(token, zoneID, fulldomain)
-	if err != nil {
-		return fmt.Errorf("failed to get existing records: %v", err)
-	}
-
-	// Prepare new record value
-	newRecord := fmt.Sprintf("\"%s\"", txtvalue)
-
-	// Check if record already exists
-	for _, record := range existingRecords.Records {
-		if record == newRecord {
-			// Record already exists
-			return nil
-		}
-	}
-
-	// Add new record to existing records
-	updatedRecords := append(existingRecords.Records, newRecord)
-
-	// Prepare updated record set
-	updatedRecordSet := DNSRecord{
+	record := DNSRecord{
 		Name:    fulldomain + ".",
-		Type:    "TXT",
-		TTL:     1,
-		Records: updatedRecords,
+		Type:    recordType,
+		TTL:     ttl,
+		Records: []string{value},
 	}
 
-	// Update or create record set
-	if existingRecords.ID != "" {
-		_, err = c.updateRecordSet(token, zoneID, existingRecords.ID, updatedRecordSet)
-	} else {
-		updatedRecordSet.Description = "ACME Challenge"
-		_, err = c.createRecordSet(token, zoneID, updatedRecordSet)
-	}
-
+	_, err = c.createRecordSet(token, zoneID, record)
 	return err
 }
 
-// RemoveTxtRecord removes a TXT record from Huawei Cloud DNS
-func (c *HuaweiCloudClient) RemoveTxtRecord(fulldomain, txtvalue string) error {
+// ModifyDomainRecord 修改域名解析记录
+func (c *HuaweiCloudClient) ModifyDomainRecord(fulldomain, recordID, recordType, newValue string, ttl int) error {
 	token, err := c.getToken()
 	if err != nil {
 		return fmt.Errorf("failed to get token: %v", err)
@@ -131,83 +103,125 @@ func (c *HuaweiCloudClient) RemoveTxtRecord(fulldomain, txtvalue string) error {
 		return fmt.Errorf("failed to get zone ID: %v", err)
 	}
 
-	// Try multiple times to handle potential synchronization delays
-	maxAttempts := 50
-	for attempt := 0; attempt < maxAttempts; attempt++ {
-		recordSet, err := c.getRecordSet(token, zoneID, fulldomain)
-		if err != nil {
-			return fmt.Errorf("failed to get record set: %v", err)
-		}
-
-		if recordSet.ID == "" {
-			// Record set doesn't exist
-			return nil
-		}
-
-		// Filter out the record to remove
-		var updatedRecords []string
-		targetRecord := fmt.Sprintf("\"%s\"", txtvalue)
-		found := false
-		for _, record := range recordSet.Records {
-			if record != targetRecord {
-				updatedRecords = append(updatedRecords, record)
-			} else {
-				found = true
-			}
-		}
-
-		if !found {
-			// Record not found, nothing to do
-			return nil
-		}
-
-		if len(updatedRecords) == 0 {
-			// No records left, delete the entire record set
-			err = c.deleteRecordSet(token, zoneID, recordSet.ID)
-			if err == nil {
-				return nil
-			}
-		} else {
-			// Update with remaining records
-			updatedRecordSet := DNSRecord{
-				Name:    fulldomain + ".",
-				Type:    "TXT",
-				TTL:     1,
-				Records: updatedRecords,
-			}
-			_, err = c.updateRecordSet(token, zoneID, recordSet.ID, updatedRecordSet)
-			if err == nil {
-				return nil
-			}
-		}
-
-		if attempt < maxAttempts-1 {
-			// Wait before retrying
-			continue
-		}
+	record := DNSRecord{
+		Name:    fulldomain + ".",
+		Type:    recordType,
+		TTL:     ttl,
+		Records: []string{newValue},
 	}
 
-	return fmt.Errorf("failed to remove record after %d attempts", maxAttempts)
+	_, err = c.updateRecordSet(token, zoneID, recordID, record)
+	return err
+}
+
+// DeleteDomainRecord 删除域名解析记录
+func (c *HuaweiCloudClient) DeleteDomainRecord(fulldomain, recordID string) error {
+	token, err := c.getToken()
+	if err != nil {
+		return fmt.Errorf("failed to get token: %v", err)
+	}
+
+	zoneID, err := c.getZoneID(token, fulldomain)
+	if err != nil {
+		return fmt.Errorf("failed to get zone ID: %v", err)
+	}
+
+	return c.deleteRecordSet(token, zoneID, recordID)
+}
+
+// GetDomainRecords 查询域名的所有解析记录
+func (c *HuaweiCloudClient) GetDomainRecords(fulldomain string) ([]DNSRecord, error) {
+	token, err := c.getToken()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get token: %v", err)
+	}
+
+	zoneID, err := c.getZoneID(token, fulldomain)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get zone ID: %v", err)
+	}
+
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/v2/zones/%s/recordsets", c.DNSURL, zoneID), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-Auth-Token", token)
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get records, status: %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Recordsets []DNSRecord `json:"recordsets"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	return result.Recordsets, nil
+}
+
+// GetDomainRecord 查询特定解析记录
+func (c *HuaweiCloudClient) GetDomainRecord(fulldomain, recordID string) (*DNSRecord, error) {
+	token, err := c.getToken()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get token: %v", err)
+	}
+
+	zoneID, err := c.getZoneID(token, fulldomain)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get zone ID: %v", err)
+	}
+
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/v2/zones/%s/recordsets/%s", c.DNSURL, zoneID, recordID), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-Auth-Token", token)
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get record, status: %d", resp.StatusCode)
+	}
+
+	var record DNSRecord
+	if err := json.NewDecoder(resp.Body).Decode(&record); err != nil {
+		return nil, err
+	}
+
+	return &record, nil
 }
 
 // getToken retrieves an authentication token from Huawei Cloud IAM
 func (c *HuaweiCloudClient) getToken() (string, error) {
-	authRequest := map[string]interface{}{
-		"auth": map[string]interface{}{
-			"identity": map[string]interface{}{
+	authRequest := map[string]any{
+		"auth": map[string]any{
+			"identity": map[string]any{
 				"methods": []string{"password"},
-				"password": map[string]interface{}{
-					"user": map[string]interface{}{
+				"password": map[string]any{
+					"user": map[string]any{
 						"name":     c.Username,
 						"password": c.Password,
-						"domain": map[string]interface{}{
+						"domain": map[string]any{
 							"name": c.DomainName,
 						},
 					},
 				},
 			},
-			"scope": map[string]interface{}{
-				"project": map[string]interface{}{
+			"scope": map[string]any{
+				"project": map[string]any{
 					"name": "ap-southeast-1",
 				},
 			},
@@ -285,39 +299,6 @@ func (c *HuaweiCloudClient) getZoneID(token, domain string) (string, error) {
 	}
 
 	return "", fmt.Errorf("zone not found for domain %s", domain)
-}
-
-// getRecordSet retrieves a DNS record set
-func (c *HuaweiCloudClient) getRecordSet(token, zoneID, name string) (DNSRecord, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/v2/zones/%s/recordsets?name=%s&status=ACTIVE", c.DNSURL, zoneID, name), nil)
-	if err != nil {
-		return DNSRecord{}, err
-	}
-	req.Header.Set("X-Auth-Token", token)
-
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return DNSRecord{}, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return DNSRecord{}, fmt.Errorf("failed to get record set, status: %d", resp.StatusCode)
-	}
-
-	var result struct {
-		Recordsets []DNSRecord `json:"recordsets"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return DNSRecord{}, err
-	}
-
-	if len(result.Recordsets) > 0 {
-		return result.Recordsets[0], nil
-	}
-
-	return DNSRecord{}, nil
 }
 
 // createRecordSet creates a new DNS record set

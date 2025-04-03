@@ -1,11 +1,9 @@
 package alicloud
 
 import (
-	"bytes"
 	"crypto/hmac"
 	"crypto/sha1"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -64,8 +62,8 @@ type DNSRecord struct {
 	TTL      int    `json:"TTL"`
 }
 
-// AddTxtRecord adds a TXT record to Alibaba Cloud DNS
-func (c *AliDNSClient) AddTxtRecord(fulldomain, txtvalue string) error {
+// AddDomainRecord 添加域名解析记录
+func (c *AliDNSClient) AddDomainRecord(fulldomain, recordType, value string, ttl int) error {
 	domain, subDomain, err := c.getRootDomain(fulldomain)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %v", err)
@@ -75,9 +73,9 @@ func (c *AliDNSClient) AddTxtRecord(fulldomain, txtvalue string) error {
 		"Action":       "AddDomainRecord",
 		"DomainName":   domain,
 		"RR":           subDomain,
-		"Type":         "TXT",
-		"Value":        txtvalue,
-		"TTL":          "600",
+		"Type":         recordType,
+		"Value":        value,
+		"TTL":          fmt.Sprintf("%d", ttl),
 		"RecordLine":   "default",
 		"RecordLineId": "0",
 	}
@@ -86,32 +84,82 @@ func (c *AliDNSClient) AddTxtRecord(fulldomain, txtvalue string) error {
 	return err
 }
 
-// RemoveTxtRecord removes a TXT record from Alibaba Cloud DNS
-func (c *AliDNSClient) RemoveTxtRecord(fulldomain, txtvalue string) error {
-	domain, subDomain, err := c.getRootDomain(fulldomain)
-	if err != nil {
-		return fmt.Errorf("failed to get root domain: %v", err)
+// ModifyDomainRecord 修改域名解析记录
+func (c *AliDNSClient) ModifyDomainRecord(fulldomain, recordID, recordType, newValue string, ttl int) error {
+	params := map[string]string{
+		"Action":   "UpdateDomainRecord",
+		"RecordId": recordID,
+		"RR":       fulldomain,
+		"Type":     recordType,
+		"Value":    newValue,
+		"TTL":      fmt.Sprintf("%d", ttl),
 	}
 
-	// Find the record ID
-	recordId, err := c.findRecordId(domain, subDomain, txtvalue)
-	if err != nil {
-		return fmt.Errorf("failed to find record: %v", err)
-	}
+	_, err := c.makeRequest(params)
+	return err
+}
 
-	if recordId == "" {
-		// Record doesn't exist, nothing to do
-		return nil
-	}
-
-	// Delete the record
+// DeleteDomainRecord 删除域名解析记录
+func (c *AliDNSClient) DeleteDomainRecord(fulldomain, recordID string) error {
 	params := map[string]string{
 		"Action":   "DeleteDomainRecord",
-		"RecordId": recordId,
+		"RecordId": recordID,
 	}
 
-	_, err = c.makeRequest(params)
+	_, err := c.makeRequest(params)
 	return err
+}
+
+// GetDomainRecords 获取域名的所有解析记录
+func (c *AliDNSClient) GetDomainRecords(fulldomain, recordType string) ([]DNSRecord, error) {
+	domain, subDomain, err := c.getRootDomain(fulldomain)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get root domain: %v", err)
+	}
+
+	params := map[string]string{
+		"Action":      "DescribeDomainRecords",
+		"DomainName":  domain,
+		"RRKeyWord":   subDomain,
+		"TypeKeyWord": recordType,
+	}
+
+	resp, err := c.makeRequest(params)
+	if err != nil {
+		return nil, err
+	}
+
+	var result struct {
+		DomainRecords struct {
+			Record []DNSRecord `json:"Record"`
+		} `json:"DomainRecords"`
+	}
+
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return nil, err
+	}
+
+	return result.DomainRecords.Record, nil
+}
+
+// GetDomainRecord 获取特定解析记录
+func (c *AliDNSClient) GetDomainRecord(fulldomain, recordID string) (*DNSRecord, error) {
+	params := map[string]string{
+		"Action":   "DescribeDomainRecordInfo",
+		"RecordId": recordID,
+	}
+
+	resp, err := c.makeRequest(params)
+	if err != nil {
+		return nil, err
+	}
+
+	var record DNSRecord
+	if err := json.Unmarshal(resp, &record); err != nil {
+		return nil, err
+	}
+
+	return &record, nil
 }
 
 // getRootDomain finds the root domain and subdomain
@@ -145,39 +193,6 @@ func (c *AliDNSClient) getRootDomain(domain string) (string, string, error) {
 	}
 
 	return "", "", fmt.Errorf("could not find root domain for %s", domain)
-}
-
-// findRecordId finds the ID of a specific TXT record
-func (c *AliDNSClient) findRecordId(domain, subDomain, value string) (string, error) {
-	params := map[string]string{
-		"Action":      "DescribeDomainRecords",
-		"DomainName":  domain,
-		"RRKeyWord":   subDomain,
-		"TypeKeyWord": "TXT",
-	}
-
-	resp, err := c.makeRequest(params)
-	if err != nil {
-		return "", err
-	}
-
-	var result struct {
-		DomainRecords struct {
-			Record []DNSRecord `json:"Record"`
-		} `json:"DomainRecords"`
-	}
-
-	if err := json.Unmarshal(resp, &result); err != nil {
-		return "", err
-	}
-
-	for _, record := range result.DomainRecords.Record {
-		if record.RR == subDomain && record.Value == value {
-			return record.RecordId, nil
-		}
-	}
-
-	return "", nil
 }
 
 // makeRequest performs an authenticated request to Alibaba Cloud API
@@ -240,34 +255,4 @@ func (c *AliDNSClient) makeRequest(params map[string]string) ([]byte, error) {
 	}
 
 	return body, nil
-}
-
-// Helper functions for URL encoding (compatible with shell version)
-func urlEncodeUpperHex(s string) string {
-	var buf bytes.Buffer
-	for _, b := range []byte(s) {
-		if shouldEncode(b) {
-			buf.WriteString(fmt.Sprintf("%%%02X", b))
-		} else {
-			buf.WriteByte(b)
-		}
-	}
-	return buf.String()
-}
-
-func shouldEncode(b byte) bool {
-	// Keep alphanumeric and these special characters: -_.~
-	if 'a' <= b && b <= 'z' || 'A' <= b && b <= 'Z' || '0' <= b && b <= '9' {
-		return false
-	}
-	switch b {
-	case '-', '_', '.', '~':
-		return false
-	}
-	return true
-}
-
-// Helper functions for HMAC-SHA1 calculation
-func hexDump(s string) string {
-	return hex.EncodeToString([]byte(s))
 }
