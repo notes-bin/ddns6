@@ -25,8 +25,10 @@ func (c *CloudflareClient) Task(domain string, subdomain string, ipv6addr string
 	panic("unimplemented")
 }
 
+type Options func(*CloudflareClient)
+
 // NewClient creates a new CloudflareClient
-func NewClient(options ...func(*CloudflareClient)) *CloudflareClient {
+func NewClient(options ...Options) *CloudflareClient {
 	client := &CloudflareClient{
 		BaseURL:    "https://api.cloudflare.com/client/v4",
 		HTTPClient: &http.Client{},
@@ -40,7 +42,7 @@ func NewClient(options ...func(*CloudflareClient)) *CloudflareClient {
 }
 
 // WithAPIKey sets the API key and email (legacy auth)
-func WithAPIKey(apiKey, email string) func(*CloudflareClient) {
+func WithAPIKey(apiKey, email string) Options {
 	return func(c *CloudflareClient) {
 		c.APIKey = apiKey
 		c.Email = email
@@ -48,28 +50,28 @@ func WithAPIKey(apiKey, email string) func(*CloudflareClient) {
 }
 
 // WithAPIToken sets the API token (new auth)
-func WithAPIToken(apiToken string) func(*CloudflareClient) {
+func WithAPIToken(apiToken string) Options {
 	return func(c *CloudflareClient) {
 		c.APIToken = apiToken
 	}
 }
 
 // WithAccountID sets the Account ID
-func WithAccountID(accountID string) func(*CloudflareClient) {
+func WithAccountID(accountID string) Options {
 	return func(c *CloudflareClient) {
 		c.AccountID = accountID
 	}
 }
 
 // WithZoneID sets the Zone ID
-func WithZoneID(zoneID string) func(*CloudflareClient) {
+func WithZoneID(zoneID string) Options {
 	return func(c *CloudflareClient) {
 		c.ZoneID = zoneID
 	}
 }
 
 // WithBaseURL sets the base URL for API requests
-func WithBaseURL(baseURL string) func(*CloudflareClient) {
+func WithBaseURL(baseURL string) Options {
 	return func(c *CloudflareClient) {
 		c.BaseURL = strings.TrimSuffix(baseURL, "/")
 	}

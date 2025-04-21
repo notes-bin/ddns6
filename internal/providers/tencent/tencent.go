@@ -22,13 +22,15 @@ type TencentClient struct {
 	HTTPClient *http.Client
 }
 
+type Options func(*TencentClient)
+
 // Task implements domain.Tasker.
 func (c *TencentClient) Task(domain string, subdomain string, ipv6addr string) error {
 	panic("unimplemented")
 }
 
 // NewClient creates a new TencentClient
-func NewClient(secretId, secretKey string, options ...func(*TencentClient)) *TencentClient {
+func NewClient(secretId, secretKey string, options ...Options) *TencentClient {
 	client := &TencentClient{
 		SecretId:   secretId,
 		SecretKey:  secretKey,
@@ -44,14 +46,14 @@ func NewClient(secretId, secretKey string, options ...func(*TencentClient)) *Ten
 }
 
 // WithBaseURL sets a custom base URL (for testing)
-func WithBaseURL(baseURL string) func(*TencentClient) {
+func WithBaseURL(baseURL string) Options {
 	return func(c *TencentClient) {
 		c.BaseURL = baseURL
 	}
 }
 
 // WithHTTPClient sets a custom HTTP client
-func WithHTTPClient(httpClient *http.Client) func(*TencentClient) {
+func WithHTTPClient(httpClient *http.Client) Options {
 	return func(c *TencentClient) {
 		c.HTTPClient = httpClient
 	}

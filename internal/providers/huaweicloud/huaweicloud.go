@@ -18,9 +18,10 @@ type HuaweiCloudClient struct {
 	DNSURL     string
 	HTTPClient *http.Client
 }
+type Options func(*HuaweiCloudClient)
 
 // NewClient creates a new HuaweiCloudClient
-func NewClient(username, password, domainName string, options ...func(*HuaweiCloudClient)) *HuaweiCloudClient {
+func NewClient(username, password, domainName string, options ...Options) *HuaweiCloudClient {
 	client := &HuaweiCloudClient{
 		Username:   username,
 		Password:   password,
@@ -38,21 +39,21 @@ func NewClient(username, password, domainName string, options ...func(*HuaweiClo
 }
 
 // WithIAMURL sets a custom IAM URL
-func WithIAMURL(url string) func(*HuaweiCloudClient) {
+func WithIAMURL(url string) Options {
 	return func(c *HuaweiCloudClient) {
 		c.IAMURL = url
 	}
 }
 
 // WithDNSURL sets a custom DNS URL
-func WithDNSURL(url string) func(*HuaweiCloudClient) {
+func WithDNSURL(url string) Options {
 	return func(c *HuaweiCloudClient) {
 		c.DNSURL = url
 	}
 }
 
 // WithHTTPClient sets a custom HTTP client
-func WithHTTPClient(httpClient *http.Client) func(*HuaweiCloudClient) {
+func WithHTTPClient(httpClient *http.Client) Options {
 	return func(c *HuaweiCloudClient) {
 		c.HTTPClient = httpClient
 	}
