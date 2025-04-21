@@ -17,8 +17,10 @@ type GoDaddyClient struct {
 	HTTPClient *http.Client
 }
 
+type Options func(*GoDaddyClient)
+
 // NewClient creates a new GoDaddyClient
-func NewClient(apiKey, apiSecret string, options ...func(*GoDaddyClient)) *GoDaddyClient {
+func NewClient(apiKey, apiSecret string, options ...Options) *GoDaddyClient {
 	client := &GoDaddyClient{
 		APIKey:     apiKey,
 		APISecret:  apiSecret,
@@ -34,14 +36,14 @@ func NewClient(apiKey, apiSecret string, options ...func(*GoDaddyClient)) *GoDad
 }
 
 // WithBaseURL sets a custom base URL (for testing)
-func WithBaseURL(baseURL string) func(*GoDaddyClient) {
+func WithBaseURL(baseURL string) Options {
 	return func(c *GoDaddyClient) {
 		c.BaseURL = baseURL
 	}
 }
 
 // WithHTTPClient sets a custom HTTP client
-func WithHTTPClient(httpClient *http.Client) func(*GoDaddyClient) {
+func WithHTTPClient(httpClient *http.Client) Options {
 	return func(c *GoDaddyClient) {
 		c.HTTPClient = httpClient
 	}

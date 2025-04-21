@@ -22,8 +22,10 @@ type AliDNSClient struct {
 	HTTPClient      *http.Client
 }
 
+type Options func(*AliDNSClient)
+
 // NewClient creates a new AliDNSClient
-func NewClient(accessKeyId, accessKeySecret string, options ...func(*AliDNSClient)) *AliDNSClient {
+func NewClient(accessKeyId, accessKeySecret string, options ...Options) *AliDNSClient {
 	client := &AliDNSClient{
 		AccessKeyId:     accessKeyId,
 		AccessKeySecret: accessKeySecret,
@@ -39,14 +41,14 @@ func NewClient(accessKeyId, accessKeySecret string, options ...func(*AliDNSClien
 }
 
 // WithBaseURL sets a custom base URL (for testing)
-func WithBaseURL(baseURL string) func(*AliDNSClient) {
+func WithBaseURL(baseURL string) Options {
 	return func(c *AliDNSClient) {
 		c.BaseURL = baseURL
 	}
 }
 
 // WithHTTPClient sets a custom HTTP client
-func WithHTTPClient(httpClient *http.Client) func(*AliDNSClient) {
+func WithHTTPClient(httpClient *http.Client) Options {
 	return func(c *AliDNSClient) {
 		c.HTTPClient = httpClient
 	}
