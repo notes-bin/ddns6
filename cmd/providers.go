@@ -95,6 +95,7 @@ var huaweicloudCmd = &cobra.Command{
 	},
 }
 
+// createDomainConfig creates a domain configuration from command-line flags
 func createDomainConfig(cmd *cobra.Command) *domain.Domain {
 	domainName, _ := cmd.Flags().GetString("domain")
 	subdomain, _ := cmd.Flags().GetString("subdomain")

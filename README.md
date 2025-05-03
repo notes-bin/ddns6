@@ -1,88 +1,120 @@
-# DDNS6 简易命令行工具
+# ddns6 - 动态DNS更新工具
 
-## 简介
-这是一个简单的 DDNS6（动态域名解析系统，支持 IPv6）命令行工具，可帮助用户轻松更新其域名的 IPv6 地址。该工具支持多种 IPv6 地址获取方式，包括从 DNS 服务器、网卡和特定网站获取，同时支持定时更新域名记录，并提供了丰富的命令行选项和环境变量配置。
+一个用Go编写的动态DNS更新工具，支持IPv6地址自动更新到多个DNS服务商。
 
-## 功能
-1. **更新域名的 IPv6 地址**：能够自动获取当前有效的 IPv6 地址，并将其更新到指定的域名 DNS 记录中。
-2. **支持定时更新**：可设置定时任务，按照指定的时间间隔自动更新域名的 IPv6 地址。
-3. **多源 IPv6 地址获取**：支持从 DNS 服务器、网卡和特定网站获取 IPv6 地址，提高地址获取的可靠性。
-4. **命令行选项和环境变量配置**：提供丰富的命令行选项和环境变量，方便用户灵活配置工具的运行参数。
+## 功能特性
 
-## 项目结构
-### `cmd` 目录
-包含项目的主入口文件 `main.go`，负责解析命令行参数、初始化日志、配置域名和服务商信息，以及启动定时任务。
+- 支持多种DNS服务提供商：
+  - 阿里云DNS
+  - 腾讯云DNS
+  - 华为云DNS
+  - Cloudflare DNS
+  - GoDaddy DNS
+- 自动检测本地IPv6地址变化
+- 定时检查并更新DNS记录
+- 简单的命令行界面
+- 支持后台服务模式
+- 完善的日志记录
 
-### `internal` 目录
-包含项目的核心业务逻辑，主要分为以下几个子目录：
-- **`domain`**：定义域名相关的结构体和方法，负责域名记录的更新操作。
-- **`iputil`**：提供多种 IPv6 地址获取方式，包括从 DNS 服务器、网卡和特定网站获取 IPv6 地址。
-- **`providers`**：包含不同的 DDNS 服务商实现，目前支持腾讯云和 Cloudflare。
-- **`configs`**：包含系统配置相关的代码，如生成 systemd 服务文件。
+## 工作原理
 
-### `utils` 目录
-包含一些工具函数和辅助代码，如命令行参数解析、环境变量处理等。
+ddns6通过以下步骤工作：
+1. 定期检测本机IPv6地址变化
+2. 当检测到IP变化时，调用对应DNS服务商的API
+3. 更新指定域名的AAAA记录
+4. 记录操作日志并等待下次检查
 
 ## 安装
-确保你的系统已经安装了 Go 语言环境（版本 1.20 或更高）。然后，你可以使用以下命令克隆并构建项目：
+
+### 从源码安装
+
 ```bash
-git clone https://github.com/your-repo/ddns6.git
-cd ddns6/cmd
+git clone https://github.com/notes-bin/ddns6.git
+cd ddns6
 go build -o ddns6
 ```
-
-## 使用
-
-使用`-h`或`--help`选项查看帮助信息：
-
+## 使用说明
+### 基本命令
 ```bash
-./ddns6 -h
+./ddns6 [全局选项] <命令> [命令选项]
 ```
+## 配置参数
+### 全局选项
+- --debug : 启用调试日志
+- --version : 显示版本信息
+- --domain : 根域名 (如 example.com)
+- --subdomain : 子域名 (如 www)
+- --interval : 检查间隔 (如 5m)
+### 提供商特定参数：
+- 腾讯云: --secret-id , --secret-key
+- 阿里云: --access-key-id , --access-key-secret
+- 华为云: --username , --password , --domain-name
+- Cloudflare: --api-token
+- GoDaddy: --api-key , --api-secret
+### 主要命令
+- run : 运行DDNS服务
+
+## 详细配置示例
+### 腾讯云DNS配置
+1. 获取API密钥：
+   - 登录腾讯云控制台
+   - 进入"访问管理" > "API密钥管理"
+   - 创建新密钥
+2. 运行命令：
+```bash
+./ddns6 run tencent \
+  --secret-id YOUR_SECRET_ID \
+  --secret-key YOUR_SECRET_KEY \
+  --domain example.com \
+  --subdomain www \
+  --interval 5m
+```
+
+### 使用Docker
+```bash
+docker pull notes-bin/ddns6
+docker run -d --name ddns6 \
+  -e DOMAIN=example.com \
+  -e SUBDOMAIN=www \
+  notes-bin/ddns6 run [provider] [flags]
+```
+
+## 常见问题
+### 如何验证配置是否正确？
+使用 --debug 标志运行可以查看详细日志：
+```bash
+./ddns6 --debug run [provider] [flags]
+```
+### 支持的提供商
+- tencent - 腾讯云DNS
+- alicloud - 阿里云DNS
+- huaweicloud - 华为云DNS
+- cloudflare - Cloudflare DNS
+- godaddy - GoDaddy DNS
 
 ### 示例
-
-以下命令将使用指定的域名和服务提供商更新IPv6地址：
-
+更新腾讯云DNS记录：
 ```bash
-./ddns6 -domain your-domain.com -service tencent
+./ddns6 run tencent \
+  --secret-id YOUR_SECRET_ID \
+  --secret-key YOUR_SECRET_KEY \
+  --domain example.com \
+  --subdomain www \
+  --interval 5m
 ```
 
-## 配置
-
-工具支持以下命令行选项和环境变量：
-
-### 命令行选项
-
- - `-debug`: 开启调试模式
- - `-domain`: 设置域名
- - `-iface`: 设备的物理网卡名称 (default "eth0")
- - `-init`: 生成 systemd 服务
- - `-interval`: 定时任务时间间隔（例如 1s、2m、3h、5m2s、1h15m） (default 5m0s)
- - `-ipv6`: 选择一个IPv6 获取方式(可选值: [dns site]) (default dns)
- - `-public-dns`: 添加自定义公共IPv6 DNS, 多个DNS用逗号分隔 (default 2400:3200:baba::1, 2001:4860:4860::8888)
- - `-service`: 选择一个 ddns 服务商(可选值: [tencent cloudflare]) (default tencent)
- - `-site`: 添加一个可以查询IPv6地址的自定义网站, 多个网站用逗号分隔 (default https://6.ipw.cn)
- - `-subdomain`: 设置子域名 (default "@")
- - `-version`: 显示版本信息
-
-### 环境变量
-
-- `DDNS6_DOMAIN`：与`-domain`选项相同，用于设置需要更新IPv6地址的域名
-- `DDNS6_SERVICE`：与`-service`选项相同，用于设置使用的DDNS服务提供商
-- `DDNS6_INTERVAL`：与`-interval`选项相同，用于设置更新间隔（单位为秒）
-
-**注意**：如果命令行选项和环境变量同时存在，命令行选项将优先生效。
 
 ## 注意事项
+- 确保你的网络环境可以访问DNS服务提供商的API。
+- 确保你的DNS服务提供商的API凭证正确。
+- 确保你的DNS服务提供商支持IPv6记录。
+- 确保你的DNS服务提供商支持更新记录的API。
+- 确保你的DNS服务提供商支持更新记录的API。
+- 确保你的终端设备支持IPv6。
 
-- 确保你有权限更新指定的域名DNS记录
-- 根据你的DDNS服务提供商，可能需要提供额外的认证信息
-- 在使用前，请确保已正确配置所有必要的选项和环境变量
-
-## 贡献
-
-如果你有任何问题或建议，请提交一个issue或pull request。
+## 开发贡献
+欢迎提交Issue或Pull Request
 
 ## 许可证
 
-MIT许可证。详情请参见LICENSE文件。
+MIT License - 详见 LICENSE 文件
