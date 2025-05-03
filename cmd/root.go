@@ -56,15 +56,26 @@ func initRootCmd() {
 	// Tencent specific flags
 	tencentCmd.Flags().String("secret-id", "", "Tencent Cloud Secret ID")
 	tencentCmd.Flags().String("secret-key", "", "Tencent Cloud Secret Key")
+	runCmd.AddCommand(tencentCmd)
 
 	// Cloudflare specific flags
 	cloudflareCmd.Flags().String("api-token", "", "Cloudflare API Token")
-
-	// Add provider commands under run command
-	runCmd.AddCommand(tencentCmd)
 	runCmd.AddCommand(cloudflareCmd)
+
+	// Alibaba Cloud specific flags
+	alicloudCmd.Flags().String("access-key-id", "", "Alibaba Cloud Access Key ID")
+	alicloudCmd.Flags().String("access-key-secret", "", "Alibaba Cloud Access Key Secret")
 	runCmd.AddCommand(alicloudCmd)
+
+	// GoDaddy specific flags
+	godaddyCmd.Flags().String("api-key", "", "GoDaddy API Key")
+	godaddyCmd.Flags().String("api-secret", "", "GoDaddy API Secret")
 	runCmd.AddCommand(godaddyCmd)
+
+	// Huawei Cloud specific flags
+	huaweicloudCmd.Flags().String("username", "", "Huawei Cloud Username")
+	huaweicloudCmd.Flags().String("password", "", "Huawei Cloud Password")
+	huaweicloudCmd.Flags().String("domain-name", "", "Huawei Cloud Domain Name")
 	runCmd.AddCommand(huaweicloudCmd)
 }
 
