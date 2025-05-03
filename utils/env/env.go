@@ -10,13 +10,11 @@ import (
 	"time"
 )
 
-var ErrEnvKeyNotFound = fmt.Errorf("environment variable does not exist")
-
 // EnvToString 从环境变量中获取字符串值
 func EnvToString(key string) (string, error) {
 	value, exists := os.LookupEnv(key)
 	if !exists {
-		return "", fmt.Errorf("environment variable %s not found: %w", key, ErrEnvKeyNotFound)
+		return "", fmt.Errorf("environment variable %s not found", key)
 	}
 	return value, nil
 }

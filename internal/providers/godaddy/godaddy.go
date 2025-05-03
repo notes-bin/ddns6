@@ -49,6 +49,10 @@ func WithHTTPClient(httpClient *http.Client) Options {
 	}
 }
 
+func (c *GoDaddyClient) Task(domain, subdomain, ipv6addr string) error {
+	panic("unimplemented")
+}
+
 // DNSRecord represents a GoDaddy DNS record
 type DNSRecord struct {
 	Data string `json:"data"`
