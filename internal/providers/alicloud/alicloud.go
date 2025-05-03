@@ -54,6 +54,10 @@ func WithHTTPClient(httpClient *http.Client) Options {
 	}
 }
 
+func (c *AliDNSClient) Task(domain, subdomain, ipv6addr string) error {
+	panic("unimplemented")
+}
+
 // DNSRecord represents an Alibaba Cloud DNS record
 type DNSRecord struct {
 	RecordId string `json:"RecordId"`

@@ -59,6 +59,10 @@ func WithHTTPClient(httpClient *http.Client) Options {
 	}
 }
 
+func (c *HuaweiCloudClient) Task(domain, subdomain, ipv6addr string) error {
+	panic("unimplemented")
+}
+
 // DNSRecord represents a Huawei Cloud DNS record
 type DNSRecord struct {
 	ID          string   `json:"id,omitempty"`

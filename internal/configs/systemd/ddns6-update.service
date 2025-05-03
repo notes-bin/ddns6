@@ -1,9 +1,0 @@
-[Unit]
-Description=DDNS6 Auto Update Service
-After=network.target
-
-[Service]
-Type=simple
-Environment=
-ExecStart=test
-WorkingDirectory=
