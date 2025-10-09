@@ -9,14 +9,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/notes-bin/cron"
 	"github.com/notes-bin/ddns6/internal/domain"
-	"github.com/notes-bin/ddns6/internal/iputil"
 	"github.com/notes-bin/ddns6/internal/providers/alicloud"
 	"github.com/notes-bin/ddns6/internal/providers/cloudflare"
 	"github.com/notes-bin/ddns6/internal/providers/godaddy"
 	"github.com/notes-bin/ddns6/internal/providers/huaweicloud"
 	"github.com/notes-bin/ddns6/internal/providers/tencent"
-	"github.com/notes-bin/ddns6/internal/scheduler"
+	"github.com/notes-bin/ddns6/utils/ipaddr"
 	"github.com/spf13/cobra"
 )
 
@@ -109,24 +109,19 @@ func createDomainConfig(cmd *cobra.Command) *domain.Domain {
 
 // runDDNSService is the common function to run the DDNS service
 func runDDNSService(ddns *domain.Domain, task domain.Tasker, interval time.Duration) error {
-	sched := scheduler.New()
-	defer sched.GracefulShutdown()
+	sched := cron.New()
+	defer sched.Stop()
 
-	taskFunc := func() error {
-		return ddns.UpdateRecord(context.Background(), iputil.NewMultiProvider(), task)
-	}
-
-	if err := taskFunc(); err != nil {
+	if err := ddns.UpdateRecord(context.Background(), ipaddr.NewMultiProvider(), task); err != nil {
 		return fmt.Errorf("首次更新记录失败: %w", err)
 	}
 
-	taskWrapper := func(ctx context.Context) error {
-		return taskFunc()
-	}
-
-	if err := sched.AddJob("ddns_update", interval, taskWrapper); err != nil {
-		return fmt.Errorf("创建定时任务失败: %w", err)
-	}
+	sched.AddFunc(cron.Every(interval), func() {
+		if err := ddns.UpdateRecord(context.Background(), ipaddr.NewMultiProvider(), task); err != nil {
+			fmt.Printf("首次更新记录失败: %v\n", err)
+			return
+		}
+	})
 
 	slog.Info("ddns6 启动成功", "pid", os.Getpid())
 	sigCh := make(chan os.Signal, 1)
