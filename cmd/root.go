@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/notes-bin/ddns6/utils/logging"
+	"github.com/notes-bin/ddns6/utils/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -30,9 +30,9 @@ var rootCmd = &cobra.Command{
 				os.Exit(1)
 			}
 			defer logFile.Close()
-			logging.SetLogger(debug, io.MultiWriter(os.Stderr, logFile))
+			logger.SetLogger(debug, io.MultiWriter(os.Stderr, logFile))
 		} else {
-			logging.SetLogger(debug, os.Stderr)
+			logger.SetLogger(debug, os.Stderr)
 		}
 	},
 }
