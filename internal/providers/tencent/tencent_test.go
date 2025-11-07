@@ -1,9 +1,11 @@
-package tencent
+package tencent_test
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/notes-bin/ddns6/internal/providers/tencent"
 )
 
 func TestAddDomainRecord(t *testing.T) {
@@ -15,7 +17,7 @@ func TestAddDomainRecord(t *testing.T) {
 	defer ts.Close()
 
 	// 创建客户端
-	client := NewClient("testId", "testKey", WithBaseURL(ts.URL))
+	client := tencent.NewDNSService("testId", "testKey", tencent.WithAPIUrl(ts.URL))
 
 	// 测试添加记录
 	err := client.AddDomainRecord("test.example.com", "A", "192.168.1.1", 600)
@@ -31,7 +33,7 @@ func TestModifyDomainRecord(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := NewClient("testId", "testKey", WithBaseURL(ts.URL))
+	client := tencent.NewDNSService("testId", "testKey", tencent.WithAPIUrl(ts.URL))
 
 	err := client.ModifyDomainRecord("test.example.com", "123456", "A", "192.168.1.2", 600)
 	if err != nil {
@@ -46,7 +48,7 @@ func TestDeleteDomainRecord(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := NewClient("testId", "Key", WithBaseURL(ts.URL))
+	client := tencent.NewDNSService("testId", "Key", tencent.WithAPIUrl(ts.URL))
 
 	err := client.DeleteDomainRecord("test.example.com", "123456")
 	if err != nil {
@@ -61,7 +63,7 @@ func TestGetDomainRecords(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := NewClient("testId", "testKey", WithBaseURL(ts.URL))
+	client := tencent.NewDNSService("testId", "testKey", tencent.WithAPIUrl(ts.URL))
 
 	records, err := client.GetDomainRecords("test.example.com")
 	if err != nil {
@@ -80,7 +82,7 @@ func TestGetDomainRecord(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := NewClient("testId", "testKey", WithBaseURL(ts.URL))
+	client := tencent.NewDNSService("testId", "testKey", tencent.WithAPIUrl(ts.URL))
 
 	record, err := client.GetDomainRecord("test.example.com", "123456")
 	if err != nil {
@@ -99,7 +101,7 @@ func TestFindDomainRecord(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := NewClient("testId", "testKey", WithBaseURL(ts.URL))
+	client := tencent.NewDNSService("testId", "testKey", tencent.WithAPIUrl(ts.URL))
 
 	record, err := client.FindDomainRecord("test.example.com", "A", "192.168.1.1")
 	if err != nil {

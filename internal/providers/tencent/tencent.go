@@ -15,27 +15,27 @@ import (
 )
 
 // TencentClient represents a client for Tencent Cloud DNS API
-type TencentClient struct {
-	SecretId   string
-	SecretKey  string
-	BaseURL    string
-	HTTPClient *http.Client
+type DNSService struct {
+	secretId  string
+	secretKey string
+	apiURL    string
+	*http.Client
 }
 
-type Options func(*TencentClient)
+type Option func(*DNSService)
 
 // Task implements domain.Tasker.
-func (c *TencentClient) Task(domain string, subdomain string, ipv6addr string) error {
+func (ds *DNSService) Task(domain string, subdomain string, ipv6addr string) error {
 	panic("unimplemented")
 }
 
 // NewClient creates a new TencentClient
-func NewClient(secretId, secretKey string, options ...Options) *TencentClient {
-	client := &TencentClient{
-		SecretId:   secretId,
-		SecretKey:  secretKey,
-		BaseURL:    "https://dnspod.tencentcloudapi.com",
-		HTTPClient: &http.Client{},
+func NewDNSService(secretId, secretKey string, options ...Option) *DNSService {
+	client := &DNSService{
+		secretId:  secretId,
+		secretKey: secretKey,
+		apiURL:    "https://dnspod.tencentcloudapi.com",
+		Client:    &http.Client{},
 	}
 
 	for _, option := range options {
@@ -46,16 +46,16 @@ func NewClient(secretId, secretKey string, options ...Options) *TencentClient {
 }
 
 // WithBaseURL sets a custom base URL (for testing)
-func WithBaseURL(baseURL string) Options {
-	return func(c *TencentClient) {
-		c.BaseURL = baseURL
+func WithAPIUrl(url string) Option {
+	return func(ds *DNSService) {
+		ds.apiURL = url
 	}
 }
 
 // WithHTTPClient sets a custom HTTP client
-func WithHTTPClient(httpClient *http.Client) Options {
-	return func(c *TencentClient) {
-		c.HTTPClient = httpClient
+func WithHTTPClient(httpClient *http.Client) Option {
+	return func(ds *DNSService) {
+		ds.Client = httpClient
 	}
 }
 
@@ -72,8 +72,8 @@ type DNSRecord struct {
 }
 
 // AddDomainRecord 添加域名解析记录
-func (c *TencentClient) AddDomainRecord(fulldomain, recordType, value string, ttl int) error {
-	domain, subDomain, err := c.getRootDomain(fulldomain)
+func (ds *DNSService) AddDomainRecord(fulldomain, recordType, value string, ttl int) error {
+	domain, subDomain, err := ds.getRootDomain(fulldomain)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %v", err)
 	}
@@ -88,13 +88,13 @@ func (c *TencentClient) AddDomainRecord(fulldomain, recordType, value string, tt
 		TTL:          ttl,
 	}
 
-	_, err = c.createRecord(record)
+	_, err = ds.createRecord(record)
 	return err
 }
 
 // ModifyDomainRecord 修改域名解析记录
-func (c *TencentClient) ModifyDomainRecord(fulldomain, recordId, recordType, newValue string, ttl int) error {
-	domain, _, err := c.getRootDomain(fulldomain)
+func (ds *DNSService) ModifyDomainRecord(fulldomain, recordId, recordType, newValue string, ttl int) error {
+	domain, _, err := ds.getRootDomain(fulldomain)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %v", err)
 	}
@@ -113,30 +113,30 @@ func (c *TencentClient) ModifyDomainRecord(fulldomain, recordId, recordType, new
 		} `json:"Response"`
 	}
 
-	return c.makeRequest("ModifyRecord", payload, &response)
+	return ds.makeRequest("ModifyRecord", payload, &response)
 }
 
 // DeleteDomainRecord 删除域名解析记录
-func (c *TencentClient) DeleteDomainRecord(fulldomain, recordId string) error {
-	domain, _, err := c.getRootDomain(fulldomain)
+func (ds *DNSService) DeleteDomainRecord(fulldomain, recordId string) error {
+	domain, _, err := ds.getRootDomain(fulldomain)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %v", err)
 	}
-	return c.deleteRecord(domain, recordId)
+	return ds.deleteRecord(domain, recordId)
 }
 
 // GetDomainRecords 查询域名的所有解析记录
-func (c *TencentClient) GetDomainRecords(fulldomain string) ([]DNSRecord, error) {
-	domain, subDomain, err := c.getRootDomain(fulldomain)
+func (ds *DNSService) GetDomainRecords(fulldomain string) ([]DNSRecord, error) {
+	domain, subDomain, err := ds.getRootDomain(fulldomain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root domain: %v", err)
 	}
-	return c.describeRecords(domain, subDomain)
+	return ds.describeRecords(domain, subDomain)
 }
 
 // GetDomainRecord 查询特定解析记录
-func (c *TencentClient) GetDomainRecord(fulldomain, recordId string) (*DNSRecord, error) {
-	domain, _, err := c.getRootDomain(fulldomain)
+func (ds *DNSService) GetDomainRecord(fulldomain, recordId string) (*DNSRecord, error) {
+	domain, _, err := ds.getRootDomain(fulldomain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root domain: %v", err)
 	}
@@ -152,7 +152,7 @@ func (c *TencentClient) GetDomainRecord(fulldomain, recordId string) (*DNSRecord
 		} `json:"Response"`
 	}
 
-	err = c.makeRequest("DescribeRecord", payload, &response)
+	err = ds.makeRequest("DescribeRecord", payload, &response)
 	if err != nil {
 		return nil, err
 	}
@@ -161,8 +161,8 @@ func (c *TencentClient) GetDomainRecord(fulldomain, recordId string) (*DNSRecord
 }
 
 // FindDomainRecord 根据子域名和值查找解析记录
-func (c *TencentClient) FindDomainRecord(fulldomain, recordType, value string) (*DNSRecord, error) {
-	domain, subDomain, err := c.getRootDomain(fulldomain)
+func (ds *DNSService) FindDomainRecord(fulldomain, recordType, value string) (*DNSRecord, error) {
+	domain, subDomain, err := ds.getRootDomain(fulldomain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root domain: %v", err)
 	}
@@ -180,7 +180,7 @@ func (c *TencentClient) FindDomainRecord(fulldomain, recordType, value string) (
 		} `json:"Response"`
 	}
 
-	err = c.makeRequest("DescribeRecordFilterList", payload, &response)
+	err = ds.makeRequest("DescribeRecordFilterList", payload, &response)
 	if err != nil {
 		return nil, err
 	}
@@ -193,13 +193,13 @@ func (c *TencentClient) FindDomainRecord(fulldomain, recordType, value string) (
 }
 
 // getRootDomain finds the root domain and subdomain
-func (c *TencentClient) getRootDomain(domain string) (string, string, error) {
+func (ds *DNSService) getRootDomain(domain string) (string, string, error) {
 	parts := strings.Split(domain, ".")
 	for i := 1; i < len(parts); i++ {
 		h := strings.Join(parts[i:], ".")
 
 		// Check if this is a valid domain
-		_, err := c.describeRecords(h, "@")
+		_, err := ds.describeRecords(h, "@")
 		if err == nil {
 			subDomain := strings.Join(parts[:i], ".")
 			return h, subDomain, nil
@@ -210,7 +210,7 @@ func (c *TencentClient) getRootDomain(domain string) (string, string, error) {
 }
 
 // describeRecords lists DNS records for a domain
-func (c *TencentClient) describeRecords(domain, subDomain string) ([]DNSRecord, error) {
+func (ds *DNSService) describeRecords(domain, subDomain string) ([]DNSRecord, error) {
 	payload := map[string]any{
 		"Domain": domain,
 		"Limit":  3000,
@@ -222,7 +222,7 @@ func (c *TencentClient) describeRecords(domain, subDomain string) ([]DNSRecord, 
 		} `json:"Response"`
 	}
 
-	err := c.makeRequest("DescribeRecordList", payload, &response)
+	err := ds.makeRequest("DescribeRecordList", payload, &response)
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +242,7 @@ func (c *TencentClient) describeRecords(domain, subDomain string) ([]DNSRecord, 
 }
 
 // createRecord creates a new DNS record
-func (c *TencentClient) createRecord(record DNSRecord) (*DNSRecord, error) {
+func (ds *DNSService) createRecord(record DNSRecord) (*DNSRecord, error) {
 	payload := map[string]any{
 		"Domain":       record.Domain,
 		"SubDomain":    record.SubDomain,
@@ -259,7 +259,7 @@ func (c *TencentClient) createRecord(record DNSRecord) (*DNSRecord, error) {
 		} `json:"Response"`
 	}
 
-	err := c.makeRequest("CreateRecord", payload, &response)
+	err := ds.makeRequest("CreateRecord", payload, &response)
 	if err != nil {
 		return nil, err
 	}
@@ -269,7 +269,7 @@ func (c *TencentClient) createRecord(record DNSRecord) (*DNSRecord, error) {
 }
 
 // deleteRecord deletes a DNS record
-func (c *TencentClient) deleteRecord(domain, recordId string) error {
+func (ds *DNSService) deleteRecord(domain, recordId string) error {
 	payload := map[string]any{
 		"Domain":   domain,
 		"RecordId": recordId,
@@ -281,11 +281,11 @@ func (c *TencentClient) deleteRecord(domain, recordId string) error {
 		} `json:"Response"`
 	}
 
-	return c.makeRequest("DeleteRecord", payload, &response)
+	return ds.makeRequest("DeleteRecord", payload, &response)
 }
 
 // findRecordId finds the ID of a specific TXT record
-func (c *TencentClient) findRecordId(domain, subDomain, value string) (string, error) {
+func (ds *DNSService) findRecordId(domain, subDomain, value string) (string, error) {
 	payload := map[string]any{
 		"Domain":      domain,
 		"SubDomain":   subDomain,
@@ -300,7 +300,7 @@ func (c *TencentClient) findRecordId(domain, subDomain, value string) (string, e
 		} `json:"Response"`
 	}
 
-	err := c.makeRequest("DescribeRecordFilterList", payload, &response)
+	err := ds.makeRequest("DescribeRecordFilterList", payload, &response)
 	if err != nil {
 		return "", err
 	}
@@ -313,7 +313,7 @@ func (c *TencentClient) findRecordId(domain, subDomain, value string) (string, e
 }
 
 // makeRequest performs an authenticated request to the Tencent Cloud API
-func (c *TencentClient) makeRequest(action string, payload any, result any) error {
+func (ds *DNSService) makeRequest(action string, payload any, result any) error {
 	service := "dnspod"
 	version := "2021-03-23"
 	timestamp := time.Now().Unix()
@@ -325,10 +325,10 @@ func (c *TencentClient) makeRequest(action string, payload any, result any) erro
 	}
 
 	// Generate signature
-	signature := c.generateSignatureV3(service, action, string(payloadBytes), timestamp)
+	signature := ds.generateSignatureV3(service, action, string(payloadBytes), timestamp)
 
 	// Create request
-	req, err := http.NewRequest("POST", c.BaseURL, bytes.NewBuffer(payloadBytes))
+	req, err := http.NewRequest("POST", ds.apiURL, bytes.NewBuffer(payloadBytes))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %v", err)
 	}
@@ -341,7 +341,7 @@ func (c *TencentClient) makeRequest(action string, payload any, result any) erro
 	req.Header.Set("X-TC-Action", action)
 
 	// Send request
-	resp, err := c.HTTPClient.Do(req)
+	resp, err := ds.Do(req)
 	if err != nil {
 		return fmt.Errorf("API request failed: %v", err)
 	}
@@ -378,7 +378,7 @@ func (c *TencentClient) makeRequest(action string, payload any, result any) erro
 }
 
 // generateSignatureV3 generates a Tencent Cloud API v3 signature
-func (c *TencentClient) generateSignatureV3(service, action, payload string, timestamp int64) string {
+func (ds *DNSService) generateSignatureV3(service, action, payload string, timestamp int64) string {
 	algorithm := "TC3-HMAC-SHA256"
 	date := time.Unix(timestamp, 0).UTC().Format("2006-01-02")
 	domain := service + ".tencentcloudapi.com"
@@ -397,13 +397,13 @@ func (c *TencentClient) generateSignatureV3(service, action, payload string, tim
 	stringToSign := fmt.Sprintf("%s\n%d\n%s\n%s", algorithm, timestamp, credentialScope, hashedRequest)
 
 	// Calculate signature
-	secretDate := hmacSha256("TC3"+c.SecretKey, date)
+	secretDate := hmacSha256("TC3"+ds.secretKey, date)
 	secretService := hmacSha256Hex(string(secretDate), service)
 	secretSigning := hmacSha256Hex(secretService, "tc3_request")
 	signature := hmacSha256Hex(secretSigning, stringToSign)
 
 	return fmt.Sprintf("%s Credential=%s/%s, SignedHeaders=%s, Signature=%s",
-		algorithm, c.SecretId, credentialScope, signedHeaders, signature)
+		algorithm, ds.secretId, credentialScope, signedHeaders, signature)
 }
 
 // Helper functions for signature calculation
