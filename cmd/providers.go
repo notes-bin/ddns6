@@ -34,7 +34,7 @@ var tencentCmd = &cobra.Command{
 		secretKey := cmd.Flag("secret-key").Value.String()
 
 		ddns := createDomainConfig(cmd)
-		task := tencent.NewClient(secretId, secretKey)
+		task := tencent.NewDNSService(secretId, secretKey)
 		return runDDNSService(ddns, task, interval)
 	},
 }
