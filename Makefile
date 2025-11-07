@@ -27,7 +27,7 @@ test:
 # 清理构建文件
 clean:
 	rm -f $(BINARY_NAME)
-	$(GO) clean
+	$(GO) clean --cache --testcache
 
 # 交叉编译
 cross-build:
