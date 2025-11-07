@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/notes-bin/ddns6/utils/logger"
+	"github.com/notes-bin/ddns6/pkg/logger"
 	"github.com/spf13/cobra"
 )
 
