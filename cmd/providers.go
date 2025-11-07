@@ -16,7 +16,7 @@ import (
 	"github.com/notes-bin/ddns6/internal/providers/godaddy"
 	"github.com/notes-bin/ddns6/internal/providers/huaweicloud"
 	"github.com/notes-bin/ddns6/internal/providers/tencent"
-	"github.com/notes-bin/ddns6/utils/ipaddr"
+	"github.com/notes-bin/ddns6/pkg/ipaddr"
 	"github.com/spf13/cobra"
 )
 
@@ -112,13 +112,14 @@ func runDDNSService(ddns *domain.Domain, task domain.Tasker, interval time.Durat
 	sched := cron.New()
 	defer sched.Stop()
 
-	if err := ddns.UpdateRecord(context.Background(), ipaddr.NewMultiProvider(), task); err != nil {
+	ipsvc := ipaddr.New()
+	if err := ddns.UpdateRecord(context.Background(), ipsvc, task); err != nil {
 		return fmt.Errorf("首次更新记录失败: %w", err)
 	}
 
 	sched.AddFunc(cron.Every(interval), func() {
-		if err := ddns.UpdateRecord(context.Background(), ipaddr.NewMultiProvider(), task); err != nil {
-			fmt.Printf("首次更新记录失败: %v\n", err)
+		if err := ddns.UpdateRecord(context.Background(), ipsvc, task); err != nil {
+			slog.Error("更新dns记录失败", "error", err)
 			return
 		}
 	})
