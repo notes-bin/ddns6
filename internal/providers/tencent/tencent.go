@@ -14,6 +14,18 @@ import (
 	"time"
 )
 
+// DNSRecord represents a Tencent Cloud DNS record
+type DNSRecord struct {
+	RecordId     string `json:"RecordId,omitempty"`
+	Domain       string `json:"Domain,omitempty"`
+	SubDomain    string `json:"SubDomain,omitempty"`
+	RecordType   string `json:"RecordType,omitempty"`
+	RecordLine   string `json:"RecordLine,omitempty"`
+	RecordLineId string `json:"RecordLineId,omitempty"`
+	Value        string `json:"Value,omitempty"`
+	TTL          int    `json:"TTL,omitempty"`
+}
+
 type DNSService struct {
 	secretId  string
 	secretKey string
@@ -56,18 +68,6 @@ func WithHTTPClient(httpClient *http.Client) Option {
 	return func(ds *DNSService) {
 		ds.Client = httpClient
 	}
-}
-
-// DNSRecord represents a Tencent Cloud DNS record
-type DNSRecord struct {
-	RecordId     string `json:"RecordId,omitempty"`
-	Domain       string `json:"Domain,omitempty"`
-	SubDomain    string `json:"SubDomain,omitempty"`
-	RecordType   string `json:"RecordType,omitempty"`
-	RecordLine   string `json:"RecordLine,omitempty"`
-	RecordLineId string `json:"RecordLineId,omitempty"`
-	Value        string `json:"Value,omitempty"`
-	TTL          int    `json:"TTL,omitempty"`
 }
 
 // AddDomainRecord 添加域名解析记录
