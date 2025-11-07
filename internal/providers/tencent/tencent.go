@@ -14,7 +14,6 @@ import (
 	"time"
 )
 
-// TencentClient represents a client for Tencent Cloud DNS API
 type DNSService struct {
 	secretId  string
 	secretKey string
