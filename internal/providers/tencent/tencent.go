@@ -1,3 +1,4 @@
+// tencent is the DNS provider for Tencent Cloud.
 package tencent
 
 import (
