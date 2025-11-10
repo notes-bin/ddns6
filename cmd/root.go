@@ -22,7 +22,6 @@ var rootCmd = &cobra.Command{
 	Short: "Dynamic DNS update tool for IPv6 addresses",
 	Long:  `DDNS6 is a tool for automatically updating DNS records with your current IPv6 address`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		debug, _ := cmd.Flags().GetBool("debug")
 
 		logFile, err := os.OpenFile("ddns6.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
@@ -31,6 +30,8 @@ var rootCmd = &cobra.Command{
 		}
 
 		opts := new(slog.HandlerOptions)
+
+		debug, _ := cmd.Flags().GetBool("debug")
 		if debug {
 			opts.Level = slog.LevelDebug
 			opts.AddSource = true
@@ -41,8 +42,6 @@ var rootCmd = &cobra.Command{
 				}
 				return a
 			}
-
-			defer logFile.Close()
 		}
 		slog.SetDefault(slog.New(slog.NewJSONHandler(io.MultiWriter(os.Stderr, logFile), opts)))
 	},
