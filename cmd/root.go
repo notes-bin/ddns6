@@ -5,9 +5,9 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"time"
 
-	"github.com/notes-bin/ddns6/pkg/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -23,17 +23,28 @@ var rootCmd = &cobra.Command{
 	Long:  `DDNS6 is a tool for automatically updating DNS records with your current IPv6 address`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		debug, _ := cmd.Flags().GetBool("debug")
-		if debug {
-			logFile, err := os.OpenFile("ddns6.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-			if err != nil {
-				slog.Error("创建日志文件失败", "err", err)
-				os.Exit(1)
-			}
-			defer logFile.Close()
-			logger.SetLogger(debug, io.MultiWriter(os.Stderr, logFile))
-		} else {
-			logger.SetLogger(debug, os.Stderr)
+
+		logFile, err := os.OpenFile("ddns6.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			slog.Error("创建日志文件失败", "err", err)
+			os.Exit(1)
 		}
+
+		opts := new(slog.HandlerOptions)
+		if debug {
+			opts.Level = slog.LevelDebug
+			opts.AddSource = true
+			opts.ReplaceAttr = func(groups []string, a slog.Attr) slog.Attr {
+				if a.Key == slog.SourceKey {
+					source := a.Value.Any().(*slog.Source)
+					source.File = filepath.Base(source.File)
+				}
+				return a
+			}
+
+			defer logFile.Close()
+		}
+		slog.SetDefault(slog.New(slog.NewJSONHandler(io.MultiWriter(os.Stderr, logFile), opts)))
 	},
 }
 
