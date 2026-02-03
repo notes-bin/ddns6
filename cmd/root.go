@@ -63,26 +63,26 @@ func initRootCmd() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(runCmd)
 
-	// Tencent specific flags
+	// Tencent 运行参数
 	tencentCmd.Flags().String("secret-id", "", "Tencent Cloud Secret ID")
 	tencentCmd.Flags().String("secret-key", "", "Tencent Cloud Secret Key")
 	runCmd.AddCommand(tencentCmd)
 
-	// Cloudflare specific flags
+	// Cloudflare 运行参数
 	cloudflareCmd.Flags().String("api-token", "", "Cloudflare API Token")
 	runCmd.AddCommand(cloudflareCmd)
 
-	// Alibaba Cloud specific flags
+	// Alibaba Cloud 运行参数
 	alicloudCmd.Flags().String("access-key-id", "", "Alibaba Cloud Access Key ID")
 	alicloudCmd.Flags().String("access-key-secret", "", "Alibaba Cloud Access Key Secret")
 	runCmd.AddCommand(alicloudCmd)
 
-	// GoDaddy specific flags
+	// GoDaddy 运行参数
 	godaddyCmd.Flags().String("api-key", "", "GoDaddy API Key")
 	godaddyCmd.Flags().String("api-secret", "", "GoDaddy API Secret")
 	runCmd.AddCommand(godaddyCmd)
 
-	// Huawei Cloud specific flags
+	// Huawei Cloud 运行参数
 	huaweicloudCmd.Flags().String("username", "", "Huawei Cloud Username")
 	huaweicloudCmd.Flags().String("password", "", "Huawei Cloud Password")
 	huaweicloudCmd.Flags().String("domain-name", "", "Huawei Cloud Domain Name")
