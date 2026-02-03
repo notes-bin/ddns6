@@ -25,6 +25,7 @@ var runCmd = &cobra.Command{
 	Short: "Run the DDNS update service",
 }
 
+// tencentCmd 使用 Tencent Cloud DNS
 var tencentCmd = &cobra.Command{
 	Use:   "tencent",
 	Short: "Use Tencent Cloud DNS",
@@ -39,6 +40,7 @@ var tencentCmd = &cobra.Command{
 	},
 }
 
+// cloudflareCmd 使用 Cloudflare DNS
 var cloudflareCmd = &cobra.Command{
 	Use:   "cloudflare",
 	Short: "Use Cloudflare DNS",
@@ -52,6 +54,7 @@ var cloudflareCmd = &cobra.Command{
 	},
 }
 
+// alicloudCmd 使用 Alibaba Cloud DNS
 var alicloudCmd = &cobra.Command{
 	Use:   "alicloud",
 	Short: "Use Alibaba Cloud DNS",
@@ -66,6 +69,7 @@ var alicloudCmd = &cobra.Command{
 	},
 }
 
+// godaddyCmd 使用 GoDaddy DNS
 var godaddyCmd = &cobra.Command{
 	Use:   "godaddy",
 	Short: "Use GoDaddy DNS",
@@ -80,6 +84,7 @@ var godaddyCmd = &cobra.Command{
 	},
 }
 
+// huaweicloudCmd 使用华为云 DNS
 var huaweicloudCmd = &cobra.Command{
 	Use:   "huaweicloud",
 	Short: "Use Huawei Cloud DNS",
@@ -95,7 +100,7 @@ var huaweicloudCmd = &cobra.Command{
 	},
 }
 
-// createDomainConfig creates a domain configuration from command-line flags
+// createDomainConfig 创建域名配置
 func createDomainConfig(cmd *cobra.Command) *domain.Domain {
 	domainName, _ := cmd.Flags().GetString("domain")
 	subdomain, _ := cmd.Flags().GetString("subdomain")
@@ -107,16 +112,31 @@ func createDomainConfig(cmd *cobra.Command) *domain.Domain {
 	}
 }
 
-// runDDNSService is the common function to run the DDNS service
+// runDDNSService 运行 DDNS 服务
 func runDDNSService(ddns *domain.Domain, task domain.Tasker, interval time.Duration) error {
 	sched := cron.New()
 	defer sched.Stop()
 
-	ipsvc := ipaddr.New()
+	// 获取 IPv6 地址
+	ipsvc, err := ipaddr.GetIPv6Addr(
+		ipaddr.NewHttpIPv6Fetcher("6.ipw.cn"),
+		ipaddr.NewHttpIPv6Fetcher("ifconfig.co"),
+		ipaddr.NewHttpIPv6Fetcher("v6.ident.me"),
+		ipaddr.NewDnsFetcher("2402:4e00::"),
+		ipaddr.NewDnsFetcher("2400:3200:baba::1"),
+		ipaddr.NewDnsFetcher("2001:4860:4860::8888"),
+		ipaddr.NewDnsFetcher("2606:4700:4700::1111"),
+	)
+	if err != nil {
+		return fmt.Errorf("获取 IPv6 地址失败: %w", err)
+	}
+
+	// 首次更新记录
 	if err := ddns.UpdateRecord(context.Background(), ipsvc, task); err != nil {
 		return fmt.Errorf("首次更新记录失败: %w", err)
 	}
 
+	// 启动定时任务
 	sched.AddFunc(cron.Every(interval), func() {
 		if err := ddns.UpdateRecord(context.Background(), ipsvc, task); err != nil {
 			slog.Error("更新dns记录失败", "error", err)
@@ -125,9 +145,12 @@ func runDDNSService(ddns *domain.Domain, task domain.Tasker, interval time.Durat
 	})
 
 	slog.Info("ddns6 启动成功", "pid", os.Getpid())
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+
 	<-sigCh
+
 	slog.Info("ddns6 退出成功")
 	return nil
 }
