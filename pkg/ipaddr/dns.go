@@ -21,8 +21,8 @@ func (d *DnsFetcher) String() string {
 
 // Fetch 实现 Fetcher 接口
 func (d *DnsFetcher) Fetch(ctx context.Context) (net.IP, error) {
-	// 创建 DNS 查询
-	conn, err := net.Dial("udp6", fmt.Sprintf("[%s]:53", *d))
+	var dialer net.Dialer
+	conn, err := dialer.DialContext(ctx, "udp6", fmt.Sprintf("[%s]:53", *d))
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial DNS server %s: %w", *d, err)
 	}

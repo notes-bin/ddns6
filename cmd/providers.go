@@ -35,7 +35,7 @@ var tencentCmd = &cobra.Command{
 		secretKey := cmd.Flag("secret-key").Value.String()
 
 		ddns := createDomainConfig(cmd)
-		task := tencent.NewDNSService(secretId, secretKey)
+		task := tencent.NewDNSPod(secretId, secretKey)
 		return runDDNSService(ddns, task, interval)
 	},
 }
@@ -112,35 +112,39 @@ func createDomainConfig(cmd *cobra.Command) *domain.Domain {
 	}
 }
 
+var ipv6Fetchers = []ipaddr.IPv6Fetcher{
+	ipaddr.NewHttpIPv6Fetcher("6.ipw.cn"),
+	ipaddr.NewHttpIPv6Fetcher("ifconfig.co"),
+	ipaddr.NewHttpIPv6Fetcher("v6.ident.me"),
+	ipaddr.NewDnsFetcher("2402:4e00::"),
+	ipaddr.NewDnsFetcher("2400:3200:baba::1"),
+	ipaddr.NewDnsFetcher("2001:4860:4860::8888"),
+	ipaddr.NewDnsFetcher("2606:4700:4700::1111"),
+}
+
 // runDDNSService 运行 DDNS 服务
 func runDDNSService(ddns *domain.Domain, task domain.Tasker, interval time.Duration) error {
 	sched := cron.New()
 	defer sched.Stop()
 
-	// 获取 IPv6 地址
-	ipsvc, err := ipaddr.GetIPv6Addr(
-		ipaddr.NewHttpIPv6Fetcher("6.ipw.cn"),
-		ipaddr.NewHttpIPv6Fetcher("ifconfig.co"),
-		ipaddr.NewHttpIPv6Fetcher("v6.ident.me"),
-		ipaddr.NewDnsFetcher("2402:4e00::"),
-		ipaddr.NewDnsFetcher("2400:3200:baba::1"),
-		ipaddr.NewDnsFetcher("2001:4860:4860::8888"),
-		ipaddr.NewDnsFetcher("2606:4700:4700::1111"),
-	)
+	// 首次获取并更新
+	ipsvc, err := ipaddr.GetIPv6Addr(ipv6Fetchers...)
 	if err != nil {
 		return fmt.Errorf("获取 IPv6 地址失败: %w", err)
 	}
-
-	// 首次更新记录
 	if err := ddns.UpdateRecord(context.Background(), ipsvc, task); err != nil {
 		return fmt.Errorf("首次更新记录失败: %w", err)
 	}
 
-	// 启动定时任务
+	// 启动定时任务，每次重新获取 IPv6 地址
 	sched.AddFunc(cron.Every(interval), func() {
+		ipsvc, err := ipaddr.GetIPv6Addr(ipv6Fetchers...)
+		if err != nil {
+			slog.Error("获取 IPv6 地址失败", "error", err)
+			return
+		}
 		if err := ddns.UpdateRecord(context.Background(), ipsvc, task); err != nil {
 			slog.Error("更新dns记录失败", "error", err)
-			return
 		}
 	})
 

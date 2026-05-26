@@ -1,6 +1,7 @@
 package alicloud
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha1"
 	"encoding/base64"
@@ -30,7 +31,7 @@ func NewClient(accessKeyId, accessKeySecret string, options ...Options) *AliDNSC
 		AccessKeyId:     accessKeyId,
 		AccessKeySecret: accessKeySecret,
 		BaseURL:         "https://alidns.aliyuncs.com/",
-		HTTPClient:      &http.Client{},
+		HTTPClient:      &http.Client{Timeout: 30 * time.Second},
 	}
 
 	for _, option := range options {
@@ -54,8 +55,26 @@ func WithHTTPClient(httpClient *http.Client) Options {
 	}
 }
 
-func (c *AliDNSClient) Task(domain, subdomain, ipv6addr string) error {
-	panic("unimplemented")
+func (c *AliDNSClient) Task(ctx context.Context, domain, subdomain, ipv6addr string) error {
+	fulldomain := domain
+	if subdomain != "@" {
+		fulldomain = subdomain + "." + domain
+	}
+
+	records, err := c.GetDomainRecords(ctx, fulldomain, "AAAA")
+	if err != nil {
+		return fmt.Errorf("get domain records: %w", err)
+	}
+
+	for _, r := range records {
+		if r.Value == ipv6addr {
+			return nil
+		}
+	}
+	for _, r := range records {
+		return c.ModifyDomainRecord(ctx, fulldomain, r.RecordId, "AAAA", ipv6addr, r.TTL)
+	}
+	return c.AddDomainRecord(ctx, fulldomain, "AAAA", ipv6addr, 600)
 }
 
 // DNSRecord represents an Alibaba Cloud DNS record
@@ -69,8 +88,8 @@ type DNSRecord struct {
 }
 
 // AddDomainRecord 添加域名解析记录
-func (c *AliDNSClient) AddDomainRecord(fulldomain, recordType, value string, ttl int) error {
-	domain, subDomain, err := c.getRootDomain(fulldomain)
+func (c *AliDNSClient) AddDomainRecord(ctx context.Context, fulldomain, recordType, value string, ttl int) error {
+	domain, subDomain, err := c.getRootDomain(ctx, fulldomain)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %v", err)
 	}
@@ -86,39 +105,44 @@ func (c *AliDNSClient) AddDomainRecord(fulldomain, recordType, value string, ttl
 		"RecordLineId": "0",
 	}
 
-	_, err = c.makeRequest(params)
+	_, err = c.makeRequest(ctx, params)
 	return err
 }
 
 // ModifyDomainRecord 修改域名解析记录
-func (c *AliDNSClient) ModifyDomainRecord(fulldomain, recordID, recordType, newValue string, ttl int) error {
+func (c *AliDNSClient) ModifyDomainRecord(ctx context.Context, fulldomain, recordID, recordType, newValue string, ttl int) error {
+	_, subDomain, err := c.getRootDomain(ctx, fulldomain)
+	if err != nil {
+		return fmt.Errorf("failed to get root domain: %v", err)
+	}
+
 	params := map[string]string{
 		"Action":   "UpdateDomainRecord",
 		"RecordId": recordID,
-		"RR":       fulldomain,
+		"RR":       subDomain,
 		"Type":     recordType,
 		"Value":    newValue,
 		"TTL":      fmt.Sprintf("%d", ttl),
 	}
 
-	_, err := c.makeRequest(params)
+	_, err = c.makeRequest(ctx, params)
 	return err
 }
 
 // DeleteDomainRecord 删除域名解析记录
-func (c *AliDNSClient) DeleteDomainRecord(fulldomain, recordID string) error {
+func (c *AliDNSClient) DeleteDomainRecord(ctx context.Context, fulldomain, recordID string) error {
 	params := map[string]string{
 		"Action":   "DeleteDomainRecord",
 		"RecordId": recordID,
 	}
 
-	_, err := c.makeRequest(params)
+	_, err := c.makeRequest(ctx, params)
 	return err
 }
 
 // GetDomainRecords 获取域名的所有解析记录
-func (c *AliDNSClient) GetDomainRecords(fulldomain, recordType string) ([]DNSRecord, error) {
-	domain, subDomain, err := c.getRootDomain(fulldomain)
+func (c *AliDNSClient) GetDomainRecords(ctx context.Context, fulldomain, recordType string) ([]DNSRecord, error) {
+	domain, subDomain, err := c.getRootDomain(ctx, fulldomain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root domain: %v", err)
 	}
@@ -130,7 +154,7 @@ func (c *AliDNSClient) GetDomainRecords(fulldomain, recordType string) ([]DNSRec
 		"TypeKeyWord": recordType,
 	}
 
-	resp, err := c.makeRequest(params)
+	resp, err := c.makeRequest(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -149,13 +173,13 @@ func (c *AliDNSClient) GetDomainRecords(fulldomain, recordType string) ([]DNSRec
 }
 
 // GetDomainRecord 获取特定解析记录
-func (c *AliDNSClient) GetDomainRecord(fulldomain, recordID string) (*DNSRecord, error) {
+func (c *AliDNSClient) GetDomainRecord(ctx context.Context, fulldomain, recordID string) (*DNSRecord, error) {
 	params := map[string]string{
 		"Action":   "DescribeDomainRecordInfo",
 		"RecordId": recordID,
 	}
 
-	resp, err := c.makeRequest(params)
+	resp, err := c.makeRequest(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +193,7 @@ func (c *AliDNSClient) GetDomainRecord(fulldomain, recordID string) (*DNSRecord,
 }
 
 // getRootDomain finds the root domain and subdomain
-func (c *AliDNSClient) getRootDomain(domain string) (string, string, error) {
+func (c *AliDNSClient) getRootDomain(ctx context.Context, domain string) (string, string, error) {
 	parts := strings.Split(domain, ".")
 	for i := 1; i < len(parts); i++ {
 		h := strings.Join(parts[i:], ".")
@@ -179,7 +203,7 @@ func (c *AliDNSClient) getRootDomain(domain string) (string, string, error) {
 			"DomainName": h,
 		}
 
-		resp, err := c.makeRequest(params)
+		resp, err := c.makeRequest(ctx, params)
 		if err != nil {
 			continue
 		}
@@ -202,19 +226,23 @@ func (c *AliDNSClient) getRootDomain(domain string) (string, string, error) {
 }
 
 // makeRequest performs an authenticated request to Alibaba Cloud API
-func (c *AliDNSClient) makeRequest(params map[string]string) ([]byte, error) {
-	// Add common parameters
-	params["Format"] = "JSON"
-	params["Version"] = "2015-01-09"
-	params["AccessKeyId"] = c.AccessKeyId
-	params["SignatureMethod"] = "HMAC-SHA1"
-	params["Timestamp"] = time.Now().UTC().Format("2006-01-02T15:04:05Z")
-	params["SignatureVersion"] = "1.0"
-	params["SignatureNonce"] = fmt.Sprintf("%d", time.Now().UnixNano())
+func (c *AliDNSClient) makeRequest(ctx context.Context, params map[string]string) ([]byte, error) {
+	// Copy params to avoid mutating caller's map
+	reqParams := make(map[string]string, len(params)+8)
+	for k, v := range params {
+		reqParams[k] = v
+	}
+	reqParams["Format"] = "JSON"
+	reqParams["Version"] = "2015-01-09"
+	reqParams["AccessKeyId"] = c.AccessKeyId
+	reqParams["SignatureMethod"] = "HMAC-SHA1"
+	reqParams["Timestamp"] = time.Now().UTC().Format("2006-01-02T15:04:05Z")
+	reqParams["SignatureVersion"] = "1.0"
+	reqParams["SignatureNonce"] = fmt.Sprintf("%d", time.Now().UnixNano())
 
 	// Sort parameters
 	var keys []string
-	for k := range params {
+	for k := range reqParams {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
@@ -222,7 +250,7 @@ func (c *AliDNSClient) makeRequest(params map[string]string) ([]byte, error) {
 	// Build query string
 	var queryParts []string
 	for _, k := range keys {
-		queryParts = append(queryParts, fmt.Sprintf("%s=%s", k, url.QueryEscape(params[k])))
+		queryParts = append(queryParts, fmt.Sprintf("%s=%s", k, url.QueryEscape(reqParams[k])))
 	}
 	queryString := strings.Join(queryParts, "&")
 
@@ -237,7 +265,11 @@ func (c *AliDNSClient) makeRequest(params map[string]string) ([]byte, error) {
 	fullURL := fmt.Sprintf("%s?%s&Signature=%s", c.BaseURL, queryString, signature)
 
 	// Make request
-	resp, err := c.HTTPClient.Get(fullURL)
+	req, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
