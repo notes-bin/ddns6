@@ -3,7 +3,6 @@ package ipaddr
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net"
 	"sync"
 	"time"
@@ -20,38 +19,39 @@ func GetIPv6Addr(fetchers ...IPv6Fetcher) (net.IP, error) {
 		return nil, fmt.Errorf("no fetcher provided")
 	}
 
-	// 创建上下文，用于取消所有 fetcher
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// 创建结果通道和错误通道
-	resultCh := make(chan net.IP, 1)
-	errCh := make(chan error, len(fetchers))
+	resultCh := make(chan net.IP, len(fetchers))
 
 	var wg sync.WaitGroup
 	for _, fn := range fetchers {
-		wg.Go(func() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 			ip, err := fn.Fetch(ctx)
 			if err == nil {
-				resultCh <- ip
-			} else {
-				errCh <- err
+				select {
+				case resultCh <- ip:
+				default:
+				}
 			}
-		})
+		}()
 	}
 
 	go func() {
 		wg.Wait()
 		close(resultCh)
-		close(errCh)
 	}()
 
 	select {
-	case ip := <-resultCh:
-		cancel() // 取消其他 fetcher
-		return ip, nil
-	case err := <-errCh:
-		slog.Error("Fetcher failed", "error", err)
+	case ip, ok := <-resultCh:
+		if ok {
+			cancel()
+			return ip, nil
+		}
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 
 	return nil, fmt.Errorf("no valid IPv6 address found from any fetcher")

@@ -1,12 +1,15 @@
 package tencent_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/notes-bin/ddns6/internal/providers/tencent"
 )
+
+var ctx = context.Background()
 
 func TestAddDomainRecord(t *testing.T) {
 	// 创建测试服务器
@@ -17,10 +20,10 @@ func TestAddDomainRecord(t *testing.T) {
 	defer ts.Close()
 
 	// 创建客户端
-	client := tencent.NewDNSService("testId", "testKey", tencent.WithAPIUrl(ts.URL))
+	client := tencent.NewDNSPod("testId", "testKey", tencent.WithAPIUrl(ts.URL))
 
 	// 测试添加记录
-	err := client.AddDomainRecord("test.example.com", "A", "192.168.1.1", 600)
+	err := client.AddDomainRecord(ctx, "test.example.com", "A", "192.168.1.1", 600)
 	if err != nil {
 		t.Errorf("AddDomainRecord failed: %v", err)
 	}
@@ -33,9 +36,9 @@ func TestModifyDomainRecord(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := tencent.NewDNSService("testId", "testKey", tencent.WithAPIUrl(ts.URL))
+	client := tencent.NewDNSPod("testId", "testKey", tencent.WithAPIUrl(ts.URL))
 
-	err := client.ModifyDomainRecord("test.example.com", "123456", "A", "192.168.1.2", 600)
+	err := client.ModifyDomainRecord(ctx, "test.example.com", "123456", "A", "192.168.1.2", 600)
 	if err != nil {
 		t.Errorf("ModifyDomainRecord failed: %v", err)
 	}
@@ -48,9 +51,9 @@ func TestDeleteDomainRecord(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := tencent.NewDNSService("testId", "Key", tencent.WithAPIUrl(ts.URL))
+	client := tencent.NewDNSPod("testId", "Key", tencent.WithAPIUrl(ts.URL))
 
-	err := client.DeleteDomainRecord("test.example.com", "123456")
+	err := client.DeleteDomainRecord(ctx, "test.example.com", "123456")
 	if err != nil {
 		t.Errorf("DeleteDomainRecord failed: %v", err)
 	}
@@ -63,9 +66,9 @@ func TestGetDomainRecords(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := tencent.NewDNSService("testId", "testKey", tencent.WithAPIUrl(ts.URL))
+	client := tencent.NewDNSPod("testId", "testKey", tencent.WithAPIUrl(ts.URL))
 
-	records, err := client.GetDomainRecords("test.example.com")
+	records, err := client.GetDomainRecords(ctx, "test.example.com")
 	if err != nil {
 		t.Errorf("GetDomainRecords failed: %v", err)
 	}
@@ -82,9 +85,9 @@ func TestGetDomainRecord(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := tencent.NewDNSService("testId", "testKey", tencent.WithAPIUrl(ts.URL))
+	client := tencent.NewDNSPod("testId", "testKey", tencent.WithAPIUrl(ts.URL))
 
-	record, err := client.GetDomainRecord("test.example.com", "123456")
+	record, err := client.GetDomainRecord(ctx, "test.example.com", "123456")
 	if err != nil {
 		t.Errorf("GetDomainRecord failed: %v", err)
 	}
@@ -101,9 +104,9 @@ func TestFindDomainRecord(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := tencent.NewDNSService("testId", "testKey", tencent.WithAPIUrl(ts.URL))
+	client := tencent.NewDNSPod("testId", "testKey", tencent.WithAPIUrl(ts.URL))
 
-	record, err := client.FindDomainRecord("test.example.com", "A", "192.168.1.1")
+	record, err := client.FindDomainRecord(ctx, "test.example.com", "A", "192.168.1.1")
 	if err != nil {
 		t.Errorf("FindDomainRecord failed: %v", err)
 	}

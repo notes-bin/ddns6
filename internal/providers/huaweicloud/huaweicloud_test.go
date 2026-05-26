@@ -1,50 +1,80 @@
 package huaweicloud
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
-func TestAddDomainRecord(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusAccepted)
+var ctx = context.Background()
+
+// newHuaweiTestServer creates a test server that handles IAM, zone lookup, and record operations
+func newHuaweiTestServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v3/auth/tokens" {
+			w.Header().Set("X-Subject-Token", "test-token")
+			w.WriteHeader(http.StatusCreated)
+			return
+		}
+		if strings.Contains(r.URL.Path, "/v2/zones") && !strings.Contains(r.URL.Path, "/recordsets") {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"zones": [{"id": "zone123", "name": "example.com."}]}`))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == "GET" {
+			w.WriteHeader(http.StatusOK)
+		} else {
+			w.WriteHeader(http.StatusAccepted)
+		}
 		w.Write([]byte(`{"id": "123456"}`))
 	}))
+}
+
+func TestAddDomainRecord(t *testing.T) {
+	ts := newHuaweiTestServer(t)
 	defer ts.Close()
 
-	client := NewClient("testUser", "testPass", "testDomain", WithDNSURL(ts.URL))
+	client := NewClient("testUser", "testPass", "testDomain",
+		WithIAMURL(ts.URL),
+		WithDNSURL(ts.URL),
+	)
 
-	err := client.AddDomainRecord("test.example.com", "A", "192.168.1.1", 600)
+	err := client.AddDomainRecord(ctx, "test.example.com", "A", "192.168.1.1", 600)
 	if err != nil {
 		t.Errorf("AddDomainRecord failed: %v", err)
 	}
 }
 
 func TestModifyDomainRecord(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusAccepted)
-		w.Write([]byte(`{"id": "123456"}`))
-	}))
+	ts := newHuaweiTestServer(t)
 	defer ts.Close()
 
-	client := NewClient("testUser", "testPass", "testDomain", WithDNSURL(ts.URL))
+	client := NewClient("testUser", "testPass", "testDomain",
+		WithIAMURL(ts.URL),
+		WithDNSURL(ts.URL),
+	)
 
-	err := client.ModifyDomainRecord("test.example.com", "123456", "A", "192.168.1.2", 600)
+	err := client.ModifyDomainRecord(ctx, "test.example.com", "123456", "A", "192.168.1.2", 600)
 	if err != nil {
 		t.Errorf("ModifyDomainRecord failed: %v", err)
 	}
 }
 
 func TestDeleteDomainRecord(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusAccepted)
-	}))
+	ts := newHuaweiTestServer(t)
 	defer ts.Close()
 
-	client := NewClient("testUser", "testPass", "testDomain", WithDNSURL(ts.URL))
+	client := NewClient("testUser", "testPass", "testDomain",
+		WithIAMURL(ts.URL),
+		WithDNSURL(ts.URL),
+	)
 
-	err := client.DeleteDomainRecord("test.example.com", "123456")
+	err := client.DeleteDomainRecord(ctx, "test.example.com", "123456")
 	if err != nil {
 		t.Errorf("DeleteDomainRecord failed: %v", err)
 	}
@@ -52,14 +82,29 @@ func TestDeleteDomainRecord(t *testing.T) {
 
 func TestGetDomainRecords(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v3/auth/tokens" {
+			w.Header().Set("X-Subject-Token", "test-token")
+			w.WriteHeader(http.StatusCreated)
+			return
+		}
+		if strings.Contains(r.URL.Path, "/v2/zones") && !strings.Contains(r.URL.Path, "/recordsets") {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"zones": [{"id": "zone123", "name": "example.com."}]}`))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"recordsets": [{"id": "123456", "name": "test.example.com.", "type": "A", "records": ["192.168.1.1"], "ttl": 600}]}`))
 	}))
 	defer ts.Close()
 
-	client := NewClient("testUser", "testPass", "testDomain", WithDNSURL(ts.URL))
+	client := NewClient("testUser", "testPass", "testDomain",
+		WithIAMURL(ts.URL),
+		WithDNSURL(ts.URL),
+	)
 
-	records, err := client.GetDomainRecords("test.example.com")
+	records, err := client.GetDomainRecords(ctx, "test.example.com")
 	if err != nil {
 		t.Errorf("GetDomainRecords failed: %v", err)
 	}
@@ -70,17 +115,17 @@ func TestGetDomainRecords(t *testing.T) {
 }
 
 func TestGetDomainRecord(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"id": "123456", "name": "test.example.com.", "type": "A", "records": ["192.168.1.1"], "ttl": 600}`))
-	}))
+	ts := newHuaweiTestServer(t)
 	defer ts.Close()
 
-	client := NewClient("testUser", "testPass", "testDomain", WithDNSURL(ts.URL))
+	client := NewClient("testUser", "testPass", "testDomain",
+		WithIAMURL(ts.URL),
+		WithDNSURL(ts.URL),
+	)
 
-	record, err := client.GetDomainRecord("test.example.com", "123456")
+	record, err := client.GetDomainRecord(ctx, "test.example.com", "123456")
 	if err != nil {
-		t.Errorf("GetDomainRecord failed: %v", err)
+		t.Fatalf("GetDomainRecord failed: %v", err)
 	}
 
 	if record.ID != "123456" {
@@ -97,7 +142,7 @@ func TestGetToken(t *testing.T) {
 
 	client := NewClient("testUser", "testPass", "testDomain", WithIAMURL(ts.URL))
 
-	token, err := client.getToken()
+	token, err := client.getToken(ctx)
 	if err != nil {
 		t.Errorf("getToken failed: %v", err)
 	}
@@ -109,6 +154,7 @@ func TestGetToken(t *testing.T) {
 
 func TestGetZoneID(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"zones": [{"id": "zone123", "name": "example.com."}]}`))
 	}))
@@ -116,7 +162,7 @@ func TestGetZoneID(t *testing.T) {
 
 	client := NewClient("testUser", "testPass", "testDomain", WithDNSURL(ts.URL))
 
-	zoneID, err := client.getZoneID("test-token", "test.example.com")
+	zoneID, err := client.getZoneID(ctx, "test-token", "test.example.com")
 	if err != nil {
 		t.Errorf("getZoneID failed: %v", err)
 	}

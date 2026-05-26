@@ -34,3 +34,6 @@ dist/
 
 # log file
 *.log
+
+CLAUDE.md
+.claude

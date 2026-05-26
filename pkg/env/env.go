@@ -103,10 +103,12 @@ func setFieldFromString(field reflect.Value, value string) error {
 		field.SetBool(boolValue)
 	case reflect.Slice:
 		if field.Type().Elem().Kind() == reflect.String {
-			if field.IsNil() {
-				field.Set(reflect.MakeSlice(field.Type(), 0, 1))
+			parts := strings.Split(value, ",")
+			slice := reflect.MakeSlice(field.Type(), len(parts), len(parts))
+			for j, part := range parts {
+				slice.Index(j).SetString(strings.TrimSpace(part))
 			}
-			field.Set(reflect.Append(field, reflect.ValueOf(value)))
+			field.Set(slice)
 		} else {
 			return fmt.Errorf("unsupported slice type: %s", field.Type().Elem().Kind())
 		}
@@ -147,6 +149,9 @@ func getFieldAsString(field reflect.Value) (string, error) {
 	case reflect.String:
 		return field.String(), nil
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		if field.Type() == reflect.TypeOf(time.Duration(0)) {
+			return field.Interface().(time.Duration).String(), nil
+		}
 		return strconv.FormatInt(field.Int(), 10), nil
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		return strconv.FormatUint(field.Uint(), 10), nil
@@ -154,6 +159,15 @@ func getFieldAsString(field reflect.Value) (string, error) {
 		return strconv.FormatFloat(field.Float(), 'f', -1, 64), nil
 	case reflect.Bool:
 		return strconv.FormatBool(field.Bool()), nil
+	case reflect.Slice:
+		if field.Type().Elem().Kind() == reflect.String {
+			parts := make([]string, field.Len())
+			for i := 0; i < field.Len(); i++ {
+				parts[i] = field.Index(i).String()
+			}
+			return strings.Join(parts, ","), nil
+		}
+		return "", fmt.Errorf("unsupported field type: %s", field.Kind())
 	default:
 		return "", fmt.Errorf("unsupported field type: %s", field.Kind())
 	}
