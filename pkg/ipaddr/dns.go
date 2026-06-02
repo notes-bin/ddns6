@@ -3,6 +3,7 @@ package ipaddr
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 )
 
@@ -21,6 +22,8 @@ func (d *DnsFetcher) String() string {
 
 // Fetch 实现 Fetcher 接口
 func (d *DnsFetcher) Fetch(ctx context.Context) (net.IP, error) {
+	slog.Debug("通过 DNS 获取 IPv6 地址", "dns_server", d.String())
+
 	var dialer net.Dialer
 	conn, err := dialer.DialContext(ctx, "udp6", fmt.Sprintf("[%s]:53", *d))
 	if err != nil {
@@ -29,10 +32,20 @@ func (d *DnsFetcher) Fetch(ctx context.Context) (net.IP, error) {
 	defer conn.Close()
 
 	// 获取本地地址
-	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	localAddr, ok := conn.LocalAddr().(*net.UDPAddr)
+	if !ok {
+		return nil, fmt.Errorf("unexpected local address type for server %s", *d)
+	}
 	if localAddr.IP.To16() != nil && localAddr.IP.To4() == nil {
+		slog.Info("通过 DNS 获取到本机 IPv6 地址",
+			"dns_server", d.String(),
+			"local_addr", localAddr.IP.String())
 		return localAddr.IP, nil
 	}
+
+	slog.Warn("DNS 拨号获取到的不是有效 IPv6 地址",
+		"dns_server", d.String(),
+		"local_addr", localAddr.IP.String())
 
 	return nil, fmt.Errorf("no valid IPv6 address found from server %s", *d)
 }

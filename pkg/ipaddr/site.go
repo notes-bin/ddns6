@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"time"
@@ -30,6 +31,8 @@ func (h *HttpIPv6Fetcher) Fetch(ctx context.Context) (net.IP, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request for %s: %w", *h, err)
 	}
+
+	slog.Debug("通过 HTTP 获取 IPv6 地址", "url", h.String())
 
 	client := &http.Client{
 		Timeout: 5 * time.Second,
@@ -57,6 +60,16 @@ func (h *HttpIPv6Fetcher) Fetch(ctx context.Context) (net.IP, error) {
 	if ip != nil && ip.To16() != nil && ip.To4() == nil {
 		return ip, nil
 	}
+
+	// 截断响应内容避免日志过长
+	respStr := string(body)
+	if len(respStr) > 100 {
+		respStr = respStr[:100] + "..."
+	}
+	slog.Warn("HTTP 响应不是有效的 IPv6 地址",
+		"url", h.String(),
+		"response", respStr,
+	)
 
 	return nil, fmt.Errorf("no valid IPv6 address found from %s", *h)
 }
