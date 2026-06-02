@@ -41,6 +41,22 @@ release: clean cross-build
 	tar -czf $(BINARY_NAME)_$(VERSION)_darwin_amd64.tar.gz $(BINARY_NAME)_darwin_amd64 LICENSE README.md
 	tar -czf $(BINARY_NAME)_$(VERSION)_darwin_arm64.tar.gz $(BINARY_NAME)_darwin_arm64 LICENSE README.md
 
+# Docker 构建
+docker-build:
+	docker build -t ddns6 .
+
+# Docker 运行（以腾讯云为例，需先在 .env 中配置凭证）
+docker-up:
+	docker compose up -d
+
+# Docker 查看日志
+docker-logs:
+	docker compose logs -f
+
+# Docker 停止
+docker-down:
+	docker compose down
+
 # 格式化代码
 fmt:
 	$(GO) fmt ./...
@@ -57,6 +73,10 @@ help:
 	@echo "  cross-build 交叉编译"
 	@echo "  release     生成发布包"
 	@echo "  fmt         格式化代码"
-	@echo "  help        显示帮助信息"
+	@echo "  docker-build  构建 Docker 镜像"
+	@echo "  docker-up     启动容器（docker compose up -d）"
+	@echo "  docker-logs   查看容器日志"
+	@echo "  docker-down   停止并删除容器"
+	@echo "  help          显示帮助信息"
 
-.PHONY: all build install run test clean cross-build release fmt help
+.PHONY: all build install run test clean cross-build release docker-build docker-up docker-logs docker-down fmt help

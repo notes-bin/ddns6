@@ -1,0 +1,11 @@
+ddns6*
+ddns6_*
+*.tar.gz
+*.log
+.git
+.gitignore
+.env
+Makefile
+docker-compose.yml
+Dockerfile
+.dockerignore
