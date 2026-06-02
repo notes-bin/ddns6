@@ -35,7 +35,7 @@ func newHuaweiTestServer(t *testing.T) *httptest.Server {
 	}))
 }
 
-func TestAddDomainRecord(t *testing.T) {
+func TestAddRecord(t *testing.T) {
 	ts := newHuaweiTestServer(t)
 	defer ts.Close()
 
@@ -44,13 +44,13 @@ func TestAddDomainRecord(t *testing.T) {
 		WithDNSURL(ts.URL),
 	)
 
-	err := client.AddDomainRecord(ctx, "test.example.com", "A", "192.168.1.1", 600)
+	err := client.AddRecord(ctx, "test.example.com", "A", "192.168.1.1", 600)
 	if err != nil {
-		t.Errorf("AddDomainRecord failed: %v", err)
+		t.Errorf("AddRecord failed: %v", err)
 	}
 }
 
-func TestModifyDomainRecord(t *testing.T) {
+func TestModifyRecord(t *testing.T) {
 	ts := newHuaweiTestServer(t)
 	defer ts.Close()
 
@@ -59,13 +59,13 @@ func TestModifyDomainRecord(t *testing.T) {
 		WithDNSURL(ts.URL),
 	)
 
-	err := client.ModifyDomainRecord(ctx, "test.example.com", "123456", "A", "192.168.1.2", 600)
+	err := client.ModifyRecord(ctx, "test.example.com", "123456", "A", "192.168.1.2", 600)
 	if err != nil {
-		t.Errorf("ModifyDomainRecord failed: %v", err)
+		t.Errorf("ModifyRecord failed: %v", err)
 	}
 }
 
-func TestDeleteDomainRecord(t *testing.T) {
+func TestDeleteRecord(t *testing.T) {
 	ts := newHuaweiTestServer(t)
 	defer ts.Close()
 
@@ -74,13 +74,13 @@ func TestDeleteDomainRecord(t *testing.T) {
 		WithDNSURL(ts.URL),
 	)
 
-	err := client.DeleteDomainRecord(ctx, "test.example.com", "123456")
+	err := client.DeleteRecord(ctx, "test.example.com", "123456")
 	if err != nil {
-		t.Errorf("DeleteDomainRecord failed: %v", err)
+		t.Errorf("DeleteRecord failed: %v", err)
 	}
 }
 
-func TestGetDomainRecords(t *testing.T) {
+func TestGetRecords(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v3/auth/tokens" {
 			w.Header().Set("X-Subject-Token", "test-token")
@@ -104,9 +104,9 @@ func TestGetDomainRecords(t *testing.T) {
 		WithDNSURL(ts.URL),
 	)
 
-	records, err := client.GetDomainRecords(ctx, "test.example.com")
+	records, err := client.GetRecords(ctx, "test.example.com", "")
 	if err != nil {
-		t.Errorf("GetDomainRecords failed: %v", err)
+		t.Errorf("GetRecords failed: %v", err)
 	}
 
 	if len(records) != 1 {

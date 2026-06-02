@@ -27,51 +27,51 @@ func newGoDaddyTestServer(t *testing.T) *httptest.Server {
 	}))
 }
 
-func TestAddDomainRecord(t *testing.T) {
+func TestAddRecord(t *testing.T) {
 	ts := newGoDaddyTestServer(t)
 	defer ts.Close()
 
 	client := NewClient("testKey", "testSecret", WithBaseURL(ts.URL))
 
-	err := client.AddDomainRecord(ctx, "test.example.com", "A", "192.168.1.1", 600)
+	err := client.AddRecord(ctx, "test.example.com", "A", "192.168.1.1", 600)
 	if err != nil {
-		t.Errorf("AddDomainRecord failed: %v", err)
+		t.Errorf("AddRecord failed: %v", err)
 	}
 }
 
-func TestModifyDomainRecord(t *testing.T) {
+func TestModifyRecord(t *testing.T) {
 	ts := newGoDaddyTestServer(t)
 	defer ts.Close()
 
 	client := NewClient("testKey", "testSecret", WithBaseURL(ts.URL))
 
-	err := client.ModifyDomainRecord(ctx, "test.example.com", "A", "192.168.1.1", "192.168.1.2", 600)
+	err := client.ModifyRecord(ctx, "test.example.com", "192.168.1.1", "A", "192.168.1.2", 600)
 	if err != nil {
-		t.Errorf("ModifyDomainRecord failed: %v", err)
+		t.Errorf("ModifyRecord failed: %v", err)
 	}
 }
 
-func TestDeleteDomainRecord(t *testing.T) {
+func TestDeleteRecord(t *testing.T) {
 	ts := newGoDaddyTestServer(t)
 	defer ts.Close()
 
 	client := NewClient("testKey", "testSecret", WithBaseURL(ts.URL))
 
-	err := client.DeleteDomainRecord(ctx, "test.example.com", "A", "192.168.1.1")
+	err := client.DeleteRecord(ctx, "test.example.com", "192.168.1.1")
 	if err != nil {
-		t.Errorf("DeleteDomainRecord failed: %v", err)
+		t.Errorf("DeleteRecord failed: %v", err)
 	}
 }
 
-func TestGetDomainRecords(t *testing.T) {
+func TestGetRecords(t *testing.T) {
 	ts := newGoDaddyTestServer(t)
 	defer ts.Close()
 
 	client := NewClient("testKey", "testSecret", WithBaseURL(ts.URL))
 
-	records, err := client.GetDomainRecords(ctx, "test.example.com", "A")
+	records, err := client.GetRecords(ctx, "test.example.com", "A")
 	if err != nil {
-		t.Errorf("GetDomainRecords failed: %v", err)
+		t.Errorf("GetRecords failed: %v", err)
 	}
 
 	if len(records) != 1 {

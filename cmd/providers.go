@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/notes-bin/cron"
-	"github.com/notes-bin/ddns6/internal/domain"
+	"github.com/notes-bin/ddns6/internal/providers"
 	"github.com/notes-bin/ddns6/internal/providers/alicloud"
 	"github.com/notes-bin/ddns6/internal/providers/cloudflare"
 	"github.com/notes-bin/ddns6/internal/providers/godaddy"
@@ -101,11 +101,11 @@ var huaweicloudCmd = &cobra.Command{
 }
 
 // createDomainConfig 创建域名配置
-func createDomainConfig(cmd *cobra.Command) *domain.Domain {
+func createDomainConfig(cmd *cobra.Command) *providers.Domain {
 	domainName, _ := cmd.Flags().GetString("domain")
 	subdomain, _ := cmd.Flags().GetString("subdomain")
 
-	return &domain.Domain{
+	return &providers.Domain{
 		Type:      "AAAA",
 		Domain:    domainName,
 		SubDomain: subdomain,
@@ -123,32 +123,49 @@ var ipv6Fetchers = []ipaddr.IPv6Fetcher{
 }
 
 // runDDNSService 运行 DDNS 服务
-func runDDNSService(ddns *domain.Domain, task domain.Tasker, interval time.Duration) error {
+func runDDNSService(ddns *providers.Domain, p providers.DNSProvider, interval time.Duration) error {
+	slog.Debug("启动 DDNS 更新服务",
+		"domain", ddns.Domain, "subdomain", ddns.SubDomain,
+		"interval", interval.String())
+
 	sched := cron.New()
 	defer sched.Stop()
 
 	// 首次获取并更新
+	slog.Info("首次获取 IPv6 地址")
 	ipsvc, err := ipaddr.GetIPv6Addr(ipv6Fetchers...)
 	if err != nil {
 		return fmt.Errorf("获取 IPv6 地址失败: %w", err)
 	}
-	if err := ddns.UpdateRecord(context.Background(), ipsvc, task); err != nil {
+	slog.Info("首次 IPv6 地址获取成功", "ipv6", ipsvc.String())
+	if err := ddns.UpdateRecord(context.Background(), ipsvc, p); err != nil {
 		return fmt.Errorf("首次更新记录失败: %w", err)
 	}
 
 	// 启动定时任务，每次重新获取 IPv6 地址
 	sched.AddFunc(cron.Every(interval), func() {
+		slog.Debug("定时任务触发",
+			"domain", ddns.Domain, "subdomain", ddns.SubDomain)
 		ipsvc, err := ipaddr.GetIPv6Addr(ipv6Fetchers...)
 		if err != nil {
-			slog.Error("获取 IPv6 地址失败", "error", err)
+			slog.Error("获取 IPv6 地址失败", "err", err,
+				"domain", ddns.Domain, "subdomain", ddns.SubDomain)
 			return
 		}
-		if err := ddns.UpdateRecord(context.Background(), ipsvc, task); err != nil {
-			slog.Error("更新dns记录失败", "error", err)
+		if err := ddns.UpdateRecord(context.Background(), ipsvc, p); err != nil {
+			slog.Error("更新dns记录失败", "err", err,
+				"domain", ddns.Domain, "subdomain", ddns.SubDomain)
+		} else {
+			slog.Debug("DNS 更新周期完成",
+				"domain", ddns.Domain, "subdomain", ddns.SubDomain)
 		}
 	})
 
-	slog.Info("ddns6 启动成功", "pid", os.Getpid())
+	slog.Info("ddns6 启动成功",
+		"pid", os.Getpid(),
+		"domain", ddns.Domain,
+		"subdomain", ddns.SubDomain,
+		"interval", interval.String())
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)

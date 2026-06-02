@@ -6,14 +6,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/notes-bin/ddns6/internal/providers"
 )
 
-// CloudflareClient represents a client for Cloudflare DNS API
+// CloudflareClient Cloudflare DNS API 客户端
 type CloudflareClient struct {
 	APIKey     string
 	Email      string
@@ -24,32 +27,9 @@ type CloudflareClient struct {
 	HTTPClient *http.Client
 }
 
-// Task implements domain.Tasker.
-func (c *CloudflareClient) Task(ctx context.Context, domain, subdomain, ipv6addr string) error {
-	fulldomain := domain
-	if subdomain != "@" {
-		fulldomain = subdomain + "." + domain
-	}
-
-	records, err := c.GetDomainRecords(ctx, fulldomain, "AAAA")
-	if err != nil {
-		return fmt.Errorf("get domain records: %w", err)
-	}
-
-	for _, r := range records {
-		if r.Content == ipv6addr {
-			return nil
-		}
-	}
-	for _, r := range records {
-		return c.ModifyDomainRecord(ctx, fulldomain, r.ID, "AAAA", ipv6addr, r.TTL)
-	}
-	return c.AddDomainRecord(ctx, fulldomain, "AAAA", ipv6addr, 600)
-}
-
 type Options func(*CloudflareClient)
 
-// NewClient creates a new CloudflareClient
+// NewClient 创建 Cloudflare DNS 客户端
 func NewClient(options ...Options) *CloudflareClient {
 	client := &CloudflareClient{
 		BaseURL:    "https://api.cloudflare.com/client/v4",
@@ -78,14 +58,14 @@ func WithAPIToken(apiToken string) Options {
 	}
 }
 
-// WithAccountID sets the Account ID
+// WithAccountID 设置账户 ID
 func WithAccountID(accountID string) Options {
 	return func(c *CloudflareClient) {
 		c.AccountID = accountID
 	}
 }
 
-// WithZoneID sets the Zone ID
+// WithZoneID 设置区域 ID
 func WithZoneID(zoneID string) Options {
 	return func(c *CloudflareClient) {
 		c.ZoneID = zoneID
@@ -99,14 +79,15 @@ func WithBaseURL(baseURL string) Options {
 	}
 }
 
-// WithHTTPClient sets a custom HTTP client
+// WithHTTPClient 设置自定义 HTTP 客户端
 func WithHTTPClient(httpClient *http.Client) Options {
 	return func(c *CloudflareClient) {
 		c.HTTPClient = httpClient
 	}
 }
 
-// DNSRecord represents a Cloudflare DNS record
+
+// DNSRecord  a Cloudflare DNS record
 type DNSRecord struct {
 	ID      string `json:"id,omitempty"`
 	Type    string `json:"type"`
@@ -129,8 +110,8 @@ type ErrorDetails struct {
 	Message string `json:"message"`
 }
 
-// AddDomainRecord 添加域名解析记录
-func (c *CloudflareClient) AddDomainRecord(ctx context.Context, fulldomain, recordType, value string, ttl int) error {
+// AddRecord 添加域名解析记录
+func (c *CloudflareClient) AddRecord(ctx context.Context, fulldomain, recordType, value string, ttl int) error {
 	zoneID, err := c.getZoneID(ctx, fulldomain)
 	if err != nil {
 		return fmt.Errorf("failed to get zone ID: %v", err)
@@ -156,8 +137,8 @@ func (c *CloudflareClient) AddDomainRecord(ctx context.Context, fulldomain, reco
 	return err
 }
 
-// ModifyDomainRecord 修改域名解析记录
-func (c *CloudflareClient) ModifyDomainRecord(ctx context.Context, fulldomain, recordID, recordType, newValue string, ttl int) error {
+// ModifyRecord 修改域名解析记录
+func (c *CloudflareClient) ModifyRecord(ctx context.Context, fulldomain, recordID, recordType, newValue string, ttl int) error {
 	zoneID, err := c.getZoneID(ctx, fulldomain)
 	if err != nil {
 		return fmt.Errorf("failed to get zone ID: %v", err)
@@ -175,8 +156,8 @@ func (c *CloudflareClient) ModifyDomainRecord(ctx context.Context, fulldomain, r
 	return err
 }
 
-// DeleteDomainRecord 删除域名解析记录
-func (c *CloudflareClient) DeleteDomainRecord(ctx context.Context, fulldomain, recordID string) error {
+// DeleteRecord 删除域名解析记录
+func (c *CloudflareClient) DeleteRecord(ctx context.Context, fulldomain, recordID string) error {
 	zoneID, err := c.getZoneID(ctx, fulldomain)
 	if err != nil {
 		return fmt.Errorf("failed to get zone ID: %v", err)
@@ -185,17 +166,32 @@ func (c *CloudflareClient) DeleteDomainRecord(ctx context.Context, fulldomain, r
 	return c.deleteDNSRecord(ctx, zoneID, recordID)
 }
 
-// GetDomainRecords 获取域名的所有解析记录
-func (c *CloudflareClient) GetDomainRecords(ctx context.Context, fulldomain, recordType string) ([]DNSRecord, error) {
+// GetRecords 查询域名的解析记录，返回通用 RecordInfo 列表
+func (c *CloudflareClient) GetRecords(ctx context.Context, fulldomain, recordType string) ([]providers.RecordInfo, error) {
 	zoneID, err := c.getZoneID(ctx, fulldomain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get zone ID: %v", err)
 	}
 
-	return c.getRecords(ctx, zoneID, fulldomain, recordType, "")
+	records, err := c.getRecords(ctx, zoneID, fulldomain, recordType, "")
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]providers.RecordInfo, len(records))
+	for i, r := range records {
+		result[i] = providers.RecordInfo{
+			ID:    r.ID,
+			Name:  r.Name,
+			Type:  r.Type,
+			Value: r.Content,
+			TTL:   r.TTL,
+		}
+	}
+	return result, nil
 }
 
-// GetDomainRecord 获取特定解析记录
+// GetDomainRecord 查询单条解析记录详情
 func (c *CloudflareClient) GetDomainRecord(ctx context.Context, fulldomain, recordID string) (*DNSRecord, error) {
 	zoneID, err := c.getZoneID(ctx, fulldomain)
 	if err != nil {
@@ -266,6 +262,13 @@ func (c *CloudflareClient) listRequest(ctx context.Context, reqURL string) ([]DN
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		var apiResp APIResponse
+		if err := json.NewDecoder(resp.Body).Decode(&apiResp); err == nil {
+			if len(apiResp.Errors) > 0 {
+				return nil, nil, fmt.Errorf("Cloudflare API error: %s (code %d)",
+					apiResp.Errors[0].Message, apiResp.Errors[0].Code)
+			}
+		}
 		return nil, nil, fmt.Errorf("HTTP request failed with status %d", resp.StatusCode)
 	}
 
@@ -300,6 +303,9 @@ func (c *CloudflareClient) getRecordByID(ctx context.Context, zoneID, recordID s
 
 // updateDNSRecord 更新DNS记录
 func (c *CloudflareClient) updateDNSRecord(ctx context.Context, zoneID, recordID string, record DNSRecord) (*DNSRecord, error) {
+	slog.Info("更新 Cloudflare DNS 记录",
+		"record_id", recordID, "type", record.Type, "zone_id", zoneID)
+
 	url := fmt.Sprintf("%s/zones/%s/dns_records/%s", c.BaseURL, zoneID, recordID)
 
 	body, err := json.Marshal(record)
@@ -309,6 +315,10 @@ func (c *CloudflareClient) updateDNSRecord(ctx context.Context, zoneID, recordID
 
 	var result DNSRecord
 	err = c.makeRequest(ctx, "PUT", url, bytes.NewBuffer(body), &result)
+	if err != nil {
+		slog.Error("更新 Cloudflare DNS 记录失败",
+			"record_id", recordID, "err", err)
+	}
 	return &result, err
 }
 
@@ -330,11 +340,19 @@ func (c *CloudflareClient) getZoneID(ctx context.Context, domain string) (string
 		}
 	}
 
+	// 兜底：完整域名即为区域
+	zoneID, err := c.findZoneID(ctx, domain)
+	if err == nil {
+		return zoneID, nil
+	}
+
 	return "", fmt.Errorf("could not find zone ID for domain %s", domain)
 }
 
 // findZoneID searches for a zone ID by name
 func (c *CloudflareClient) findZoneID(ctx context.Context, zone string) (string, error) {
+	slog.Debug("查找 Cloudflare zone", "zone", zone)
+
 	query := url.Values{}
 	query.Set("name", zone)
 	if c.AccountID != "" {
@@ -354,6 +372,7 @@ func (c *CloudflareClient) findZoneID(ctx context.Context, zone string) (string,
 
 	for _, z := range result {
 		if z.Name == zone {
+			slog.Info("Cloudflare zone 已找到", "zone", zone, "zone_id", z.ID)
 			return z.ID, nil
 		}
 	}
@@ -371,21 +390,40 @@ func (c *CloudflareClient) getZoneDetails(ctx context.Context, zoneID string) (m
 
 // getTxtRecords retrieves TXT records matching the name and optionally content
 func (c *CloudflareClient) getTxtRecords(ctx context.Context, zoneID, name, content string) ([]DNSRecord, error) {
-	query := url.Values{}
-	query.Set("type", "TXT")
-	query.Set("name", name)
-	query.Set("per_page", "100")
-	if content != "" {
-		query.Set("content", content)
-	}
-	reqURL := fmt.Sprintf("%s/zones/%s/dns_records?%s", c.BaseURL, zoneID, query.Encode())
+	var allRecords []DNSRecord
+	page := 1
 
-	records, _, err := c.listRequest(ctx, reqURL)
-	return records, err
+	for {
+		query := url.Values{}
+		query.Set("type", "TXT")
+		query.Set("name", name)
+		query.Set("per_page", "100")
+		query.Set("page", strconv.Itoa(page))
+		if content != "" {
+			query.Set("content", content)
+		}
+		reqURL := fmt.Sprintf("%s/zones/%s/dns_records?%s", c.BaseURL, zoneID, query.Encode())
+
+		records, info, err := c.listRequest(ctx, reqURL)
+		if err != nil {
+			return nil, err
+		}
+		allRecords = append(allRecords, records...)
+
+		if info == nil || page >= info.TotalPages {
+			break
+		}
+		page++
+	}
+
+	return allRecords, nil
 }
 
 // createDNSRecord creates a new DNS record
 func (c *CloudflareClient) createDNSRecord(ctx context.Context, zoneID string, record DNSRecord) (*DNSRecord, error) {
+	slog.Info("创建 Cloudflare DNS 记录",
+		"type", record.Type, "name", record.Name, "zone_id", zoneID)
+
 	url := fmt.Sprintf("%s/zones/%s/dns_records", c.BaseURL, zoneID)
 
 	body, err := json.Marshal(record)
@@ -395,17 +433,29 @@ func (c *CloudflareClient) createDNSRecord(ctx context.Context, zoneID string, r
 
 	var result DNSRecord
 	err = c.makeRequest(ctx, "POST", url, bytes.NewBuffer(body), &result)
+	if err != nil {
+		slog.Error("创建 Cloudflare DNS 记录失败",
+			"type", record.Type, "name", record.Name, "err", err)
+	}
 	return &result, err
 }
 
 // deleteDNSRecord deletes a DNS record
 func (c *CloudflareClient) deleteDNSRecord(ctx context.Context, zoneID, recordID string) error {
+	slog.Info("删除 Cloudflare DNS 记录", "record_id", recordID, "zone_id", zoneID)
+
 	url := fmt.Sprintf("%s/zones/%s/dns_records/%s", c.BaseURL, zoneID, recordID)
-	return c.makeRequest(ctx, "DELETE", url, nil, nil)
+	err := c.makeRequest(ctx, "DELETE", url, nil, nil)
+	if err != nil {
+		slog.Error("删除 Cloudflare DNS 记录失败", "record_id", recordID, "err", err)
+	}
+	return err
 }
 
 // makeRequest performs an HTTP request to the Cloudflare API
 func (c *CloudflareClient) makeRequest(ctx context.Context, method, url string, body io.Reader, result interface{}) error {
+	slog.Debug("Cloudflare API 请求", "method", method, "url", url)
+
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
 		return err
@@ -421,14 +471,21 @@ func (c *CloudflareClient) makeRequest(ctx context.Context, method, url string, 
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
+		slog.Error("Cloudflare API 请求失败", "method", method, "url", url, "err", err)
 		return err
 	}
 	defer resp.Body.Close()
+
+	slog.Debug("Cloudflare API 响应", "method", method, "status", resp.StatusCode)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		var apiResp APIResponse
 		if err := json.NewDecoder(resp.Body).Decode(&apiResp); err == nil {
 			if len(apiResp.Errors) > 0 {
+				slog.Error("Cloudflare API 返回错误",
+					"method", method, "status", resp.StatusCode,
+					"code", apiResp.Errors[0].Code,
+					"message", apiResp.Errors[0].Message)
 				return fmt.Errorf("Cloudflare API error: %s (code %d)",
 					apiResp.Errors[0].Message, apiResp.Errors[0].Code)
 			}
@@ -444,6 +501,8 @@ func (c *CloudflareClient) makeRequest(ctx context.Context, method, url string, 
 
 		if !apiResp.Success {
 			if len(apiResp.Errors) > 0 {
+				slog.Error("Cloudflare API 操作失败",
+					"method", method, "message", apiResp.Errors[0].Message)
 				return fmt.Errorf("Cloudflare API error: %s", apiResp.Errors[0].Message)
 			}
 			return fmt.Errorf("Cloudflare API request was not successful")

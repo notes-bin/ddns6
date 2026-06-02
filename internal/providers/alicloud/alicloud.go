@@ -8,14 +8,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/notes-bin/ddns6/internal/providers"
 )
 
-// AliDNSClient represents a client for Alibaba Cloud DNS API
+// AliDNSClient 阿里云 DNS API 客户端
 type AliDNSClient struct {
 	AccessKeyId     string
 	AccessKeySecret string
@@ -25,7 +28,7 @@ type AliDNSClient struct {
 
 type Options func(*AliDNSClient)
 
-// NewClient creates a new AliDNSClient
+// NewClient 创建 AliDNSClient
 func NewClient(accessKeyId, accessKeySecret string, options ...Options) *AliDNSClient {
 	client := &AliDNSClient{
 		AccessKeyId:     accessKeyId,
@@ -41,43 +44,22 @@ func NewClient(accessKeyId, accessKeySecret string, options ...Options) *AliDNSC
 	return client
 }
 
-// WithBaseURL sets a custom base URL (for testing)
+// WithBaseURL 设置自定义 API 地址（测试用）
 func WithBaseURL(baseURL string) Options {
 	return func(c *AliDNSClient) {
 		c.BaseURL = baseURL
 	}
 }
 
-// WithHTTPClient sets a custom HTTP client
+// WithHTTPClient 设置自定义 HTTP 客户端
 func WithHTTPClient(httpClient *http.Client) Options {
 	return func(c *AliDNSClient) {
 		c.HTTPClient = httpClient
 	}
 }
 
-func (c *AliDNSClient) Task(ctx context.Context, domain, subdomain, ipv6addr string) error {
-	fulldomain := domain
-	if subdomain != "@" {
-		fulldomain = subdomain + "." + domain
-	}
 
-	records, err := c.GetDomainRecords(ctx, fulldomain, "AAAA")
-	if err != nil {
-		return fmt.Errorf("get domain records: %w", err)
-	}
-
-	for _, r := range records {
-		if r.Value == ipv6addr {
-			return nil
-		}
-	}
-	for _, r := range records {
-		return c.ModifyDomainRecord(ctx, fulldomain, r.RecordId, "AAAA", ipv6addr, r.TTL)
-	}
-	return c.AddDomainRecord(ctx, fulldomain, "AAAA", ipv6addr, 600)
-}
-
-// DNSRecord represents an Alibaba Cloud DNS record
+// DNSRecord  an Alibaba Cloud DNS record
 type DNSRecord struct {
 	RecordId string `json:"RecordId"`
 	Domain   string `json:"Domain"`
@@ -87,8 +69,8 @@ type DNSRecord struct {
 	TTL      int    `json:"TTL"`
 }
 
-// AddDomainRecord 添加域名解析记录
-func (c *AliDNSClient) AddDomainRecord(ctx context.Context, fulldomain, recordType, value string, ttl int) error {
+// AddRecord 添加域名解析记录
+func (c *AliDNSClient) AddRecord(ctx context.Context, fulldomain, recordType, value string, ttl int) error {
 	domain, subDomain, err := c.getRootDomain(ctx, fulldomain)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %v", err)
@@ -109,8 +91,8 @@ func (c *AliDNSClient) AddDomainRecord(ctx context.Context, fulldomain, recordTy
 	return err
 }
 
-// ModifyDomainRecord 修改域名解析记录
-func (c *AliDNSClient) ModifyDomainRecord(ctx context.Context, fulldomain, recordID, recordType, newValue string, ttl int) error {
+// ModifyRecord 修改域名解析记录
+func (c *AliDNSClient) ModifyRecord(ctx context.Context, fulldomain, recordID, recordType, newValue string, ttl int) error {
 	_, subDomain, err := c.getRootDomain(ctx, fulldomain)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %v", err)
@@ -129,8 +111,8 @@ func (c *AliDNSClient) ModifyDomainRecord(ctx context.Context, fulldomain, recor
 	return err
 }
 
-// DeleteDomainRecord 删除域名解析记录
-func (c *AliDNSClient) DeleteDomainRecord(ctx context.Context, fulldomain, recordID string) error {
+// DeleteRecord 删除域名解析记录
+func (c *AliDNSClient) DeleteRecord(ctx context.Context, fulldomain, recordID string) error {
 	params := map[string]string{
 		"Action":   "DeleteDomainRecord",
 		"RecordId": recordID,
@@ -140,8 +122,8 @@ func (c *AliDNSClient) DeleteDomainRecord(ctx context.Context, fulldomain, recor
 	return err
 }
 
-// GetDomainRecords 获取域名的所有解析记录
-func (c *AliDNSClient) GetDomainRecords(ctx context.Context, fulldomain, recordType string) ([]DNSRecord, error) {
+// GetRecords 查询域名的解析记录，返回通用 RecordInfo 列表
+func (c *AliDNSClient) GetRecords(ctx context.Context, fulldomain, recordType string) ([]providers.RecordInfo, error) {
 	domain, subDomain, err := c.getRootDomain(ctx, fulldomain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root domain: %v", err)
@@ -169,10 +151,24 @@ func (c *AliDNSClient) GetDomainRecords(ctx context.Context, fulldomain, recordT
 		return nil, err
 	}
 
-	return result.DomainRecords.Record, nil
+	records := make([]providers.RecordInfo, 0, len(result.DomainRecords.Record))
+	for _, r := range result.DomainRecords.Record {
+		// 客户端精确匹配 RR（API 的 RRKeyWord 是模糊匹配）
+		if subDomain != "" && r.RR != subDomain {
+			continue
+		}
+		records = append(records, providers.RecordInfo{
+			ID:    r.RecordId,
+			Name:  r.RR,
+			Type:  r.Type,
+			Value: r.Value,
+			TTL:   r.TTL,
+		})
+	}
+	return records, nil
 }
 
-// GetDomainRecord 获取特定解析记录
+// GetDomainRecord 查询单条解析记录详情
 func (c *AliDNSClient) GetDomainRecord(ctx context.Context, fulldomain, recordID string) (*DNSRecord, error) {
 	params := map[string]string{
 		"Action":   "DescribeDomainRecordInfo",
@@ -197,6 +193,7 @@ func (c *AliDNSClient) getRootDomain(ctx context.Context, domain string) (string
 	parts := strings.Split(domain, ".")
 	for i := 1; i < len(parts); i++ {
 		h := strings.Join(parts[i:], ".")
+		slog.Debug("探测 Alibaba 根域名", "domain", h)
 
 		params := map[string]string{
 			"Action":     "DescribeDomainRecords",
@@ -218,7 +215,23 @@ func (c *AliDNSClient) getRootDomain(ctx context.Context, domain string) (string
 
 		if result.TotalCount > 0 {
 			subDomain := strings.Join(parts[:i], ".")
+			slog.Info("Alibaba 根域名已找到", "root", h, "subdomain", subDomain)
 			return h, subDomain, nil
+		}
+	}
+
+	// 兜底：完整域名即为根域名，使用 @ 表示记录主机名
+	params := map[string]string{
+		"Action":     "DescribeDomainRecords",
+		"DomainName": domain,
+	}
+	resp, err := c.makeRequest(ctx, params)
+	if err == nil {
+		var result struct {
+			TotalCount int `json:"TotalCount"`
+		}
+		if err := json.Unmarshal(resp, &result); err == nil && result.TotalCount > 0 {
+			return domain, "@", nil
 		}
 	}
 
@@ -227,7 +240,10 @@ func (c *AliDNSClient) getRootDomain(ctx context.Context, domain string) (string
 
 // makeRequest performs an authenticated request to Alibaba Cloud API
 func (c *AliDNSClient) makeRequest(ctx context.Context, params map[string]string) ([]byte, error) {
-	// Copy params to avoid mutating caller's map
+	action := params["Action"]
+	slog.Debug("Alibaba Cloud API 请求", "action", action)
+
+	// 复制参数避免污染调用方 map
 	reqParams := make(map[string]string, len(params)+8)
 	for k, v := range params {
 		reqParams[k] = v
@@ -240,42 +256,47 @@ func (c *AliDNSClient) makeRequest(ctx context.Context, params map[string]string
 	reqParams["SignatureVersion"] = "1.0"
 	reqParams["SignatureNonce"] = fmt.Sprintf("%d", time.Now().UnixNano())
 
-	// Sort parameters
+	// 参数排序
 	var keys []string
 	for k := range reqParams {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 
-	// Build query string
+	// 构建查询字符串
 	var queryParts []string
 	for _, k := range keys {
 		queryParts = append(queryParts, fmt.Sprintf("%s=%s", k, url.QueryEscape(reqParams[k])))
 	}
 	queryString := strings.Join(queryParts, "&")
 
-	// Calculate signature
+	// 计算签名
 	stringToSign := fmt.Sprintf("GET&%%2F&%s", url.QueryEscape(queryString))
 	mac := hmac.New(sha1.New, []byte(c.AccessKeySecret+"&"))
 	mac.Write([]byte(stringToSign))
 	signature := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 	signature = url.QueryEscape(signature)
 
-	// Build final URL
+	// Build final URL (注意：不记录完整 URL 以免泄露签名和 AccessKeyId)
 	fullURL := fmt.Sprintf("%s?%s&Signature=%s", c.BaseURL, queryString, signature)
 
-	// Make request
+	// 发起请求
 	req, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)
 	if err != nil {
 		return nil, err
 	}
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
+		slog.Error("Alibaba Cloud API 请求失败", "action", action, "err", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
+	slog.Debug("Alibaba Cloud API 响应", "action", action, "status", resp.StatusCode)
+
 	if resp.StatusCode != http.StatusOK {
+		slog.Error("Alibaba Cloud API 返回错误状态码",
+			"action", action, "status", resp.StatusCode)
 		return nil, fmt.Errorf("API request failed with status %d", resp.StatusCode)
 	}
 
@@ -289,6 +310,8 @@ func (c *AliDNSClient) makeRequest(ctx context.Context, params map[string]string
 		Message string `json:"Message"`
 	}
 	if err := json.Unmarshal(body, &apiError); err == nil && apiError.Message != "" {
+		slog.Error("Alibaba Cloud API 业务错误",
+			"action", action, "message", apiError.Message)
 		return nil, fmt.Errorf("API error: %s", apiError.Message)
 	}
 
