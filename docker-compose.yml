@@ -1,10 +1,78 @@
-version: '3'
 services:
-  ddns6:
+  # ============ 使用示例：选择一个 provider 取消注释 ============
+
+  # 腾讯云 DNSPod
+  ddns6-tencent:
     build:
       context: .
       dockerfile: Dockerfile
     restart: always
-    environment:
-      - DOMAIN=yourdomain.com  # 根据实际情况设置环境变量
-      - SUBDOMAIN=subdomain    # 根据实际情况设置环境变量
+    command:
+      - run
+      - tencent
+      - --secret-id=${TENCENT_SECRET_ID}
+      - --secret-key=${TENCENT_SECRET_KEY}
+      - --domain=${DOMAIN}
+      - --subdomain=${SUBDOMAIN:-@}
+      - --interval=${INTERVAL:-5m}
+      - --debug=${DEBUG:-false}
+
+  # 阿里云 DNS
+  # ddns6-alicloud:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   restart: always
+  #   command:
+  #     - run
+  #     - alicloud
+  #     - --access-key-id=${ALICLOUD_ACCESS_KEY_ID}
+  #     - --access-key-secret=${ALICLOUD_ACCESS_KEY_SECRET}
+  #     - --domain=${DOMAIN}
+  #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interval=${INTERVAL:-5m}
+
+  # Cloudflare
+  # ddns6-cloudflare:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   restart: always
+  #   command:
+  #     - run
+  #     - cloudflare
+  #     - --api-token=${CLOUDFLARE_API_TOKEN}
+  #     - --domain=${DOMAIN}
+  #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interval=${INTERVAL:-5m}
+
+  # GoDaddy
+  # ddns6-godaddy:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   restart: always
+  #   command:
+  #     - run
+  #     - godaddy
+  #     - --api-key=${GODADDY_API_KEY}
+  #     - --api-secret=${GODADDY_API_SECRET}
+  #     - --domain=${DOMAIN}
+  #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interval=${INTERVAL:-5m}
+
+  # 华为云 DNS
+  # ddns6-huaweicloud:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   restart: always
+  #   command:
+  #     - run
+  #     - huaweicloud
+  #     - --username=${HUAWEI_USERNAME}
+  #     - --password=${HUAWEI_PASSWORD}
+  #     - --domain-name=${HUAWEI_DOMAIN_NAME}
+  #     - --domain=${DOMAIN}
+  #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interval=${INTERVAL:-5m}

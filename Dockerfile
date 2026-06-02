@@ -1,27 +1,29 @@
-# 基础镜像，使用官方的 Go 镜像
-FROM golang:1.23-alpine AS builder
+# 构建阶段
+FROM golang:1.25-alpine AS builder
 
-# 设置工作目录
 WORKDIR /app
 
-# 复制项目文件
+COPY go.mod go.sum ./
+RUN go mod download
+
 COPY . .
 
-# 构建项目
-RUN go mod tidy
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ddns6 .
+ARG VERSION=dev
+ARG COMMIT=none
+ARG BUILD_TIME=unknown
 
-# 最终镜像，使用轻量级的 alpine 镜像
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags "-s -w -X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.buildAt=${BUILD_TIME}" \
+    -o ddns6 ./cmd
+
+# 运行阶段
 FROM alpine:latest
 
-# 安装必要的依赖
-RUN apk --no-cache add ca-certificates
+RUN apk --no-cache add ca-certificates tzdata
 
-# 设置工作目录
-WORKDIR /root/
+WORKDIR /app
 
-# 从 builder 阶段复制构建好的二进制文件
 COPY --from=builder /app/ddns6 .
 
-# 启动应用
-CMD ["./ddns6"]
+ENTRYPOINT ["/app/ddns6"]
+CMD ["--help"]
