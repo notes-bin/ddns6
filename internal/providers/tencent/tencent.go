@@ -10,10 +10,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/notes-bin/ddns6/internal/providers"
 )
 
 const (
@@ -34,13 +37,13 @@ type DNSRecord struct {
 	TTL          int    `json:"TTL,omitempty"`
 }
 
-// Response 表示 Tencent Cloud DNS API 响应
+// Response API 响应
 type Response struct {
 	RecordId  string `json:"RecordId"`
 	RequestId string `json:"RequestId"`
 }
 
-// DNSService 表示 Tencent Cloud DNS 服务
+// DNSPod Tencent Cloud DNS 服务客户端
 type DNSPod struct {
 	secretId  string
 	secretKey string
@@ -48,39 +51,10 @@ type DNSPod struct {
 	*http.Client
 }
 
-// Option 表示 Tencent Cloud DNS 服务选项
+// Option 客户端配置选项函数
 type Option func(*DNSPod)
 
-// Task 执行 Tencent Cloud DNS 更新任务
-func (ds *DNSPod) Task(ctx context.Context, domain, subdomain, ipv6addr string) error {
-	fulldomain := domain
-	if subdomain != "@" {
-		fulldomain = subdomain + "." + domain
-	}
-
-	record, err := ds.FindDomainRecord(ctx, fulldomain, "AAAA", ipv6addr)
-	if err != nil {
-		return fmt.Errorf("find AAAA record: %w", err)
-	}
-	if record != nil {
-		return nil
-	}
-
-	records, err := ds.GetDomainRecords(ctx, fulldomain)
-	if err != nil {
-		return fmt.Errorf("get domain records: %w", err)
-	}
-
-	for _, r := range records {
-		if r.RecordType == "AAAA" {
-			return ds.ModifyDomainRecord(ctx, fulldomain, r.RecordId, "AAAA", ipv6addr, r.TTL)
-		}
-	}
-
-	return ds.AddDomainRecord(ctx, fulldomain, "AAAA", ipv6addr, 600)
-}
-
-// NewDNSService 创建 Tencent Cloud DNS 服务实例
+// NewDNSPod 创建 Tencent Cloud DNS 服务实例
 func NewDNSPod(secretId, secretKey string, options ...Option) *DNSPod {
 	client := &DNSPod{
 		secretId:  secretId,
@@ -96,7 +70,7 @@ func NewDNSPod(secretId, secretKey string, options ...Option) *DNSPod {
 	return client
 }
 
-// WithBaseURL 设置自定义基础 URL
+// WithAPIUrl 设置自定义 API 地址
 func WithAPIUrl(url string) Option {
 	return func(ds *DNSPod) {
 		ds.apiURL = url
@@ -110,8 +84,12 @@ func WithHTTPClient(httpClient *http.Client) Option {
 	}
 }
 
-// AddDomainRecord 添加域名解析记录
-func (ds *DNSPod) AddDomainRecord(ctx context.Context, fulldomain, recordType, value string, ttl int) error {
+
+// AddRecord 添加域名解析记录
+func (ds *DNSPod) AddRecord(ctx context.Context, fulldomain, recordType, value string, ttl int) error {
+	slog.Info("添加 Tencent DNS 记录",
+		"domain", fulldomain, "type", recordType)
+
 	domain, subDomain, err := ds.getRootDomain(ctx, fulldomain)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %v", err)
@@ -128,11 +106,19 @@ func (ds *DNSPod) AddDomainRecord(ctx context.Context, fulldomain, recordType, v
 	}
 
 	response := new(Response)
-	return ds.makeRequest(ctx, "CreateRecord", record, response)
+	err = ds.makeRequest(ctx, "CreateRecord", record, response)
+	if err != nil {
+		slog.Error("添加 Tencent DNS 记录失败",
+			"domain", fulldomain, "type", recordType, "err", err)
+	}
+	return err
 }
 
-// ModifyDomainRecord 修改域名解析记录
-func (ds *DNSPod) ModifyDomainRecord(ctx context.Context, fulldomain, recordId, recordType, newValue string, ttl int) error {
+// ModifyRecord 修改域名解析记录
+func (ds *DNSPod) ModifyRecord(ctx context.Context, fulldomain, recordId, recordType, newValue string, ttl int) error {
+	slog.Info("修改 Tencent DNS 记录",
+		"domain", fulldomain, "record_id", recordId, "type", recordType)
+
 	domain, _, err := ds.getRootDomain(ctx, fulldomain)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %v", err)
@@ -147,11 +133,19 @@ func (ds *DNSPod) ModifyDomainRecord(ctx context.Context, fulldomain, recordId, 
 	}
 
 	response := new(Response)
-	return ds.makeRequest(ctx, "ModifyRecord", payload, response)
+	err = ds.makeRequest(ctx, "ModifyRecord", payload, response)
+	if err != nil {
+		slog.Error("修改 Tencent DNS 记录失败",
+			"domain", fulldomain, "record_id", recordId, "err", err)
+	}
+	return err
 }
 
-// DeleteDomainRecord 删除域名解析记录
-func (ds *DNSPod) DeleteDomainRecord(ctx context.Context, fulldomain, recordId string) error {
+// DeleteRecord 删除域名解析记录
+func (ds *DNSPod) DeleteRecord(ctx context.Context, fulldomain, recordId string) error {
+	slog.Info("删除 Tencent DNS 记录",
+		"domain", fulldomain, "record_id", recordId)
+
 	domain, _, err := ds.getRootDomain(ctx, fulldomain)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %v", err)
@@ -159,19 +153,42 @@ func (ds *DNSPod) DeleteDomainRecord(ctx context.Context, fulldomain, recordId s
 
 	payload := DNSRecord{Domain: domain, RecordId: recordId}
 	response := new(Response)
-	return ds.makeRequest(ctx, "DeleteRecord", payload, response)
+	err = ds.makeRequest(ctx, "DeleteRecord", payload, response)
+	if err != nil {
+		slog.Error("删除 Tencent DNS 记录失败",
+			"domain", fulldomain, "record_id", recordId, "err", err)
+	}
+	return err
 }
 
-// GetDomainRecords 查询域名的所有解析记录
-func (ds *DNSPod) GetDomainRecords(ctx context.Context, fulldomain string) ([]DNSRecord, error) {
+// GetRecords 查询域名的解析记录，返回通用 RecordInfo 列表
+func (ds *DNSPod) GetRecords(ctx context.Context, fulldomain, recordType string) ([]providers.RecordInfo, error) {
 	domain, subDomain, err := ds.getRootDomain(ctx, fulldomain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root domain: %v", err)
 	}
-	return ds.describeRecords(ctx, domain, subDomain)
+	records, err := ds.describeRecords(ctx, domain, subDomain)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]providers.RecordInfo, 0, len(records))
+	for _, r := range records {
+		if recordType != "" && r.RecordType != recordType {
+			continue
+		}
+		result = append(result, providers.RecordInfo{
+			ID:    r.RecordId,
+			Name:  r.SubDomain,
+			Type:  r.RecordType,
+			Value: r.Value,
+			TTL:   r.TTL,
+		})
+	}
+	return result, nil
 }
 
-// GetDomainRecord 查询特定解析记录
+// GetDomainRecord 查询单条解析记录详情
 func (ds *DNSPod) GetDomainRecord(ctx context.Context, fulldomain, recordId string) (*DNSRecord, error) {
 	domain, _, err := ds.getRootDomain(ctx, fulldomain)
 	if err != nil {
@@ -192,48 +209,26 @@ func (ds *DNSPod) GetDomainRecord(ctx context.Context, fulldomain, recordId stri
 	return &response.RecordInfo, nil
 }
 
-// FindDomainRecord 根据子域名和值查找解析记录
-func (ds *DNSPod) FindDomainRecord(ctx context.Context, fulldomain, recordType, value string) (*DNSRecord, error) {
-	domain, subDomain, err := ds.getRootDomain(ctx, fulldomain)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get root domain: %v", err)
-	}
-
-	payload := DNSRecord{
-		Domain:     domain,
-		SubDomain:  subDomain,
-		RecordType: recordType,
-		Value:      value,
-	}
-
-	var response struct {
-		RecordList []DNSRecord `json:"RecordList"`
-	}
-
-	err = ds.makeRequest(ctx, "DescribeRecordFilterList", payload, &response)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(response.RecordList) > 0 {
-		return &response.RecordList[0], nil
-	}
-
-	return nil, nil
-}
-
 // getRootDomain 从域名中提取根域名和子域名
 func (ds *DNSPod) getRootDomain(ctx context.Context, domain string) (string, string, error) {
 	parts := strings.Split(domain, ".")
 	for i := 1; i < len(parts); i++ {
 		h := strings.Join(parts[i:], ".")
+		slog.Debug("探测 Tencent 根域名", "domain", h)
 
-		// Check if this is a valid domain
+		// 验证是否为有效域名
 		_, err := ds.describeRecords(ctx, h, "@")
 		if err == nil {
 			subDomain := strings.Join(parts[:i], ".")
+			slog.Info("Tencent 根域名已找到", "root", h, "subdomain", subDomain)
 			return h, subDomain, nil
 		}
+	}
+
+	// 兜底：完整域名即为根域名，使用 @ 表示记录主机名
+	_, err := ds.describeRecords(ctx, domain, "@")
+	if err == nil {
+		return domain, "@", nil
 	}
 
 	return "", "", fmt.Errorf("could not find root domain for %s", domain)
@@ -241,6 +236,8 @@ func (ds *DNSPod) getRootDomain(ctx context.Context, domain string) (string, str
 
 // describeRecords 查询域名的所有解析记录
 func (ds *DNSPod) describeRecords(ctx context.Context, domain, subDomain string) ([]DNSRecord, error) {
+	slog.Debug("查询 Tencent DNS 记录", "domain", domain, "subdomain", subDomain)
+
 	payload := map[string]any{"Domain": domain, "Limit": 3000}
 
 	var response struct {
@@ -257,16 +254,19 @@ func (ds *DNSPod) describeRecords(ctx context.Context, domain, subDomain string)
 		return recordList, nil
 	}
 
-	for i := len(recordList) - 1; i >= 0; i-- {
-		if recordList[i].SubDomain != subDomain {
-			recordList = append(recordList[:i], recordList[i+1:]...)
+	filtered := make([]DNSRecord, 0, len(recordList))
+	for _, r := range recordList {
+		if r.SubDomain == subDomain {
+			filtered = append(filtered, r)
 		}
 	}
-	return recordList, nil
+	return filtered, nil
 }
 
 // makeRequest 执行Authenticated请求到Tencent Cloud API
 func (ds *DNSPod) makeRequest(ctx context.Context, action string, payload any, result any) error {
+	slog.Debug("Tencent API 请求", "action", action)
+
 	timestamp := time.Now().Unix()
 
 	// 序列化请求体
@@ -294,13 +294,18 @@ func (ds *DNSPod) makeRequest(ctx context.Context, action string, payload any, r
 	// 发送请求
 	resp, err := ds.Do(req)
 	if err != nil {
+		slog.Error("Tencent API 请求失败", "action", action, "err", err)
 		return fmt.Errorf("API request failed: %v", err)
 	}
 	defer resp.Body.Close()
 
+	slog.Debug("Tencent API 响应", "action", action, "status", resp.StatusCode)
+
 	// 检查响应状态码
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bodyBytes, _ := io.ReadAll(resp.Body)
+		slog.Error("Tencent API 返回错误状态码",
+			"action", action, "status", resp.StatusCode)
 		return fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
@@ -318,6 +323,11 @@ func (ds *DNSPod) makeRequest(ctx context.Context, action string, payload any, r
 		return fmt.Errorf("failed to decode response: %v", err)
 	}
 
+	// 处理 Response 为 null 的情况
+	if len(apiResponse.Response) == 0 || string(apiResponse.Response) == "null" {
+		return fmt.Errorf("API returned null Response for action %s", action)
+	}
+
 	// 检查 Response 内部的错误信息
 	var errResp struct {
 		Error struct {
@@ -326,6 +336,9 @@ func (ds *DNSPod) makeRequest(ctx context.Context, action string, payload any, r
 		} `json:"Error"`
 	}
 	if err := json.Unmarshal(apiResponse.Response, &errResp); err == nil && errResp.Error.Code != "" {
+		slog.Error("Tencent API 业务错误",
+			"action", action, "code", errResp.Error.Code,
+			"message", errResp.Error.Message)
 		return fmt.Errorf("API error: %s (%s)", errResp.Error.Message, errResp.Error.Code)
 	}
 
@@ -345,7 +358,7 @@ func (ds *DNSPod) generateSignatureV3(service, action, payload string, timestamp
 	date := time.Unix(timestamp, 0).UTC().Format("2006-01-02")
 	domain := service + ".tencentcloudapi.com"
 
-	// Canonical request
+	// 构造规范请求
 	canonicalURI := "/"
 	canonicalQuery := ""
 	canonicalHeaders := fmt.Sprintf("content-type:application/json\nhost:%s\nx-tc-action:%s\n", domain, strings.ToLower(action))
@@ -353,12 +366,12 @@ func (ds *DNSPod) generateSignatureV3(service, action, payload string, timestamp
 	hashedPayload := sha256Hex(payload)
 	canonicalRequest := fmt.Sprintf("POST\n%s\n%s\n%s\n%s\n%s", canonicalURI, canonicalQuery, canonicalHeaders, signedHeaders, hashedPayload)
 
-	// String to sign
+	// 构造待签名字符串
 	credentialScope := fmt.Sprintf("%s/%s/tc3_request", date, service)
 	hashedRequest := sha256Hex(canonicalRequest)
 	stringToSign := fmt.Sprintf("%s\n%d\n%s\n%s", algorithm, timestamp, credentialScope, hashedRequest)
 
-	// Calculate signature
+	// 计算签名
 	secretDate := hmacSha256("TC3"+ds.secretKey, date)
 	secretService := hmacSha256Hex(string(secretDate), service)
 	secretSigning := hmacSha256Hex(secretService, "tc3_request")

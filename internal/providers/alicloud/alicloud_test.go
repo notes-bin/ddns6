@@ -9,7 +9,7 @@ import (
 
 var ctx = context.Background()
 
-func TestAddDomainRecord(t *testing.T) {
+func TestAddRecord(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"RequestId": "test-request-id", "TotalCount": 1, "RecordId": "123456"}`))
@@ -18,13 +18,13 @@ func TestAddDomainRecord(t *testing.T) {
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(ts.URL))
 
-	err := client.AddDomainRecord(ctx, "test.example.com", "A", "192.168.1.1", 600)
+	err := client.AddRecord(ctx, "test.example.com", "A", "192.168.1.1", 600)
 	if err != nil {
-		t.Errorf("AddDomainRecord failed: %v", err)
+		t.Errorf("AddRecord failed: %v", err)
 	}
 }
 
-func TestModifyDomainRecord(t *testing.T) {
+func TestModifyRecord(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"RequestId": "test-request-id", "TotalCount": 1, "RecordId": "123456"}`))
@@ -33,13 +33,13 @@ func TestModifyDomainRecord(t *testing.T) {
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(ts.URL))
 
-	err := client.ModifyDomainRecord(ctx, "test.example.com", "123456", "A", "192.168.1.2", 600)
+	err := client.ModifyRecord(ctx, "test.example.com", "123456", "A", "192.168.1.2", 600)
 	if err != nil {
-		t.Errorf("ModifyDomainRecord failed: %v", err)
+		t.Errorf("ModifyRecord failed: %v", err)
 	}
 }
 
-func TestDeleteDomainRecord(t *testing.T) {
+func TestDeleteRecord(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"RequestId": "test-request-id"}`))
@@ -48,13 +48,13 @@ func TestDeleteDomainRecord(t *testing.T) {
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(ts.URL))
 
-	err := client.DeleteDomainRecord(ctx, "test.example.com", "123456")
+	err := client.DeleteRecord(ctx, "test.example.com", "123456")
 	if err != nil {
-		t.Errorf("DeleteDomainRecord failed: %v", err)
+		t.Errorf("DeleteRecord failed: %v", err)
 	}
 }
 
-func TestGetDomainRecords(t *testing.T) {
+func TestGetRecords(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"RequestId": "test-request-id", "TotalCount": 1, "DomainRecords": {"Record": [{"RecordId": "123456", "Domain": "example.com", "RR": "test", "Type": "A", "Value": "192.168.1.1", "TTL": 600}]}}`))
@@ -63,9 +63,9 @@ func TestGetDomainRecords(t *testing.T) {
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(ts.URL))
 
-	records, err := client.GetDomainRecords(ctx, "test.example.com", "A")
+	records, err := client.GetRecords(ctx, "test.example.com", "A")
 	if err != nil {
-		t.Errorf("GetDomainRecords failed: %v", err)
+		t.Errorf("GetRecords failed: %v", err)
 	}
 
 	if len(records) != 1 {
