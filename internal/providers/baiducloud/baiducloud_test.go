@@ -19,13 +19,13 @@ func TestClient_GetRecords(t *testing.T) {
 		}
 		json.NewEncoder(w).Encode(baiduListResponse{
 			Result: []struct {
-				RecordID   string `json:"recordId"`
-				Domain     string `json:"domain"`
-				RDType     string `json:"rdtype"`
-				RData      string `json:"rdata"`
-				TTL        int    `json:"ttl"`
-				View       string `json:"view"`
-				ZoneName   string `json:"zoneName"`
+				RecordID string `json:"recordId"`
+				Domain   string `json:"domain"`
+				RDType   string `json:"rdtype"`
+				RData    string `json:"rdata"`
+				TTL      int    `json:"ttl"`
+				View     string `json:"view"`
+				ZoneName string `json:"zoneName"`
 			}{
 				{RecordID: "rec1", Domain: "www", RDType: "AAAA", RData: "2001:db8::1", TTL: 300, View: "default", ZoneName: "example.com"},
 			},
@@ -71,13 +71,13 @@ func TestClient_ModifyRecord(t *testing.T) {
 			listCalled = true
 			json.NewEncoder(w).Encode(baiduListResponse{
 				Result: []struct {
-					RecordID   string `json:"recordId"`
-					Domain     string `json:"domain"`
-					RDType     string `json:"rdtype"`
-					RData      string `json:"rdata"`
-					TTL        int    `json:"ttl"`
-					View       string `json:"view"`
-					ZoneName   string `json:"zoneName"`
+					RecordID string `json:"recordId"`
+					Domain   string `json:"domain"`
+					RDType   string `json:"rdtype"`
+					RData    string `json:"rdata"`
+					TTL      int    `json:"ttl"`
+					View     string `json:"view"`
+					ZoneName string `json:"zoneName"`
 				}{
 					{RecordID: "rec1", Domain: "www", RDType: "AAAA", RData: "2001:db8::2", TTL: 300, View: "default", ZoneName: "example.com"},
 				},

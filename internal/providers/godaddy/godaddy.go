@@ -56,7 +56,6 @@ func WithHTTPClient(httpClient *http.Client) Options {
 	}
 }
 
-
 // DNSRecord  a GoDaddy DNS record
 type DNSRecord struct {
 	Data string `json:"data"`

@@ -73,8 +73,8 @@ type DNSRecord struct {
 
 // apiResponse Porkbun API 通用响应
 type apiResponse struct {
-	Status  string          `json:"status"`
-	Records []DNSRecord     `json:"records,omitempty"`
+	Status  string      `json:"status"`
+	Records []DNSRecord `json:"records,omitempty"`
 }
 
 // AddRecord 添加域名解析记录

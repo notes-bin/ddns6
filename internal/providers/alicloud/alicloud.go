@@ -78,13 +78,13 @@ func (c *AliDNSClient) AddRecord(ctx context.Context, fulldomain, recordType, va
 	}
 
 	params := map[string]string{
-		"Action":       "AddDomainRecord",
-		"DomainName":   domain,
-		"RR":           subDomain,
-		"Type":         recordType,
-		"Value":        value,
-		"TTL":          fmt.Sprintf("%d", ttl),
-		"RecordLine":   "default",
+		"Action":     "AddDomainRecord",
+		"DomainName": domain,
+		"RR":         subDomain,
+		"Type":       recordType,
+		"Value":      value,
+		"TTL":        fmt.Sprintf("%d", ttl),
+		"RecordLine": "default",
 	}
 
 	_, err = c.makeRequest(ctx, params)

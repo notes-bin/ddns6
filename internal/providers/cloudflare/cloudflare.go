@@ -88,7 +88,6 @@ func WithHTTPClient(httpClient *http.Client) Options {
 	}
 }
 
-
 // DNSRecord  a Cloudflare DNS record
 type DNSRecord struct {
 	ID      string `json:"id,omitempty"`
@@ -357,7 +356,7 @@ func (c *CloudflareClient) findZoneID(ctx context.Context, zone string) (string,
 
 	query := url.Values{}
 	query.Set("name", zone)
-		query.Set("status", "active")
+	query.Set("status", "active")
 	if c.AccountID != "" {
 		query.Set("account.id", c.AccountID)
 	}

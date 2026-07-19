@@ -31,13 +31,13 @@ import (
 
 // Config 表示 ~/.ddns6/config.yaml 的完整配置结构。
 type Config struct {
-	Provider   string            `yaml:"provider"`             // DNS 运营商名称（如 tencent、cloudflare）
-	Auth       map[string]string `yaml:"auth"`                 // 运营商认证凭据（不同运营商字段不同）
-	Domain     string            `yaml:"domain"`               // 根域名（如 example.com）
-	Subdomains []string          `yaml:"subdomains"`           // 子域名列表（如 ["www", "@"]）
-	Interval   string            `yaml:"interval"`             // 轮询间隔字符串（如 "10m"、"5m"）
-	Interface  string            `yaml:"interface,omitempty"`  // 监听的网络接口（可选，仅 Linux）
-	TTL        int               `yaml:"ttl,omitempty"`        // DNS 记录 TTL（可选，默认 600）
+	Provider   string            `yaml:"provider"`            // DNS 运营商名称（如 tencent、cloudflare）
+	Auth       map[string]string `yaml:"auth"`                // 运营商认证凭据（不同运营商字段不同）
+	Domain     string            `yaml:"domain"`              // 根域名（如 example.com）
+	Subdomains []string          `yaml:"subdomains"`          // 子域名列表（如 ["www", "@"]）
+	Interval   string            `yaml:"interval"`            // 轮询间隔字符串（如 "10m"、"5m"）
+	Interface  string            `yaml:"interface,omitempty"` // 监听的网络接口（可选，仅 Linux）
+	TTL        int               `yaml:"ttl,omitempty"`       // DNS 记录 TTL（可选，默认 600）
 }
 
 // ConfigDir 返回配置目录路径 ~/.ddns6。
