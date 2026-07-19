@@ -45,6 +45,16 @@ release: clean cross-build
 docker-build:
 	docker build -t ddns6 .
 
+# Docker 直接运行（以腾讯云为例）
+docker-run:
+	docker run -d --name ddns6 --restart always \
+	  --network host \
+	  --cap-add=NET_ADMIN \
+	  ddns6 run tencent \
+	  --secret-id ${TENCENT_SECRET_ID} \
+	  --secret-key ${TENCENT_SECRET_KEY} \
+	  --domain ${DOMAIN} --subdomain ${SUBDOMAIN:-@}
+
 # Docker 运行（以腾讯云为例，需先在 .env 中配置凭证）
 docker-up:
 	docker compose up -d
@@ -74,9 +84,10 @@ help:
 	@echo "  release     生成发布包"
 	@echo "  fmt         格式化代码"
 	@echo "  docker-build  构建 Docker 镜像"
+	@echo "  docker-run    直接运行容器（docker run --network host --cap-add=NET_ADMIN）"
 	@echo "  docker-up     启动容器（docker compose up -d）"
 	@echo "  docker-logs   查看容器日志"
 	@echo "  docker-down   停止并删除容器"
 	@echo "  help          显示帮助信息"
 
-.PHONY: all build install run test clean cross-build release docker-build docker-up docker-logs docker-down fmt help
+.PHONY: all build install run test clean cross-build release docker-build docker-run docker-up docker-logs docker-down fmt help
