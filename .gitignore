@@ -1,39 +1,69 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
-# Binaries for programs and plugins
-.idea/
-.vscode/
+# ============================================================
+# Binaries / Build outputs
+# ============================================================
+ddns6                          # 主二进制
+ddns6_*                        # 交叉编译产物（ddns6_linux_amd64 等）
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-ddns6
+*.test                         # go test -c 编译的测试二进制
+*.out                          # 测试覆盖率输出
 
-# Test binary, built with `go test -c`
-*.test
+# ============================================================
+# Release archives
+# ============================================================
+*.tar.gz
+*.zip
 
-# Output of the go coverage tool, specifically when used with LiteIDE
-*.out
+# ============================================================
+# IDE / Editor
+# ============================================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+tags                           # ctags 生成的索引文件
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
+# ============================================================
+# OS
+# ============================================================
+.DS_Store
+.Thumbs.db
 
-# Go workspace file
+# ============================================================
+# Go
+# ============================================================
 go.work
 go.work.sum
+vendor/                        # 取消注释以启用 vendor 目录
+# vendor/                      # 如使用 vendor，移除上一行注释并将此行注释掉
 
-# env file
+# ============================================================
+# Config / Environment
+# ============================================================
 .env
 
-# mac
-.DS_Store
-# Added by goreleaser init:
-dist/
-
-# log file
+# ============================================================
+# Logs
+# ============================================================
 *.log
 
+# ============================================================
+# CI / Release
+# ============================================================
+dist/                          # goreleaser 构建输出
+
+# ============================================================
+# Coverage reports
+# ============================================================
+coverage.html
+coverage.txt
+
+# ============================================================
+# Project specific
+# ============================================================
 CLAUDE.md
 .claude
