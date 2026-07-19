@@ -1,0 +1,59 @@
+# ddns6@.service — DDNS6 systemd 服务单元
+#
+# 模板化服务文件，用于以配置文件模式运行 ddns6。
+# 支持以指定 Linux 用户身份运行。
+#
+# 安装方式：
+#   1. 将 ddns6 可执行文件放入 $PATH（例如 /usr/local/bin/ddns6）
+#   2. 创建配置文件 ~/.ddns6/config.yaml（可先用 ddns6 init 生成模板）
+#   3. 将此文件复制到 /etc/systemd/system/ddns6@.service
+#   4. 重新加载 systemd：systemctl daemon-reload
+#   5. 启动服务：systemctl start ddns6@<用户名>
+#      （<用户名> 替换为运行 ddns6 的 Linux 用户，如 ddns6@root）
+#   6. 设置开机自启：systemctl enable ddns6@<用户名>
+#
+# 日志查看：
+#   journalctl -u ddns6@<用户名> -f        # 实时日志
+#   journalctl -u ddns6@<用户名> -n 100      # 最近 100 条
+#
+# 环境变量：
+#   可通过 /etc/default/ddns6 或 ~/.ddns6/env 设置额外环境变量
+
+[Unit]
+Description=DDNS6 — IPv6 动态域名解析服务 (user %i)
+Documentation=https://github.com/notes-bin/ddns6
+After=network-online.target nss-lookup.target
+Wants=network-online.target
+
+[Service]
+# 以指定用户运行（%i = 实例化模板参数）
+User=%i
+
+# 配置文件模式，从 ~/.ddns6/config.yaml 读取配置
+ExecStart=/usr/local/bin/ddns6 run
+
+# 重启策略：非正常退出时总是重启
+Restart=on-failure
+RestartSec=30s
+
+# 资源限制
+LimitNOFILE=1024
+LimitMEMLOCK=0
+
+# 安全加固（推荐的 systemd 安全选项，不依赖网络命名空间时启用）
+# 注意：Netlink 监听需要 CAP_NET_ADMIN，
+#       且 --interface 指定接口时需要特权访问
+#       以下选项在需要时可注释或调整
+NoNewPrivileges=yes
+
+# 日志
+StandardOutput=journal
+StandardError=journal
+
+# 优雅关闭
+# ddns6 收到 SIGTERM 后将在 5 秒内完成当前同步并退出
+KillSignal=SIGTERM
+TimeoutStopSec=10s
+
+[Install]
+WantedBy=multi-user.target
