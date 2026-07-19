@@ -14,6 +14,8 @@ import (
 	"github.com/notes-bin/ddns6/internal/providers"
 )
 
+var log = slog.With("module", "godaddy")
+
 // GoDaddyClient GoDaddy DNS API 客户端
 type GoDaddyClient struct {
 	APIKey     string
@@ -215,12 +217,12 @@ func (c *GoDaddyClient) getRootDomain(ctx context.Context, domain string) (strin
 	parts := strings.Split(domain, ".")
 	for i := 1; i < len(parts); i++ {
 		h := strings.Join(parts[i:], ".")
-		slog.Debug("探测 GoDaddy 根域名", "domain", h)
+		log.Debug("probing GoDaddy root domain", "domain", h)
 
 		_, err := c.getDomain(ctx, h)
 		if err == nil {
 			subDomain := strings.Join(parts[:i], ".")
-			slog.Info("GoDaddy 根域名已找到", "root", h, "subdomain", subDomain)
+			log.Info("GoDaddy root domain found", "root", h, "subdomain", subDomain)
 			return subDomain, h, nil
 		}
 	}
@@ -244,7 +246,7 @@ func (c *GoDaddyClient) getDomain(ctx context.Context, domain string) (map[strin
 
 // makeRequest performs an HTTP request to the GoDaddy API
 func (c *GoDaddyClient) makeRequest(ctx context.Context, method, url string, body io.Reader, result interface{}) error {
-	slog.Debug("GoDaddy API 请求", "method", method, "url", url)
+	log.Debug("GoDaddy API request", "method", method, "url", url)
 
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
@@ -256,16 +258,16 @@ func (c *GoDaddyClient) makeRequest(ctx context.Context, method, url string, bod
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		slog.Error("GoDaddy API 请求失败", "method", method, "url", url, "err", err)
+		log.Error("GoDaddy API request failed", "method", method, "url", url, "err", err)
 		return err
 	}
 	defer resp.Body.Close()
 
-	slog.Debug("GoDaddy API 响应", "method", method, "status", resp.StatusCode)
+	log.Debug("GoDaddy API response", "method", method, "status", resp.StatusCode)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		slog.Error("GoDaddy API 返回错误状态码",
+		log.Error("GoDaddy API returned error status",
 			"method", method, "status", resp.StatusCode)
 		return fmt.Errorf("HTTP request failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 	}

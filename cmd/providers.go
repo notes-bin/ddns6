@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,9 +11,17 @@ import (
 	"github.com/notes-bin/cron"
 	"github.com/notes-bin/ddns6/internal/providers"
 	"github.com/notes-bin/ddns6/internal/providers/alicloud"
+	"github.com/notes-bin/ddns6/internal/providers/baiducloud"
 	"github.com/notes-bin/ddns6/internal/providers/cloudflare"
+	"github.com/notes-bin/ddns6/internal/providers/digitalocean"
+	"github.com/notes-bin/ddns6/internal/providers/dnspod"
+	"github.com/notes-bin/ddns6/internal/providers/duckdns"
+	"github.com/notes-bin/ddns6/internal/providers/dynv6"
 	"github.com/notes-bin/ddns6/internal/providers/godaddy"
+	"github.com/notes-bin/ddns6/internal/providers/he"
 	"github.com/notes-bin/ddns6/internal/providers/huaweicloud"
+	"github.com/notes-bin/ddns6/internal/providers/noip"
+	"github.com/notes-bin/ddns6/internal/providers/porkbun"
 	"github.com/notes-bin/ddns6/internal/providers/tencent"
 	"github.com/notes-bin/ddns6/pkg/ipaddr"
 	"github.com/spf13/cobra"
@@ -100,6 +107,121 @@ var huaweicloudCmd = &cobra.Command{
 	},
 }
 
+// duckdnsCmd 使用 DuckDNS
+var duckdnsCmd = &cobra.Command{
+	Use:   "duckdns",
+	Short: "Use DuckDNS (free DDNS service)",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		interval, _ := cmd.Flags().GetDuration("interval")
+		token := cmd.Flag("token").Value.String()
+
+		ddns := createDomainConfig(cmd)
+		task := duckdns.NewClient(token)
+		return runDDNSService(ddns, task, interval)
+	},
+}
+
+// noipCmd 使用 No-IP
+var noipCmd = &cobra.Command{
+	Use:   "noip",
+	Short: "Use No-IP (classic DDNS service)",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		interval, _ := cmd.Flags().GetDuration("interval")
+		username := cmd.Flag("username").Value.String()
+		password := cmd.Flag("password").Value.String()
+
+		ddns := createDomainConfig(cmd)
+		task := noip.NewClient(username, password)
+		return runDDNSService(ddns, task, interval)
+	},
+}
+
+// heCmd 使用 Hurricane Electric DNS
+var heCmd = &cobra.Command{
+	Use:   "he",
+	Short: "Use Hurricane Electric DNS (free DNS hosting)",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		interval, _ := cmd.Flags().GetDuration("interval")
+		password := cmd.Flag("password").Value.String()
+
+		ddns := createDomainConfig(cmd)
+		task := he.NewClient("", password)
+		return runDDNSService(ddns, task, interval)
+	},
+}
+
+// dynv6Cmd 使用 Dynv6
+var dynv6Cmd = &cobra.Command{
+	Use:   "dynv6",
+	Short: "Use Dynv6 (free IPv6 DDNS service)",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		interval, _ := cmd.Flags().GetDuration("interval")
+		token := cmd.Flag("token").Value.String()
+
+		ddns := createDomainConfig(cmd)
+		task := dynv6.NewClient(token)
+		return runDDNSService(ddns, task, interval)
+	},
+}
+
+// porkbunCmd 使用 Porkbun
+var porkbunCmd = &cobra.Command{
+	Use:   "porkbun",
+	Short: "Use Porkbun DNS API",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		interval, _ := cmd.Flags().GetDuration("interval")
+		apiKey := cmd.Flag("api-key").Value.String()
+		apiSecret := cmd.Flag("api-secret").Value.String()
+
+		ddns := createDomainConfig(cmd)
+		task := porkbun.NewClient(apiKey, apiSecret)
+		return runDDNSService(ddns, task, interval)
+	},
+}
+
+// digitaloceanCmd 使用 DigitalOcean
+var digitaloceanCmd = &cobra.Command{
+	Use:   "digitalocean",
+	Short: "Use DigitalOcean DNS API",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		interval, _ := cmd.Flags().GetDuration("interval")
+		token := cmd.Flag("token").Value.String()
+
+		ddns := createDomainConfig(cmd)
+		task := digitalocean.NewClient(token)
+		return runDDNSService(ddns, task, interval)
+	},
+}
+
+// baiducloudCmd 使用百度云 DNS
+var baiducloudCmd = &cobra.Command{
+	Use:   "baiducloud",
+	Short: "Use Baidu Cloud DNS",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		interval, _ := cmd.Flags().GetDuration("interval")
+		accessKey := cmd.Flag("access-key").Value.String()
+		secretKey := cmd.Flag("secret-key").Value.String()
+
+		ddns := createDomainConfig(cmd)
+		task := baiducloud.NewClient(accessKey, secretKey)
+		return runDDNSService(ddns, task, interval)
+	},
+}
+
+// dnspodCmd 使用 DNSPod 旧版 API
+var dnspodCmd = &cobra.Command{
+	Use:   "dnspod",
+	Short: "Use DNSPod (legacy API)",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		interval, _ := cmd.Flags().GetDuration("interval")
+		loginToken := cmd.Flag("login-token").Value.String()
+
+		ddns := createDomainConfig(cmd)
+		task := dnspod.NewClient(loginToken)
+		return runDDNSService(ddns, task, interval)
+	},
+}
+
 // createDomainConfig 创建域名配置
 func createDomainConfig(cmd *cobra.Command) *providers.Domain {
 	domainName, _ := cmd.Flags().GetString("domain")
@@ -124,44 +246,45 @@ var ipv6Fetchers = []ipaddr.IPv6Fetcher{
 
 // runDDNSService 运行 DDNS 服务
 func runDDNSService(ddns *providers.Domain, p providers.DNSProvider, interval time.Duration) error {
-	slog.Debug("启动 DDNS 更新服务",
+	log.Debug("starting DDNS update service",
 		"domain", ddns.Domain, "subdomain", ddns.SubDomain,
 		"interval", interval.String())
 
 	sched := cron.New()
+	sched.Start()
 	defer sched.Stop()
 
 	// 首次获取并更新
-	slog.Info("首次获取 IPv6 地址")
+	log.Info("fetching IPv6 address for the first time")
 	ipsvc, err := ipaddr.GetIPv6Addr(ipv6Fetchers...)
 	if err != nil {
-		return fmt.Errorf("获取 IPv6 地址失败: %w", err)
+		return fmt.Errorf("failed to get IPv6 address: %w", err)
 	}
-	slog.Info("首次 IPv6 地址获取成功", "ipv6", ipsvc.String())
+	log.Info("initial IPv6 address obtained", "ipv6", ipsvc.String())
 	if err := ddns.UpdateRecord(context.Background(), ipsvc, p); err != nil {
-		return fmt.Errorf("首次更新记录失败: %w", err)
+		return fmt.Errorf("failed to update DNS record on first run: %w", err)
 	}
 
 	// 启动定时任务，每次重新获取 IPv6 地址
 	sched.AddFunc(cron.Every(interval), func() {
-		slog.Debug("定时任务触发",
+		log.Debug("scheduled task triggered",
 			"domain", ddns.Domain, "subdomain", ddns.SubDomain)
 		ipsvc, err := ipaddr.GetIPv6Addr(ipv6Fetchers...)
 		if err != nil {
-			slog.Error("获取 IPv6 地址失败", "err", err,
+			log.Error("failed to get IPv6 address", "err", err,
 				"domain", ddns.Domain, "subdomain", ddns.SubDomain)
 			return
 		}
 		if err := ddns.UpdateRecord(context.Background(), ipsvc, p); err != nil {
-			slog.Error("更新dns记录失败", "err", err,
+			log.Error("failed to update DNS record", "err", err,
 				"domain", ddns.Domain, "subdomain", ddns.SubDomain)
 		} else {
-			slog.Debug("DNS 更新周期完成",
+			log.Debug("DNS update cycle completed",
 				"domain", ddns.Domain, "subdomain", ddns.SubDomain)
 		}
 	})
 
-	slog.Info("ddns6 启动成功",
+	log.Info("ddns6 started successfully",
 		"pid", os.Getpid(),
 		"domain", ddns.Domain,
 		"subdomain", ddns.SubDomain,
@@ -172,6 +295,6 @@ func runDDNSService(ddns *providers.Domain, p providers.DNSProvider, interval ti
 
 	<-sigCh
 
-	slog.Info("ddns6 退出成功")
+	log.Info("ddns6 shutting down")
 	return nil
 }

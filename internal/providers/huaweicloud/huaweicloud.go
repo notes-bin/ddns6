@@ -16,6 +16,8 @@ import (
 	"github.com/notes-bin/ddns6/internal/providers"
 )
 
+var log = slog.With("module", "huaweicloud")
+
 // HuaweiCloudClient 华为云 DNS API 客户端
 type HuaweiCloudClient struct {
 	Username   string
@@ -268,13 +270,13 @@ func (c *HuaweiCloudClient) getToken(ctx context.Context) (string, error) {
 		token := c.cachedToken
 		expiry := c.tokenExpiry
 		c.tokenMu.Unlock()
-		slog.Debug("使用缓存的华为云 IAM token",
+		log.Debug("using cached Huawei Cloud IAM token",
 			"expires_at", expiry.Format(time.RFC3339))
 		return token, nil
 	}
 	c.tokenMu.Unlock()
 
-	slog.Info("获取华为云 IAM token")
+	log.Info("acquiring Huawei Cloud IAM token")
 
 	authRequest := map[string]any{
 		"auth": map[string]any{
@@ -317,7 +319,7 @@ func (c *HuaweiCloudClient) getToken(ctx context.Context) (string, error) {
 
 	if resp.StatusCode != http.StatusCreated {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		slog.Error("获取华为云 IAM token 失败",
+		log.Error("failed to acquire Huawei Cloud IAM token",
 			"status", resp.StatusCode)
 		return "", fmt.Errorf("failed to get token, status: %d, response: %s", resp.StatusCode, string(bodyBytes))
 	}
@@ -333,7 +335,7 @@ func (c *HuaweiCloudClient) getToken(ctx context.Context) (string, error) {
 	c.tokenExpiry = time.Now().Add(20 * time.Hour)
 	c.tokenMu.Unlock()
 
-	slog.Info("华为云 IAM token 获取成功并已缓存",
+	log.Info("Huawei Cloud IAM token obtained and cached",
 		"expires_in", "20h")
 	return token, nil
 }
@@ -343,7 +345,7 @@ func (c *HuaweiCloudClient) getZoneID(ctx context.Context, token, domain string)
 	parts := strings.Split(domain, ".")
 	for i := 1; i < len(parts); i++ {
 		h := strings.Join(parts[i:], ".")
-		slog.Debug("查找华为云 zone", "domain", h)
+		log.Debug("looking up Huawei Cloud zone", "domain", h)
 
 		req, err := http.NewRequestWithContext(ctx, "GET", c.DNSURL+"/v2/zones?name="+url.QueryEscape(h), nil)
 		if err != nil {
@@ -376,7 +378,7 @@ func (c *HuaweiCloudClient) getZoneID(ctx context.Context, token, domain string)
 
 		for _, zone := range result.Zones {
 			if zone.Name == h+"." {
-				slog.Info("华为云 zone 已找到",
+				log.Info("Huawei Cloud zone found",
 					"zone", h, "zone_id", zone.ID)
 				return zone.ID, nil
 			}
@@ -404,7 +406,7 @@ func (c *HuaweiCloudClient) getZoneID(ctx context.Context, token, domain string)
 		if err := json.NewDecoder(resp.Body).Decode(&result); err == nil {
 			for _, zone := range result.Zones {
 				if zone.Name == domain+"." {
-					slog.Info("华为云 zone 已找到（兜底）",
+					log.Info("Huawei Cloud zone found (fallback)",
 						"zone", domain, "zone_id", zone.ID)
 					return zone.ID, nil
 				}
@@ -417,7 +419,7 @@ func (c *HuaweiCloudClient) getZoneID(ctx context.Context, token, domain string)
 
 // createRecordSet creates a new DNS record set
 func (c *HuaweiCloudClient) createRecordSet(ctx context.Context, token, zoneID string, record DNSRecord) (DNSRecord, error) {
-	slog.Info("创建华为云 DNS 记录集",
+	log.Info("creating Huawei Cloud DNS record set",
 		"type", record.Type, "name", record.Name, "zone_id", zoneID)
 
 	body, err := json.Marshal(record)
@@ -434,7 +436,7 @@ func (c *HuaweiCloudClient) createRecordSet(ctx context.Context, token, zoneID s
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		slog.Error("创建华为云 DNS 记录集失败",
+		log.Error("failed to create Huawei Cloud DNS record set",
 			"type", record.Type, "name", record.Name, "err", err)
 		return DNSRecord{}, err
 	}
@@ -442,7 +444,7 @@ func (c *HuaweiCloudClient) createRecordSet(ctx context.Context, token, zoneID s
 
 	if resp.StatusCode != http.StatusAccepted {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		slog.Error("创建华为云 DNS 记录集返回错误状态码",
+		log.Error("Huawei Cloud create record set returned error status",
 			"status", resp.StatusCode, "type", record.Type)
 		return DNSRecord{}, fmt.Errorf("failed to create record set, status: %d, response: %s", resp.StatusCode, string(bodyBytes))
 	}
@@ -457,7 +459,7 @@ func (c *HuaweiCloudClient) createRecordSet(ctx context.Context, token, zoneID s
 
 // updateRecordSet updates an existing DNS record set
 func (c *HuaweiCloudClient) updateRecordSet(ctx context.Context, token, zoneID, recordID string, record DNSRecord) (DNSRecord, error) {
-	slog.Info("更新华为云 DNS 记录集",
+	log.Info("updating Huawei Cloud DNS record set",
 		"record_id", recordID, "type", record.Type, "zone_id", zoneID)
 
 	body, err := json.Marshal(record)
@@ -474,7 +476,7 @@ func (c *HuaweiCloudClient) updateRecordSet(ctx context.Context, token, zoneID, 
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		slog.Error("更新华为云 DNS 记录集失败",
+		log.Error("failed to update Huawei Cloud DNS record set",
 			"record_id", recordID, "err", err)
 		return DNSRecord{}, err
 	}
@@ -482,7 +484,7 @@ func (c *HuaweiCloudClient) updateRecordSet(ctx context.Context, token, zoneID, 
 
 	if resp.StatusCode != http.StatusAccepted {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		slog.Error("更新华为云 DNS 记录集返回错误状态码",
+		log.Error("Huawei Cloud update record set returned error status",
 			"status", resp.StatusCode, "record_id", recordID)
 		return DNSRecord{}, fmt.Errorf("failed to update record set, status: %d, response: %s", resp.StatusCode, string(bodyBytes))
 	}
@@ -497,7 +499,7 @@ func (c *HuaweiCloudClient) updateRecordSet(ctx context.Context, token, zoneID, 
 
 // deleteRecordSet deletes a DNS record set
 func (c *HuaweiCloudClient) deleteRecordSet(ctx context.Context, token, zoneID, recordID string) error {
-	slog.Info("删除华为云 DNS 记录集",
+	log.Info("deleting Huawei Cloud DNS record set",
 		"record_id", recordID, "zone_id", zoneID)
 
 	req, err := http.NewRequestWithContext(ctx, "DELETE", fmt.Sprintf("%s/v2/zones/%s/recordsets/%s", c.DNSURL, zoneID, recordID), nil)
@@ -508,7 +510,7 @@ func (c *HuaweiCloudClient) deleteRecordSet(ctx context.Context, token, zoneID, 
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		slog.Error("删除华为云 DNS 记录集失败",
+		log.Error("failed to delete Huawei Cloud DNS record set",
 			"record_id", recordID, "err", err)
 		return err
 	}
@@ -516,7 +518,7 @@ func (c *HuaweiCloudClient) deleteRecordSet(ctx context.Context, token, zoneID, 
 
 	if resp.StatusCode != http.StatusAccepted {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		slog.Error("删除华为云 DNS 记录集返回错误状态码",
+		log.Error("Huawei Cloud delete record set returned error status",
 			"status", resp.StatusCode, "record_id", recordID)
 		return fmt.Errorf("failed to delete record set, status: %d, response: %s", resp.StatusCode, string(bodyBytes))
 	}

@@ -18,6 +18,8 @@ import (
 	"github.com/notes-bin/ddns6/internal/providers"
 )
 
+var log = slog.With("module", "alicloud")
+
 // AliDNSClient 阿里云 DNS API 客户端
 type AliDNSClient struct {
 	AccessKeyId     string
@@ -193,55 +195,33 @@ func (c *AliDNSClient) getRootDomain(ctx context.Context, domain string) (string
 	parts := strings.Split(domain, ".")
 	for i := 1; i < len(parts); i++ {
 		h := strings.Join(parts[i:], ".")
-		slog.Debug("探测 Alibaba 根域名", "domain", h)
+		log.Debug("probing Alibaba root domain", "domain", h)
 
 		params := map[string]string{
 			"Action":     "DescribeDomainRecords",
 			"DomainName": h,
 		}
 
-		resp, err := c.makeRequest(ctx, params)
+		_, err := c.makeRequest(ctx, params)
 		if err != nil {
 			continue
 		}
 
-		var result struct {
-			TotalCount int `json:"TotalCount"`
-		}
-
-		if err := json.Unmarshal(resp, &result); err != nil {
-			continue
-		}
-
-		if result.TotalCount > 0 {
-			subDomain := strings.Join(parts[:i], ".")
-			slog.Info("Alibaba 根域名已找到", "root", h, "subdomain", subDomain)
-			return h, subDomain, nil
-		}
+		// 只要 API 调用成功即视为有效根域名
+		// TotalCount 可能为 0（无 DNS 记录时），但域名本身存在
+		subDomain := strings.Join(parts[:i], ".")
+		log.Info("Alibaba root domain found", "root", h, "subdomain", subDomain)
+		return h, subDomain, nil
 	}
 
 	// 兜底：完整域名即为根域名，使用 @ 表示记录主机名
-	params := map[string]string{
-		"Action":     "DescribeDomainRecords",
-		"DomainName": domain,
-	}
-	resp, err := c.makeRequest(ctx, params)
-	if err == nil {
-		var result struct {
-			TotalCount int `json:"TotalCount"`
-		}
-		if err := json.Unmarshal(resp, &result); err == nil && result.TotalCount > 0 {
-			return domain, "@", nil
-		}
-	}
-
-	return "", "", fmt.Errorf("could not find root domain for %s", domain)
+	return domain, "@", nil
 }
 
 // makeRequest performs an authenticated request to Alibaba Cloud API
 func (c *AliDNSClient) makeRequest(ctx context.Context, params map[string]string) ([]byte, error) {
 	action := params["Action"]
-	slog.Debug("Alibaba Cloud API 请求", "action", action)
+	log.Debug("Alibaba Cloud API request", "action", action)
 
 	// 复制参数避免污染调用方 map
 	reqParams := make(map[string]string, len(params)+8)
@@ -287,15 +267,15 @@ func (c *AliDNSClient) makeRequest(ctx context.Context, params map[string]string
 	}
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		slog.Error("Alibaba Cloud API 请求失败", "action", action, "err", err)
+		log.Error("Alibaba Cloud API request failed", "action", action, "err", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	slog.Debug("Alibaba Cloud API 响应", "action", action, "status", resp.StatusCode)
+	log.Debug("Alibaba Cloud API response", "action", action, "status", resp.StatusCode)
 
 	if resp.StatusCode != http.StatusOK {
-		slog.Error("Alibaba Cloud API 返回错误状态码",
+		log.Error("Alibaba Cloud API returned error status",
 			"action", action, "status", resp.StatusCode)
 		return nil, fmt.Errorf("API request failed with status %d", resp.StatusCode)
 	}
@@ -310,7 +290,7 @@ func (c *AliDNSClient) makeRequest(ctx context.Context, params map[string]string
 		Message string `json:"Message"`
 	}
 	if err := json.Unmarshal(body, &apiError); err == nil && apiError.Message != "" {
-		slog.Error("Alibaba Cloud API 业务错误",
+		log.Error("Alibaba Cloud API business error",
 			"action", action, "message", apiError.Message)
 		return nil, fmt.Errorf("API error: %s", apiError.Message)
 	}
