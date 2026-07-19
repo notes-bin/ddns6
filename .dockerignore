@@ -1,5 +1,5 @@
+bin/
 ddns6*
-ddns6_*
 *.tar.gz
 *.log
 .git
