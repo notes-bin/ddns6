@@ -18,6 +18,8 @@ services:
   #     context: .
   #     dockerfile: Dockerfile
   #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
   #   restart: always
   #   volumes:
   #     - ~/.ddns6:/root/.ddns6:ro
@@ -32,6 +34,8 @@ services:
       context: .
       dockerfile: Dockerfile
     network_mode: host
+    cap_add:
+      - NET_ADMIN
     restart: always
     command:
       - run
@@ -51,6 +55,8 @@ services:
   #     context: .
   #     dockerfile: Dockerfile
   #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
   #   restart: always
   #   command:
   #     - run
@@ -69,6 +75,8 @@ services:
   #     context: .
   #     dockerfile: Dockerfile
   #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
   #   restart: always
   #   command:
   #     - run
@@ -86,6 +94,8 @@ services:
   #     context: .
   #     dockerfile: Dockerfile
   #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
   #   restart: always
   #   command:
   #     - run
@@ -104,6 +114,8 @@ services:
   #     context: .
   #     dockerfile: Dockerfile
   #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
   #   restart: always
   #   command:
   #     - run
@@ -123,6 +135,8 @@ services:
   #     context: .
   #     dockerfile: Dockerfile
   #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
   #   restart: always
   #   command:
   #     - run
@@ -140,6 +154,8 @@ services:
   #     context: .
   #     dockerfile: Dockerfile
   #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
   #   restart: always
   #   command:
   #     - run
@@ -158,6 +174,8 @@ services:
   #     context: .
   #     dockerfile: Dockerfile
   #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
   #   restart: always
   #   command:
   #     - run
@@ -175,6 +193,8 @@ services:
   #     context: .
   #     dockerfile: Dockerfile
   #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
   #   restart: always
   #   command:
   #     - run
@@ -192,6 +212,8 @@ services:
   #     context: .
   #     dockerfile: Dockerfile
   #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
   #   restart: always
   #   command:
   #     - run
@@ -210,6 +232,8 @@ services:
   #     context: .
   #     dockerfile: Dockerfile
   #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
   #   restart: always
   #   command:
   #     - run
@@ -227,6 +251,8 @@ services:
   #     context: .
   #     dockerfile: Dockerfile
   #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
   #   restart: always
   #   command:
   #     - run
@@ -245,6 +271,8 @@ services:
   #     context: .
   #     dockerfile: Dockerfile
   #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
   #   restart: always
   #   command:
   #     - run
