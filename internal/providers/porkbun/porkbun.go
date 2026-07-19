@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"maps"
 	"net/http"
 	"strings"
 	"time"
@@ -91,7 +90,7 @@ func (c *Client) AddRecord(ctx context.Context, fulldomain, recordType, value st
 	log.Debug("adding Porkbun DNS record", "domain", domain, "name", subDomain, "type", recordType)
 
 	var resp apiResponse
-	err := c.post(ctx, url, record, &resp)
+	err := c.post(ctx, url, &record, &resp)
 	if err != nil {
 		return err
 	}
@@ -117,7 +116,7 @@ func (c *Client) ModifyRecord(ctx context.Context, fulldomain, recordID, recordT
 	log.Debug("modifying Porkbun DNS record", "domain", domain, "name", subDomain, "type", recordType)
 
 	var resp apiResponse
-	err := c.post(ctx, url, record, &resp)
+	err := c.post(ctx, url, &record, &resp)
 	if err != nil {
 		return err
 	}
@@ -138,7 +137,7 @@ func (c *Client) DeleteRecord(ctx context.Context, fulldomain, recordID string) 
 	log.Debug("deleting Porkbun DNS record", "domain", domain, "name", subDomain)
 
 	var resp apiResponse
-	err := c.post(ctx, url, struct{}{}, &resp)
+	err := c.post(ctx, url, nil, &resp)
 	if err != nil {
 		return err
 	}
@@ -159,7 +158,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	log.Debug("querying Porkbun DNS records", "domain", domain, "name", subDomain, "type", recordType)
 
 	var resp apiResponse
-	err := c.post(ctx, url, struct{}{}, &resp)
+	err := c.post(ctx, url, nil, &resp)
 	if err != nil {
 		return nil, err
 	}
@@ -179,26 +178,22 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return result, nil
 }
 
-// post 执行 POST 请求，API Key 和 Secret Key 自动注入到请求体中
-func (c *Client) post(ctx context.Context, url string, payload any, result any) error {
-	// 构建请求体，注入认证信息
-	bodyMap := make(map[string]any)
-	bodyMap["apikey"] = c.apiKey
-	bodyMap["secretapikey"] = c.secretAPIKey
+// apiRequest Porkbun API 请求体（自动注入 API Key + Secret Key）
+type apiRequest struct {
+	APIKey       string `json:"apikey"`
+	SecretAPIKey string `json:"secretapikey"`
+	*DNSRecord
+}
 
-	// 合并 payload
-	if payload != nil {
-		pBytes, err := json.Marshal(payload)
-		if err != nil {
-			return fmt.Errorf("failed to marshal payload: %w", err)
-		}
-		var pMap map[string]any
-		if err := json.Unmarshal(pBytes, &pMap); err == nil {
-			maps.Copy(bodyMap, pMap)
-		}
+// post 执行 POST JSON 请求，自动注入认证信息
+func (c *Client) post(ctx context.Context, url string, record *DNSRecord, result any) error {
+	apiReq := apiRequest{
+		APIKey:       c.apiKey,
+		SecretAPIKey: c.secretAPIKey,
+		DNSRecord:    record,
 	}
 
-	body, err := json.Marshal(bodyMap)
+	body, err := json.Marshal(apiReq)
 	if err != nil {
 		return fmt.Errorf("failed to marshal request: %w", err)
 	}
@@ -235,15 +230,5 @@ func (c *Client) post(ctx context.Context, url string, payload any, result any) 
 
 // splitDomain 将完整域名分割为根域名和子域名
 func splitDomain(fulldomain string) (string, string) {
-	parts := strings.Split(fulldomain, ".")
-	if len(parts) < 2 {
-		return fulldomain, "@"
-	}
-	// 假设根域名为最后两部分
-	domain := strings.Join(parts[len(parts)-2:], ".")
-	if len(parts) == 2 {
-		return domain, "@"
-	}
-	subDomain := strings.Join(parts[:len(parts)-2], ".")
-	return domain, subDomain
+	return providers.SplitDomain(fulldomain)
 }

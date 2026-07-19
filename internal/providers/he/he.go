@@ -32,8 +32,8 @@ type Client struct {
 type Option func(*Client)
 
 // NewClient 创建 HE DNS 客户端
-// username 参数保留用于兼容，实际 HE DDNS 使用固定用户名 "hosted_dns_editapi"
-func NewClient(username, password string, options ...Option) *Client {
+// HE DDNS 使用固定用户名 "hosted_dns_editapi"，只需传入 DDNS Key 作为 password
+func NewClient(password string, options ...Option) *Client {
 	c := &Client{
 		password: password,
 		baseURL:  defaultBaseURL,
@@ -42,7 +42,6 @@ func NewClient(username, password string, options ...Option) *Client {
 	for _, opt := range options {
 		opt(c)
 	}
-	_ = username // HE 使用固定用户名，忽略传入的 username
 	return c
 }
 

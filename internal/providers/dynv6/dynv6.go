@@ -307,13 +307,13 @@ func (c *Client) getZone(ctx context.Context, zoneID string) (*Zone, error) {
 	url := fmt.Sprintf("%s/api/v2/zones/%s", c.baseURL, zoneID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create zone request: %w", err)
 	}
 	c.setAuth(req)
 
 	resp, err := c.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get zone: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -323,7 +323,7 @@ func (c *Client) getZone(ctx context.Context, zoneID string) (*Zone, error) {
 
 	var zone Zone
 	if err := json.NewDecoder(resp.Body).Decode(&zone); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decode zone response: %w", err)
 	}
 	return &zone, nil
 }

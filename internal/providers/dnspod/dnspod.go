@@ -251,14 +251,5 @@ func (c *Client) post(ctx context.Context, reqURL string, params url.Values, res
 
 // splitDomain 分割完整域名为根域名和子域名
 func splitDomain(fulldomain string) (string, string) {
-	parts := strings.Split(fulldomain, ".")
-	if len(parts) < 2 {
-		return fulldomain, "@"
-	}
-	domain := strings.Join(parts[len(parts)-2:], ".")
-	if len(parts) == 2 {
-		return domain, "@"
-	}
-	subDomain := strings.Join(parts[:len(parts)-2], ".")
-	return domain, subDomain
+	return providers.SplitDomain(fulldomain)
 }
