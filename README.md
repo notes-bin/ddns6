@@ -31,7 +31,7 @@ ddns6 是一个用 Go 编写的 CLI 工具，**自动检测本机 IPv6 地址变
 ```bash
 git clone https://github.com/notes-bin/ddns6.git
 cd ddns6
-make build        # 编译二进制到当前目录
+make build
 make install      # 安装到 $GOPATH/bin
 ```
 
@@ -39,7 +39,7 @@ make install      # 安装到 $GOPATH/bin
 
 ```bash
 # 腾讯云 DNSPod 示例
-./ddns6 run tencent \
+./bin/ddns6 run tencent \
   --domain example.com \
   --subdomain www \
   --secret-id YOUR_SECRET_ID \
@@ -52,13 +52,13 @@ make install      # 安装到 $GOPATH/bin
 
 ```bash
 # 1. 生成配置文件模板
-./ddns6 init
+./bin/ddns6 init
 
 # 2. 编辑配置文件
 vim ~/.ddns6/config.yaml
 
 # 3. 直接运行（从配置文件读取参数）
-./ddns6 run
+./bin/ddns6 run
 ```
 
 ---
@@ -110,7 +110,7 @@ interval: 10m
 
 ```bash
 # 配置文件设定了 interval: 10m，但以下命令临时改为 30s
-./ddns6 run --interval 30s
+./bin/ddns6 run --interval 30s
 ```
 
 ---
@@ -122,7 +122,7 @@ interval: 10m
 生成 `~/.ddns6/config.yaml` 配置文件模板。
 
 ```bash
-./ddns6 init
+./bin/ddns6 init
 # → Configuration file created at: /home/user/.ddns6/config.yaml
 # → Edit it with your provider details, then run: ddns6 run
 ```
@@ -136,16 +136,16 @@ interval: 10m
 
 ```bash
 # 指定 provider
-./ddns6 run tencent --domain example.com --subdomain www --secret-id xxx --secret-key yyy
+./bin/ddns6 run tencent --domain example.com --subdomain www --secret-id xxx --secret-key yyy
 
 # 多子域名
-./ddns6 run cloudflare --domain example.com --subdomain www --subdomain @ --api-token xxx
+./bin/ddns6 run cloudflare --domain example.com --subdomain www --subdomain @ --api-token xxx
 
 # 指定网络接口
-./ddns6 run duckdns --domain example.com --interface ppp0 --token xxx
+./bin/ddns6 run duckdns --domain example.com --interface ppp0 --token xxx
 
 # 调试模式
-./ddns6 run --debug tencent --domain example.com --secret-id xxx --secret-key yyy
+./bin/ddns6 run --debug tencent --domain example.com --secret-id xxx --secret-key yyy
 ```
 
 ### `ddns6 version`
@@ -153,7 +153,7 @@ interval: 10m
 显示版本、Git 提交和构建时间。
 
 ```bash
-./ddns6 version
+./bin/ddns6 version
 # → Version: 1.0.0
 # → Commit: abc1234
 # → buildAt: 2026-07-19T10:00:00Z
@@ -164,9 +164,9 @@ interval: 10m
 查看子命令的详细帮助。
 
 ```bash
-./ddns6 help run                  # 查看 run 命令帮助
-./ddns6 help run tencent          # 查看 tencent 运营商帮助
-./ddns6 run tencent --help        # 同上
+./bin/ddns6 help run                  # 查看 run 命令帮助
+./bin/ddns6 help run tencent          # 查看 tencent 运营商帮助
+./bin/ddns6 run tencent --help        # 同上
 ```
 
 ### 全局参数
@@ -203,8 +203,8 @@ interval: 10m
 详细参数请查看各运营商帮助：
 
 ```bash
-./ddns6 run tencent --help
-./ddns6 run cloudflare --help
+./bin/ddns6 run tencent --help
+./bin/ddns6 run cloudflare --help
 # ...
 ```
 
@@ -349,7 +349,7 @@ docker run -d --name ddns6 --restart always --network host ddns6 \
 
 **如何验证配置是否正确？**
 ```bash
-./ddns6 --debug run tencent --domain example.com --secret-id xxx --secret-key yyy
+./bin/ddns6 --debug run tencent --domain example.com --secret-id xxx --secret-key yyy
 ```
 首次运行会立即更新，日志中可看到详细过程。
 
@@ -362,7 +362,7 @@ docker run -d --name ddns6 --restart always --network host ddns6 \
 **如何更新多个子域名？**
 ```bash
 # 命令行模式
-./ddns6 run tencent --domain example.com --subdomain www --subdomain @ --subdomain api ...
+./bin/ddns6 run tencent --domain example.com --subdomain www --subdomain @ --subdomain api ...
 
 # 配置文件模式
 # 在 config.yaml 的 subdomains 列表中添加多个子域名
