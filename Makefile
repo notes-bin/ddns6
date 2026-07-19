@@ -2,7 +2,7 @@
 BINARY_NAME=ddns6
 VERSION=$(shell git describe --tags --always --dirty)
 BUILD_TIME=$(shell date +%Y-%m-%dT%H:%M:%S%z)
-BUILD_FLAGS=-ldflags "-X main.Version=$(VERSION) -X main.Commit=$(shell git rev-parse HEAD) -X main.buildAt=$(BUILD_TIME)"
+BUILD_FLAGS=-ldflags "-X github.com/notes-bin/ddns6/cmd.Version=$(VERSION) -X github.com/notes-bin/ddns6/cmd.Commit=$(shell git rev-parse HEAD) -X github.com/notes-bin/ddns6/cmd.buildAt=$(BUILD_TIME)"
 GO=go
 
 # 默认目标
@@ -10,15 +10,15 @@ all: build
 
 # 构建二进制文件
 build:
-	$(GO) build $(BUILD_FLAGS) -o $(BINARY_NAME) ./cmd
+	$(GO) build $(BUILD_FLAGS) -o $(BINARY_NAME) .
 
 # 安装到系统路径
 install:
-	$(GO) install $(BUILD_FLAGS) ./cmd
+	$(GO) install $(BUILD_FLAGS) .
 
 # 运行程序
 run:
-	$(GO) run $(BUILD_FLAGS) ./cmd
+	$(GO) run $(BUILD_FLAGS) .
 
 # 运行测试
 test:
@@ -31,9 +31,9 @@ clean:
 
 # 交叉编译
 cross-build:
-	GOOS=linux GOARCH=amd64 $(GO) build $(BUILD_FLAGS) -o $(BINARY_NAME)_linux_amd64 ./cmd
-	GOOS=darwin GOARCH=amd64 $(GO) build $(BUILD_FLAGS) -o $(BINARY_NAME)_darwin_amd64 ./cmd
-	GOOS=darwin GOARCH=arm64 $(GO) build $(BUILD_FLAGS) -o $(BINARY_NAME)_darwin_arm64 ./cmd
+	GOOS=linux GOARCH=amd64 $(GO) build $(BUILD_FLAGS) -o $(BINARY_NAME)_linux_amd64 .
+	GOOS=darwin GOARCH=amd64 $(GO) build $(BUILD_FLAGS) -o $(BINARY_NAME)_darwin_amd64 .
+	GOOS=darwin GOARCH=arm64 $(GO) build $(BUILD_FLAGS) -o $(BINARY_NAME)_darwin_arm64 .
 
 # 生成发布包
 release: clean cross-build

@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+var log = slog.With("module", "ipaddr")
+
 // IPv6Fetcher 定义了获取 IPv6 地址的接口
 type IPv6Fetcher interface {
 	Fetch(ctx context.Context) (net.IP, error)
@@ -23,7 +25,7 @@ func GetIPv6Addr(fetchers ...IPv6Fetcher) (net.IP, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	slog.Debug("开始并行获取 IPv6 地址", "fetcher_count", len(fetchers))
+	log.Debug("fetching IPv6 address concurrently", "fetcher_count", len(fetchers))
 
 	resultCh := make(chan net.IP, len(fetchers))
 
@@ -34,7 +36,7 @@ func GetIPv6Addr(fetchers ...IPv6Fetcher) (net.IP, error) {
 			defer wg.Done()
 			ip, err := fn.Fetch(ctx)
 			if err == nil {
-				slog.Debug("fetcher 获取 IPv6 成功",
+				log.Debug("fetcher obtained IPv6 successfully",
 					"fetcher", fmt.Sprintf("%T", fn),
 					"ipv6", ip.String())
 				select {
@@ -42,7 +44,7 @@ func GetIPv6Addr(fetchers ...IPv6Fetcher) (net.IP, error) {
 				default:
 				}
 			} else {
-				slog.Warn("fetcher 获取 IPv6 失败",
+				log.Warn("fetcher failed to get IPv6",
 					"fetcher", fmt.Sprintf("%T", fn),
 					"err", err)
 			}
@@ -58,14 +60,14 @@ func GetIPv6Addr(fetchers ...IPv6Fetcher) (net.IP, error) {
 	case ip, ok := <-resultCh:
 		if ok {
 			cancel()
-			slog.Info("IPv6 地址获取成功", "ipv6", ip.String())
+			log.Info("IPv6 address obtained successfully", "ipv6", ip.String())
 			return ip, nil
 		}
 	case <-ctx.Done():
-		slog.Warn("IPv6 获取超时", "fetcher_count", len(fetchers))
+		log.Warn("IPv6 fetch timed out", "fetcher_count", len(fetchers))
 		return nil, ctx.Err()
 	}
 
-	slog.Error("所有 IPv6 fetcher 均失败", "fetcher_count", len(fetchers))
+	log.Error("all IPv6 fetchers failed", "fetcher_count", len(fetchers))
 	return nil, fmt.Errorf("no valid IPv6 address found from any fetcher")
 }

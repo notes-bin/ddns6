@@ -9,8 +9,10 @@ import (
 	"sync"
 )
 
+var log = slog.With("module", "providers")
+
 // 定义自定义错误类型
-var ErrEmptyIPv6Address = errors.New("获取到的 IPv6 地址为空")
+var ErrEmptyIPv6Address = errors.New("empty IPv6 address")
 
 // RecordInfo 通用 DNS 记录类型
 type RecordInfo struct {
@@ -74,6 +76,112 @@ func (d *Domain) fullDomain() string {
 	return fmt.Sprintf("%s.%s", d.SubDomain, d.Domain)
 }
 
+// AddDomainRecord 添加 DNS 解析记录
+func (d *Domain) AddDomainRecord(ctx context.Context, ipv6 net.IP, p DNSProvider, ttl int) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	select {
+	case <-ctx.Done():
+		log.Info("add task cancelled", "domain", d.Domain, "subdomain", d.SubDomain)
+		return ctx.Err()
+	default:
+	}
+
+	fqdn := d.fullDomain()
+	ipv6Str := ipv6.String()
+
+	log.Debug("adding DNS record",
+		"domain", d.Domain, "subdomain", d.SubDomain,
+		"fqdn", fqdn, "type", d.Type, "ipv6", ipv6Str, "ttl", ttl)
+
+	if err := p.AddRecord(ctx, fqdn, d.Type, ipv6Str, ttl); err != nil {
+		return d.handleError("failed to add record", err, ipv6)
+	}
+
+	d.Addr = make(net.IP, len(ipv6))
+	copy(d.Addr, ipv6)
+	log.Info("DNS record added successfully",
+		"domain", d.Domain, "subdomain", d.SubDomain, "ipv6", ipv6Str)
+	return nil
+}
+
+// ModifyDomainRecord 修改 DNS 解析记录
+func (d *Domain) ModifyDomainRecord(ctx context.Context, ipv6 net.IP, p DNSProvider, recordID string, ttl int) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	select {
+	case <-ctx.Done():
+		log.Info("modify task cancelled", "domain", d.Domain, "subdomain", d.SubDomain)
+		return ctx.Err()
+	default:
+	}
+
+	fqdn := d.fullDomain()
+	ipv6Str := ipv6.String()
+
+	log.Debug("modifying DNS record",
+		"domain", d.Domain, "subdomain", d.SubDomain,
+		"fqdn", fqdn, "record_id", recordID, "type", d.Type, "ipv6", ipv6Str)
+
+	if err := p.ModifyRecord(ctx, fqdn, recordID, d.Type, ipv6Str, ttl); err != nil {
+		return d.handleError("failed to modify record", err, ipv6)
+	}
+
+	d.Addr = make(net.IP, len(ipv6))
+	copy(d.Addr, ipv6)
+	log.Info("DNS record modified successfully",
+		"domain", d.Domain, "subdomain", d.SubDomain, "record_id", recordID, "ipv6", ipv6Str)
+	return nil
+}
+
+// DeleteDomainRecord 删除 DNS 解析记录
+func (d *Domain) DeleteDomainRecord(ctx context.Context, p DNSProvider, recordID string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	select {
+	case <-ctx.Done():
+		log.Info("delete task cancelled", "domain", d.Domain, "subdomain", d.SubDomain)
+		return ctx.Err()
+	default:
+	}
+
+	fqdn := d.fullDomain()
+
+	log.Debug("deleting DNS record",
+		"domain", d.Domain, "subdomain", d.SubDomain,
+		"fqdn", fqdn, "record_id", recordID)
+
+	if err := p.DeleteRecord(ctx, fqdn, recordID); err != nil {
+		return fmt.Errorf("failed to delete record: %w", err)
+	}
+
+	log.Info("DNS record deleted successfully",
+		"domain", d.Domain, "subdomain", d.SubDomain, "record_id", recordID)
+	return nil
+}
+
+// GetDomainRecords 查询 DNS 解析记录
+func (d *Domain) GetDomainRecords(ctx context.Context, p DNSProvider) ([]RecordInfo, error) {
+	fqdn := d.fullDomain()
+
+	log.Debug("querying DNS records",
+		"domain", d.Domain, "subdomain", d.SubDomain, "fqdn", fqdn, "type", d.Type)
+
+	records, err := p.GetRecords(ctx, fqdn, d.Type)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query records: %w", err)
+	}
+
+	log.Debug("DNS records query completed",
+		"domain", d.Domain, "subdomain", d.SubDomain,
+		"record_count", len(records))
+
+	return records, nil
+}
+
 // UpdateRecord 更新 DNS 记录
 func (d *Domain) UpdateRecord(ctx context.Context, ipv6 net.IP, p DNSProvider) error {
 	d.mu.Lock()
@@ -81,13 +189,13 @@ func (d *Domain) UpdateRecord(ctx context.Context, ipv6 net.IP, p DNSProvider) e
 
 	select {
 	case <-ctx.Done():
-		slog.Info("更新任务被取消", "domain", d.Domain, "subdomain", d.SubDomain)
+		log.Info("update task cancelled", "domain", d.Domain, "subdomain", d.SubDomain)
 		return ctx.Err()
 	default:
 	}
 
 	if !d.hasAddressChanged(ipv6) {
-		slog.Info("IPv6 地址未改变，无需更新", "domain", d.Domain, "subdomain", d.SubDomain)
+		log.Info("IPv6 address unchanged, skipping update", "domain", d.Domain, "subdomain", d.SubDomain)
 		return nil
 	}
 
@@ -99,56 +207,60 @@ func (d *Domain) updateDNSRecord(ctx context.Context, p DNSProvider, addr net.IP
 	fqdn := d.fullDomain()
 	ipv6Str := addr.String()
 
-	slog.Debug("查询现有 DNS 记录",
+	log.Debug("querying existing DNS records",
 		"domain", d.Domain, "subdomain", d.SubDomain,
 		"fqdn", fqdn, "type", d.Type)
 
 	records, err := p.GetRecords(ctx, fqdn, d.Type)
 	if err != nil {
-		return d.handleError("查询记录失败", err, addr)
+		return d.handleError("failed to query records", err, addr)
 	}
 
-	slog.Debug("DNS 记录查询完成",
+	log.Debug("DNS records query completed",
 		"domain", d.Domain, "subdomain", d.SubDomain,
 		"record_count", len(records))
 
-	// 遍历记录，先检查是否需要更新
+	// 遍历记录，先按类型筛选，再比较值
 	for _, r := range records {
-		slog.Debug("比对 DNS 记录值",
+		// 先按记录类型筛选，跳过不匹配类型的记录
+		if r.Type != d.Type {
+			continue
+		}
+
+		log.Debug("comparing DNS record values",
 			"domain", d.Domain, "subdomain", d.SubDomain,
 			"existing_value", r.Value, "new_value", ipv6Str,
 			"record_id", r.ID, "record_type", r.Type)
+
 		// 归一化比较 IPv6 地址（服务商可能返回非规范形式）
 		if ipv6Equal(r.Value, ipv6Str) {
 			d.Addr = make(net.IP, len(addr))
 			copy(d.Addr, addr)
-			slog.Info("IPv6 记录已存在，无需更新", "domain", d.Domain, "subdomain", d.SubDomain)
+			log.Info("IPv6 record already exists, no update needed", "domain", d.Domain, "subdomain", d.SubDomain)
 			return nil
 		}
 
 		// 同类型记录但 IP 不同，修改
-		if r.Type == d.Type {
-			err = p.ModifyRecord(ctx, fqdn, r.ID, d.Type, ipv6Str, r.TTL)
-			if err != nil {
-				return d.handleError("修改记录失败", err, addr)
-			}
-			d.Addr = make(net.IP, len(addr))
-			copy(d.Addr, addr)
-			slog.Info("IPv6 地址发生变化，DDNS 修改完成",
-				"domain", d.Domain, "subdomain", d.SubDomain, "ipv6", ipv6Str,
-			)
-			return nil
+		err = p.ModifyRecord(ctx, fqdn, r.ID, d.Type, ipv6Str, r.TTL)
+		if err != nil {
+			return d.handleError("failed to modify record", err, addr)
 		}
+		d.Addr = make(net.IP, len(addr))
+		copy(d.Addr, addr)
+		log.Info("IPv6 address changed, DDNS modify completed",
+			"domain", d.Domain, "subdomain", d.SubDomain, "ipv6", ipv6Str,
+		)
+		return nil
 	}
 
 	// 无 AAAA 记录，新增
 	err = p.AddRecord(ctx, fqdn, d.Type, ipv6Str, 600)
 	if err != nil {
-		return d.handleError("添加记录失败", err, addr)
+		return d.handleError("failed to add record", err, addr)
 	}
 	d.Addr = make(net.IP, len(addr))
 	copy(d.Addr, addr)
-	slog.Info("IPv6 地址发生变化，DDNS 添加完成",
+	log.Info("IPv6 address changed, DDNS add completed",
 		"domain", d.Domain, "subdomain", d.SubDomain, "ipv6", ipv6Str,
 	)
 	return nil
@@ -158,9 +270,9 @@ func (d *Domain) updateDNSRecord(ctx context.Context, p DNSProvider, addr net.IP
 func (d *Domain) hasAddressChanged(newAddr net.IP) bool {
 	changed := d.Addr == nil || !d.Addr.Equal(newAddr)
 	if d.Addr == nil {
-		slog.Debug("无缓存地址，需要更新")
+		log.Debug("no cached address, update needed")
 	} else if changed {
-		slog.Debug("IPv6 地址已变化",
+		log.Debug("IPv6 address has changed",
 			"old_addr", d.Addr.String(), "new_addr", newAddr.String())
 	}
 	return changed
@@ -178,7 +290,7 @@ func ipv6Equal(a, b string) bool {
 
 // handleError 处理错误并记录日志
 func (d *Domain) handleError(action string, err error, addr net.IP) error {
-	slog.Error("DDNS "+action,
+	log.Error("DDNS "+action,
 		"domain", d.Domain,
 		"subdomain", d.SubDomain,
 		"ipv6", addr.String(),

@@ -17,6 +17,8 @@ var (
 	buildAt = "unknown"
 )
 
+var log = slog.With("module", "cmd")
+
 var rootCmd = &cobra.Command{
 	Use:   "ddns6",
 	Short: "Dynamic DNS update tool for IPv6 addresses",
@@ -29,7 +31,7 @@ var rootCmd = &cobra.Command{
 
 		logFile, err := os.OpenFile("ddns6.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
-			slog.Error("创建日志文件失败", "err", err)
+			log.Error("failed to create log file", "err", err)
 			os.Exit(1)
 		}
 
@@ -92,6 +94,40 @@ func initRootCmd() {
 	huaweicloudCmd.Flags().String("password", "", "Huawei Cloud Password")
 	huaweicloudCmd.Flags().String("domain-name", "", "Huawei Cloud Domain Name")
 	runCmd.AddCommand(huaweicloudCmd)
+	// DuckDNS 运行参数
+	duckdnsCmd.Flags().String("token", "", "DuckDNS API Token")
+	runCmd.AddCommand(duckdnsCmd)
+
+	// No-IP 运行参数
+	noipCmd.Flags().String("username", "", "No-IP Username")
+	noipCmd.Flags().String("password", "", "No-IP Password")
+	runCmd.AddCommand(noipCmd)
+
+	// HE DNS 运行参数
+	heCmd.Flags().String("password", "", "HE DNS DDNS Key")
+	runCmd.AddCommand(heCmd)
+
+	// Dynv6 运行参数
+	dynv6Cmd.Flags().String("token", "", "Dynv6 API Token")
+	runCmd.AddCommand(dynv6Cmd)
+
+	// Porkbun 运行参数
+	porkbunCmd.Flags().String("api-key", "", "Porkbun API Key")
+	porkbunCmd.Flags().String("api-secret", "", "Porkbun Secret API Key")
+	runCmd.AddCommand(porkbunCmd)
+
+	// DigitalOcean 运行参数
+	digitaloceanCmd.Flags().String("token", "", "DigitalOcean API Token")
+	runCmd.AddCommand(digitaloceanCmd)
+
+	// BaiduCloud 运行参数
+	baiducloudCmd.Flags().String("access-key", "", "Baidu Cloud Access Key")
+	baiducloudCmd.Flags().String("secret-key", "", "Baidu Cloud Secret Key")
+	runCmd.AddCommand(baiducloudCmd)
+
+	// DNSPod 旧版 API 运行参数
+	dnspodCmd.Flags().String("login-token", "", "DNSPod Login Token (format: ID,Token)")
+	runCmd.AddCommand(dnspodCmd)
 }
 
 func Execute() error {

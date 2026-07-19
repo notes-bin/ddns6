@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+var log = slog.With("module", "env")
+
 // EnvToString 从环境变量中获取字符串值
 func EnvToString(key string) (string, error) {
 	value, exists := os.LookupEnv(key)
@@ -135,7 +137,7 @@ func StructToTagValueSlice(obj any, tagKey string) ([]string, error) {
 		}
 		value, err := getFieldAsString(field)
 		if err != nil {
-			slog.Warn("unsupported field type", "field", fieldType.Name, "type", field.Kind())
+			log.Warn("unsupported field type", "field", fieldType.Name, "type", field.Kind())
 			continue
 		}
 		result = append(result, fmt.Sprintf("%s=%s", tagValue, value))
