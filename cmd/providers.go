@@ -98,18 +98,17 @@ var providerDefs = []providerDef{
 		},
 	},
 	{
-		name: "huaweicloud", short: "Huawei Cloud DNS — 需 --username、--password 和 --domain-name",
+		name: "huaweicloud", short: "Huawei Cloud DNS — 需 --access-key 和 --secret-key",
 		flags: []providerFlag{
-			{"username", "Huawei Cloud Username (必填，IAM 用户名)"},
-			{"password", "Huawei Cloud Password (必填)"},
-			{"domain-name", "Huawei Cloud Domain Name (必填，IAM 用户所属账号)"},
+			{"access-key", "Huawei Cloud Access Key (必填，从 IAM 用户获取)"},
+			{"secret-key", "Huawei Cloud Secret Key (必填)"},
 		},
 		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
 			if err != nil {
 				return nil, nil, err
 			}
-			return domains, huaweicloud.NewClient(getString(cmd, "username"), getString(cmd, "password"), getString(cmd, "domain-name")), nil
+			return domains, huaweicloud.NewClient(getString(cmd, "access-key"), getString(cmd, "secret-key")), nil
 		},
 	},
 	{
@@ -355,7 +354,7 @@ var providerFactories = map[string]ProviderFactory{
 		return godaddy.NewClient(cfg.Auth["api_key"], cfg.Auth["api_secret"]), nil
 	},
 	"huaweicloud": func(cfg *config.Config) (providers.DNSProvider, error) {
-		return huaweicloud.NewClient(cfg.Auth["username"], cfg.Auth["password"], cfg.Auth["domain_name"]), nil
+		return huaweicloud.NewClient(cfg.Auth["access_key"], cfg.Auth["secret_key"]), nil
 	},
 	"duckdns": func(cfg *config.Config) (providers.DNSProvider, error) {
 		return duckdns.NewClient(cfg.Auth["token"]), nil

@@ -357,6 +357,7 @@ func (c *CloudflareClient) findZoneID(ctx context.Context, zone string) (string,
 
 	query := url.Values{}
 	query.Set("name", zone)
+		query.Set("status", "active")
 	if c.AccountID != "" {
 		query.Set("account.id", c.AccountID)
 	}

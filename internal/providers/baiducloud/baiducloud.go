@@ -13,7 +13,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"sort"
 	"strings"
 	"time"
 
@@ -69,9 +68,10 @@ func WithHTTPClient(httpClient *http.Client) Option {
 type DNSRecord struct {
 	RecordID   string `json:"recordId,omitempty"`
 	Domain     string `json:"domain"`
-	RDType     int    `json:"rdtype"`
+	RDType     string `json:"rdtype"`
 	TTL        int    `json:"ttl,omitempty"`
 	RData      string `json:"rdata"`
+	View       string `json:"view"`
 	ZoneName   string `json:"zoneName"`
 }
 
@@ -80,9 +80,10 @@ type baiduListResponse struct {
 	Result []struct {
 		RecordID   string `json:"recordId"`
 		Domain     string `json:"domain"`
-		RDType     int    `json:"rdtype"`
+		RDType     string `json:"rdtype"`
 		RData      string `json:"rdata"`
 		TTL        int    `json:"ttl"`
+		View       string `json:"view"`
 		ZoneName   string `json:"zoneName"`
 	} `json:"result"`
 	TotalCount int `json:"totalCount"`
@@ -91,11 +92,10 @@ type baiduListResponse struct {
 // AddRecord 添加域名解析记录
 func (c *Client) AddRecord(ctx context.Context, fulldomain, recordType, value string, ttl int) error {
 	_, subDomain, zoneName := splitDomain(fulldomain)
-	rdType := recordTypeToInt(recordType)
 
 	payload := map[string]any{
 		"domain":   subDomain,
-		"rdType":   rdType,
+		"rdType":   recordType,
 		"rdata":    value,
 		"ttl":      ttl,
 		"zoneName": zoneName,
@@ -116,15 +116,31 @@ func (c *Client) AddRecord(ctx context.Context, fulldomain, recordType, value st
 // ModifyRecord 修改域名解析记录
 func (c *Client) ModifyRecord(ctx context.Context, fulldomain, recordID, recordType, newValue string, ttl int) error {
 	_, subDomain, zoneName := splitDomain(fulldomain)
-	rdType := recordTypeToInt(recordType)
+
+	// 查询现有记录获取 View 字段（解析线路）
+	var recordView string
+	// 直接调用百度云列表 API 获取现有记录
+	listPayload := map[string]any{"domain": zoneName, "pageNum": 1, "pageSize": 1000}
+	if raw, err := c.request(ctx, http.MethodPost, c.baseURL+"/v1/domain/resolve/list", listPayload); err == nil {
+		var listResp baiduListResponse
+		if json.Unmarshal(raw, &listResp) == nil {
+			for _, r := range listResp.Result {
+				if r.RecordID == recordID {
+					recordView = r.View
+					break
+				}
+			}
+		}
+	}
 
 	payload := map[string]any{
 		"recordId": recordID,
 		"domain":   subDomain,
-		"rdType":   rdType,
+		"rdType":   recordType,
 		"rdata":    newValue,
 		"ttl":      ttl,
 		"zoneName": zoneName,
+		"view":     recordView,
 	}
 
 	url := c.baseURL + "/v1/domain/resolve/edit"
@@ -150,7 +166,6 @@ func (c *Client) DeleteRecord(ctx context.Context, fulldomain, recordID string) 
 // GetRecords 查询域名解析记录
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]providers.RecordInfo, error) {
 	_, subDomain, zoneName := splitDomain(fulldomain)
-	rdType := recordTypeToInt(recordType)
 
 	payload := map[string]any{
 		"domain":   zoneName,
@@ -173,7 +188,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 
 	result := make([]providers.RecordInfo, 0, len(listResp.Result))
 	for _, r := range listResp.Result {
-		if r.RDType != rdType {
+		if r.RDType != recordType {
 			continue
 		}
 		// 按子域名过滤
@@ -231,45 +246,31 @@ func (c *Client) request(ctx context.Context, method, url string, payload any) (
 }
 
 // signRequest 为请求添加 BCE 认证签名
+
+// signRequest 为请求添加 BCE 认证签名
+// 遵循百度云 BCE 签名规范：https://cloud.baidu.com/doc/Reference/s/Njwvz1wot
+// 与 ddns-go 的 BaiduSigner 实现对对齐，不包含 body hash
 func (c *Client) signRequest(req *http.Request, body []byte) {
-	timestamp := time.Now().UTC().Format("2006-01-02T15:04:05Z")
 	expirationSeconds := "1800"
+	timestamp := time.Now().UTC().Format("2006-01-02T15:04:05Z")
 
-	// 规范请求头
-	host := req.URL.Host
-	if host == "" {
-		host = req.Host
-	}
+	// BCE v1 签名前缀
+	authStringPrefix := fmt.Sprintf("bce-auth-v1/%s/%s/%s", c.accessKey, timestamp, expirationSeconds)
 
-	signedHeaders := []string{"host", "x-bce-date"}
-	headers := map[string]string{
-		"host":       host,
-		"x-bce-date": timestamp,
-	}
-
-	// 构建 CanonicalRequest
+	// CanonicalURI（全局路径）
 	canonicalURI := req.URL.Path
-	canonicalQuery := req.URL.RawQuery
 
-	// 规范请求头（排序后）
-	sort.Strings(signedHeaders)
-	var canonicalHeaders strings.Builder
-	for _, h := range signedHeaders {
-		canonicalHeaders.WriteString(fmt.Sprintf("%s:%s\n", h, strings.TrimSpace(headers[h])))
-	}
+	// CanonicalHeaders 和 SignedHeaders 硬编码为 host
+	// 百度云 DNS API 只有一个端点 bcd.baidubce.com，所有操作都是 POST
+	signedHeaders := "host"
+	canonicalHeaders := "host:bcd.baidubce.com"
+	canonicalQuery := ""
 
-	// 计算 body 的 SHA256
-	bodyHash := sha256Hex(body)
-
+	// 构建 CanonicalRequest（不包含 body hash）
 	canonicalRequest := fmt.Sprintf("%s\n%s\n%s\n%s\n%s",
-		req.Method,
-		canonicalURI,
-		canonicalQuery,
-		canonicalHeaders.String(),
-		bodyHash)
+		req.Method, canonicalURI, canonicalQuery, canonicalHeaders, signedHeaders)
 
 	// 构建 StringToSign
-	authStringPrefix := fmt.Sprintf("bce-auth-v1/%s/%s/%s", c.accessKey, timestamp, expirationSeconds)
 	stringToSign := fmt.Sprintf("%s\n%s", authStringPrefix, sha256Hex([]byte(canonicalRequest)))
 
 	// 计算签名
@@ -277,12 +278,10 @@ func (c *Client) signRequest(req *http.Request, body []byte) {
 	signature := hex.EncodeToString(hmacSha256(signingKey, stringToSign))
 
 	// 设置认证头
-	authorization := fmt.Sprintf("%s/SignedHeaders=%s/Signature=%s",
-		authStringPrefix, strings.Join(signedHeaders, ";"), signature)
-
+	authorization := fmt.Sprintf("%s/%s/%s", authStringPrefix, signedHeaders, signature)
 	req.Header.Set("Authorization", authorization)
-	req.Header.Set("x-bce-date", timestamp)
 }
+
 
 // splitDomain 分割完整域名为子域名、根域名和 zone 名称
 func splitDomain(fulldomain string) (string, string, string) {
@@ -291,26 +290,6 @@ func splitDomain(fulldomain string) (string, string, string) {
 }
 
 // recordTypeToInt DNS 记录类型转百度云 RDType 数字
-func recordTypeToInt(recordType string) int {
-	switch recordType {
-	case "A":
-		return 1
-	case "AAAA":
-		return 28
-	case "CNAME":
-		return 5
-	case "MX":
-		return 15
-	case "TXT":
-		return 16
-	case "NS":
-		return 2
-	case "SRV":
-		return 33
-	default:
-		return 28 // 默认 AAAA
-	}
-}
 
 // sha256Hex 计算 SHA256 哈希并返回十六进制字符串
 func sha256Hex(data []byte) string {

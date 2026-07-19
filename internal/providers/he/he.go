@@ -17,7 +17,7 @@ import (
 var log = slog.With("module", "he")
 
 const (
-	defaultBaseURL = "https://dns.he.net"
+	defaultBaseURL = "https://dyn.dns.he.net"
 	updatePath     = "/nic/update"
 )
 

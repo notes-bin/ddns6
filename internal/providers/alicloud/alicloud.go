@@ -63,7 +63,7 @@ func WithHTTPClient(httpClient *http.Client) Options {
 // DNSRecord  an Alibaba Cloud DNS record
 type DNSRecord struct {
 	RecordId string `json:"RecordId"`
-	Domain   string `json:"Domain"`
+	Domain   string `json:"DomainName"`
 	RR       string `json:"RR"`
 	Type     string `json:"Type"`
 	Value    string `json:"Value"`
@@ -85,7 +85,6 @@ func (c *AliDNSClient) AddRecord(ctx context.Context, fulldomain, recordType, va
 		"Value":        value,
 		"TTL":          fmt.Sprintf("%d", ttl),
 		"RecordLine":   "default",
-		"RecordLineId": "0",
 	}
 
 	_, err = c.makeRequest(ctx, params)
