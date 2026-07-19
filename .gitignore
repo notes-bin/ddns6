@@ -9,6 +9,7 @@
 *.dll
 *.so
 *.dylib
+ddns6
 
 # Test binary, built with `go test -c`
 *.test
