@@ -67,67 +67,12 @@ func initRootCmd() {
 	rootCmd.PersistentFlags().Duration("interval", 5*time.Minute, "Update interval")
 	rootCmd.PersistentFlags().String("domain", "", "Domain name to update")
 	rootCmd.PersistentFlags().String("subdomain", "@", "Subdomain name")
+	rootCmd.PersistentFlags().Int("ttl", 600, "DNS record TTL (seconds)")
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(runCmd)
 
-	// Tencent 运行参数
-	tencentCmd.Flags().String("secret-id", "", "Tencent Cloud Secret ID")
-	tencentCmd.Flags().String("secret-key", "", "Tencent Cloud Secret Key")
-	runCmd.AddCommand(tencentCmd)
-
-	// Cloudflare 运行参数
-	cloudflareCmd.Flags().String("api-token", "", "Cloudflare API Token")
-	runCmd.AddCommand(cloudflareCmd)
-
-	// Alibaba Cloud 运行参数
-	alicloudCmd.Flags().String("access-key-id", "", "Alibaba Cloud Access Key ID")
-	alicloudCmd.Flags().String("access-key-secret", "", "Alibaba Cloud Access Key Secret")
-	runCmd.AddCommand(alicloudCmd)
-
-	// GoDaddy 运行参数
-	godaddyCmd.Flags().String("api-key", "", "GoDaddy API Key")
-	godaddyCmd.Flags().String("api-secret", "", "GoDaddy API Secret")
-	runCmd.AddCommand(godaddyCmd)
-
-	// Huawei Cloud 运行参数
-	huaweicloudCmd.Flags().String("username", "", "Huawei Cloud Username")
-	huaweicloudCmd.Flags().String("password", "", "Huawei Cloud Password")
-	huaweicloudCmd.Flags().String("domain-name", "", "Huawei Cloud Domain Name")
-	runCmd.AddCommand(huaweicloudCmd)
-	// DuckDNS 运行参数
-	duckdnsCmd.Flags().String("token", "", "DuckDNS API Token")
-	runCmd.AddCommand(duckdnsCmd)
-
-	// No-IP 运行参数
-	noipCmd.Flags().String("username", "", "No-IP Username")
-	noipCmd.Flags().String("password", "", "No-IP Password")
-	runCmd.AddCommand(noipCmd)
-
-	// HE DNS 运行参数
-	heCmd.Flags().String("password", "", "HE DNS DDNS Key")
-	runCmd.AddCommand(heCmd)
-
-	// Dynv6 运行参数
-	dynv6Cmd.Flags().String("token", "", "Dynv6 API Token")
-	runCmd.AddCommand(dynv6Cmd)
-
-	// Porkbun 运行参数
-	porkbunCmd.Flags().String("api-key", "", "Porkbun API Key")
-	porkbunCmd.Flags().String("api-secret", "", "Porkbun Secret API Key")
-	runCmd.AddCommand(porkbunCmd)
-
-	// DigitalOcean 运行参数
-	digitaloceanCmd.Flags().String("token", "", "DigitalOcean API Token")
-	runCmd.AddCommand(digitaloceanCmd)
-
-	// BaiduCloud 运行参数
-	baiducloudCmd.Flags().String("access-key", "", "Baidu Cloud Access Key")
-	baiducloudCmd.Flags().String("secret-key", "", "Baidu Cloud Secret Key")
-	runCmd.AddCommand(baiducloudCmd)
-
-	// DNSPod 旧版 API 运行参数
-	dnspodCmd.Flags().String("login-token", "", "DNSPod Login Token (format: ID,Token)")
-	runCmd.AddCommand(dnspodCmd)
+	// 数据驱动注册所有运营商命令
+	registerProviders()
 }
 
 func Execute() error {

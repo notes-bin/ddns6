@@ -2,18 +2,13 @@ package providers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net"
-	"strings"
 	"sync"
 )
 
 var log = slog.With("module", "providers")
-
-// 定义自定义错误类型
-var ErrEmptyIPv6Address = errors.New("empty IPv6 address")
 
 // RecordInfo 通用 DNS 记录类型
 type RecordInfo struct {
@@ -22,22 +17,6 @@ type RecordInfo struct {
 	Type  string
 	Value string
 	TTL   int
-}
-
-// SplitDomain 将完整域名分割为根域名和子域名
-// 假设根域名为最后两部分（如 example.com），前面的部分为子域名
-// 例如：www.example.com -> (example.com, www), example.com -> (example.com, @)
-func SplitDomain(fulldomain string) (root, subDomain string) {
-	parts := strings.Split(fulldomain, ".")
-	if len(parts) < 2 {
-		return fulldomain, "@"
-	}
-	root = strings.Join(parts[len(parts)-2:], ".")
-	if len(parts) == 2 {
-		return root, "@"
-	}
-	subDomain = strings.Join(parts[:len(parts)-2], ".")
-	return root, subDomain
 }
 
 // RecordAdder 添加 DNS 记录
@@ -73,6 +52,7 @@ type Domain struct {
 	Domain    string     `env:"DOMAIN" required:"true"` // 主域名
 	SubDomain string     `env:"SUB_DOMAIN" default:"@"` // 子域名
 	Type      string     `env:"TYPE" default:"AAAA"`    // 记录类型
+	TTL       int        `env:"TTL" default:"600"`      // TTL，默认 600 秒
 	Addr      net.IP     // IPv6 地址
 	mu        sync.Mutex // 互斥锁
 }
@@ -93,16 +73,36 @@ func (d *Domain) fullDomain() string {
 	return fmt.Sprintf("%s.%s", d.SubDomain, d.Domain)
 }
 
+// checkCancelled 检查 context 是否已取消，取消时记录日志并返回错误
+func (d *Domain) checkCancelled(ctx context.Context, action string) error {
+	select {
+	case <-ctx.Done():
+		log.Info(action+" task cancelled", "domain", d.Domain, "subdomain", d.SubDomain)
+		return ctx.Err()
+	default:
+		return nil
+	}
+}
+
+// setAddr 更新缓存的 IPv6 地址
+func (d *Domain) setAddr(addr net.IP) {
+	d.setAddr(addr)
+}
+
+func (d *Domain) effectiveTTL() int {
+	if d.TTL > 0 {
+		return d.TTL
+	}
+	return 600
+}
+
 // AddDomainRecord 添加 DNS 解析记录
 func (d *Domain) AddDomainRecord(ctx context.Context, ipv6 net.IP, p DNSProvider, ttl int) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	select {
-	case <-ctx.Done():
-		log.Info("add task cancelled", "domain", d.Domain, "subdomain", d.SubDomain)
-		return ctx.Err()
-	default:
+	if err := d.checkCancelled(ctx, "add"); err != nil {
+		return err
 	}
 
 	fqdn := d.fullDomain()
@@ -116,8 +116,7 @@ func (d *Domain) AddDomainRecord(ctx context.Context, ipv6 net.IP, p DNSProvider
 		return d.handleError("failed to add record", err, ipv6)
 	}
 
-	d.Addr = make(net.IP, len(ipv6))
-	copy(d.Addr, ipv6)
+	d.setAddr(ipv6)
 	log.Info("DNS record added successfully",
 		"domain", d.Domain, "subdomain", d.SubDomain, "ipv6", ipv6Str)
 	return nil
@@ -128,11 +127,8 @@ func (d *Domain) ModifyDomainRecord(ctx context.Context, ipv6 net.IP, p DNSProvi
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	select {
-	case <-ctx.Done():
-		log.Info("modify task cancelled", "domain", d.Domain, "subdomain", d.SubDomain)
-		return ctx.Err()
-	default:
+	if err := d.checkCancelled(ctx, "modify"); err != nil {
+		return err
 	}
 
 	fqdn := d.fullDomain()
@@ -146,8 +142,7 @@ func (d *Domain) ModifyDomainRecord(ctx context.Context, ipv6 net.IP, p DNSProvi
 		return d.handleError("failed to modify record", err, ipv6)
 	}
 
-	d.Addr = make(net.IP, len(ipv6))
-	copy(d.Addr, ipv6)
+	d.setAddr(ipv6)
 	log.Info("DNS record modified successfully",
 		"domain", d.Domain, "subdomain", d.SubDomain, "record_id", recordID, "ipv6", ipv6Str)
 	return nil
@@ -158,11 +153,8 @@ func (d *Domain) DeleteDomainRecord(ctx context.Context, p DNSProvider, recordID
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	select {
-	case <-ctx.Done():
-		log.Info("delete task cancelled", "domain", d.Domain, "subdomain", d.SubDomain)
-		return ctx.Err()
-	default:
+	if err := d.checkCancelled(ctx, "delete"); err != nil {
+		return err
 	}
 
 	fqdn := d.fullDomain()
@@ -204,11 +196,8 @@ func (d *Domain) UpdateRecord(ctx context.Context, ipv6 net.IP, p DNSProvider) e
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	select {
-	case <-ctx.Done():
-		log.Info("update task cancelled", "domain", d.Domain, "subdomain", d.SubDomain)
-		return ctx.Err()
-	default:
+	if err := d.checkCancelled(ctx, "update"); err != nil {
+		return err
 	}
 
 	if !d.hasAddressChanged(ipv6) {
@@ -251,8 +240,7 @@ func (d *Domain) updateDNSRecord(ctx context.Context, p DNSProvider, addr net.IP
 
 		// 归一化比较 IPv6 地址（服务商可能返回非规范形式）
 		if ipv6Equal(r.Value, ipv6Str) {
-			d.Addr = make(net.IP, len(addr))
-			copy(d.Addr, addr)
+			d.setAddr(addr)
 			log.Info("IPv6 record already exists, no update needed", "domain", d.Domain, "subdomain", d.SubDomain)
 			return nil
 		}
@@ -262,8 +250,7 @@ func (d *Domain) updateDNSRecord(ctx context.Context, p DNSProvider, addr net.IP
 		if err != nil {
 			return d.handleError("failed to modify record", err, addr)
 		}
-		d.Addr = make(net.IP, len(addr))
-		copy(d.Addr, addr)
+		d.setAddr(addr)
 		log.Info("IPv6 address changed, DDNS modify completed",
 			"domain", d.Domain, "subdomain", d.SubDomain, "ipv6", ipv6Str,
 		)
@@ -271,12 +258,11 @@ func (d *Domain) updateDNSRecord(ctx context.Context, p DNSProvider, addr net.IP
 	}
 
 	// 无 AAAA 记录，新增
-	err = p.AddRecord(ctx, fqdn, d.Type, ipv6Str, 600)
+	err = p.AddRecord(ctx, fqdn, d.Type, ipv6Str, d.effectiveTTL())
 	if err != nil {
 		return d.handleError("failed to add record", err, addr)
 	}
-	d.Addr = make(net.IP, len(addr))
-	copy(d.Addr, addr)
+	d.setAddr(addr)
 	log.Info("IPv6 address changed, DDNS add completed",
 		"domain", d.Domain, "subdomain", d.SubDomain, "ipv6", ipv6Str,
 	)
