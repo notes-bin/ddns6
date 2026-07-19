@@ -1,0 +1,79 @@
+# ============================================================
+# Release 自动发布工作流
+#
+# 当推送符合 v* 模式的 tag（如 v0.0.170）时自动触发：
+#   1. 跨平台构建（linux + darwin, amd64 + arm64）
+#   2. 创建 GitHub Release（自动生成变更日志）
+#   3. 上传编译产物（含 LICENSE 和 systemd 服务文件）
+# ============================================================
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: 构建并打包
+        run: |
+          BINARY="ddns6_${{ matrix.goos }}_${{ matrix.goarch }}"
+          CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
+            go build \
+            -ldflags "-s -w \
+              -X github.com/notes-bin/ddns6/cmd.Version=${{ github.ref_name }} \
+              -X github.com/notes-bin/ddns6/cmd.Commit=${{ github.sha }} \
+              -X github.com/notes-bin/ddns6/cmd.buildAt=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -o "$BINARY" .
+          tar -czf "${BINARY}.tar.gz" \
+            "$BINARY" LICENSE README.md contrib/systemd/ddns6@.service
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.goos }}_${{ matrix.goarch }}
+          path: ddns6_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz
+
+  release:
+    name: 创建 Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 下载所有构建产物
+        uses: actions/download-artifact@v4
+
+      - name: 创建 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "ddns6 ${{ github.ref_name }}"
+          generate_release_notes: true
+          files: |
+            linux_amd64/ddns6_linux_amd64.tar.gz
+            darwin_amd64/ddns6_darwin_amd64.tar.gz
+            darwin_arm64/ddns6_darwin_arm64.tar.gz
+          draft: false
+          prerelease: false
