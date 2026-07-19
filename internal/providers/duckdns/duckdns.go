@@ -87,13 +87,10 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 
 // update 执行 DuckDNS 的 API 更新请求
 func (c *Client) update(ctx context.Context, domain, ip string) error {
-	// 从 fulldomain 中提取子域名（DuckDNS 的域名格式为 subdomain.duckdns.org）
+	// 从 fulldomain 中提取 DuckDNS 域名（去掉 .duckdns.org 后缀）
 	domainName := strings.TrimSuffix(domain, ".duckdns.org")
-	if strings.Contains(domainName, ".") {
-		// DuckDNS 只支持单级子域名
-		parts := strings.SplitN(domainName, ".", 2)
-		domainName = parts[len(parts)-1]
-	}
+	// DuckDNS 不支持多级子域名（如 www.mydomain.duckdns.org），
+	// 如果配置了子域名，API 会返回明确错误告知用户。
 
 	query := url.Values{}
 	query.Set("domains", domainName)
