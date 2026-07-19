@@ -18,9 +18,11 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
+	"text/template"
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/providers"
@@ -117,32 +119,19 @@ func (c *Config) GetTTL() int {
 	return c.TTL
 }
 
-// Generate 创建 ~/.ddns6/ 目录并写入带注释的 config.yaml 模板。
-//
-// 如果目录已存在但配置文件已存在，不会覆盖。
-// 首次使用 ddns6 init 命令时会调用此函数。
-func Generate() error {
-	dir, err := ConfigDir()
-	if err != nil {
-		return err
-	}
-	path, err := ConfigPath()
-	if err != nil {
-		return err
-	}
+// InitParams ddns6 init 命令的可选预填参数。
+// 空值/零值表示不预填，相应字段在配置文件中保持注释状态。
+type InitParams struct {
+	Domain     string
+	Subdomains []string
+	TTL        int
+	Interval   string
+	Interface  string
+}
 
-	// 创建目录（如果不存在）
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("cannot create config directory %s: %w", dir, err)
-	}
-
-	// 检查配置文件是否已存在
-	if _, err := os.Stat(path); err == nil {
-		return fmt.Errorf("config file already exists at %s", path)
-	}
-
-	// 生成带详细注释的模板
-	template := `# DDNS6 配置文件
+// configTemplate 配置模板，使用 text/template 渲染。
+// 有值的字段直接写入配置，空值保留为注释示例。
+const configTemplate = `# DDNS6 配置文件
 # 编辑后执行 ddns6 run 即可启动服务
 #
 # 各字段说明见下方注释，更多信息请参考 ddns6 run --help
@@ -165,32 +154,70 @@ auth: {}
   # access_key_secret: "your-access-key-secret"
 
 # 必填：根域名
-domain: ""
+domain: "{{.Domain}}"
 
 # 必填：子域名列表（可多个，每个占一行）
 # 使用 "@" 表示根域名
-subdomains:
-  - "@"
+subdomains:{{if .Subdomains}}{{range .Subdomains}}
+  - "{{.}}"{{end}}{{else}}
+  - "@"{{end}}
 
 # 可选：非 Linux 平台的轮询间隔
 # 格式：数字+单位（s=秒, m=分, h=时），默认 5m
 # Linux 平台由 Netlink 事件驱动，此选项无效
-# interval: 5m
+{{if .Interval}}interval: {{.Interval}}{{else}}# interval: 5m{{end}}
 
 # 可选：监听的网络接口（仅 Linux Netlink 模式有效）
 # 指定后只监听该接口的 IPv6 地址变化
 # 不指定则监听所有接口
-# interface: ppp0
+{{if .Interface}}interface: {{.Interface}}{{else}}# interface: ppp0{{end}}
 
 # 可选：DNS 记录 TTL，单位秒，默认 600
-# ttl: 600
+{{if .TTL}}ttl: {{.TTL}}{{else}}# ttl: 600{{end}}
 `
 
-	if err := os.WriteFile(path, []byte(template), 0644); err != nil {
+// Generate 创建 ~/.ddns6/ 目录并写入 config.yaml。
+//
+// params 中非零字段会预填入配置文件，零值字段保留为注释默认值。
+// 如果目录已存在但配置文件已存在，不会覆盖。
+func Generate(params InitParams) error {
+	dir, err := ConfigDir()
+	if err != nil {
+		return err
+	}
+	path, err := ConfigPath()
+	if err != nil {
+		return err
+	}
+
+	// 创建目录（如果不存在）
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("cannot create config directory %s: %w", dir, err)
+	}
+
+	// 检查配置文件是否已存在
+	if _, err := os.Stat(path); err == nil {
+		return fmt.Errorf("config file already exists at %s", path)
+	}
+
+	// 渲染模板并写入
+	tmpl, err := template.New("config").Parse(configTemplate)
+	if err != nil {
+		return fmt.Errorf("internal error: failed to parse config template: %w", err)
+	}
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, params); err != nil {
+		return fmt.Errorf("cannot render config: %w", err)
+	}
+	if err := os.WriteFile(path, buf.Bytes(), 0644); err != nil {
 		return fmt.Errorf("cannot write config file %s: %w", path, err)
 	}
 
 	fmt.Printf("Configuration file created at: %s\n", path)
-	fmt.Println("Edit it with your provider details, then run: ddns6 run")
+	if params.Domain == "" {
+		fmt.Println("Edit it with your provider details, then run: ddns6 run")
+	} else {
+		fmt.Println("Set your provider and auth in the config, then run: ddns6 run")
+	}
 	return nil
 }
