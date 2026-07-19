@@ -61,10 +61,10 @@ func WithHTTPClient(httpClient *http.Client) Option {
 
 // Zone Dynv6 区域信息
 type Zone struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	IPv4  string `json:"ipv4address"`
-	IPv6  string `json:"ipv6address"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	IPv4 string `json:"ipv4address"`
+	IPv6 string `json:"ipv6address"`
 }
 
 // Record Dynv6 DNS 记录

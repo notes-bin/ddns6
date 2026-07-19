@@ -105,4 +105,3 @@ func TestGetRecords(t *testing.T) {
 		t.Errorf("Expected value '2001:db8::1', got '%s'", records[0].Value)
 	}
 }
-

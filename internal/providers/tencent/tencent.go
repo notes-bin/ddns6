@@ -86,7 +86,6 @@ func WithHTTPClient(httpClient *http.Client) Option {
 	}
 }
 
-
 // AddRecord 添加域名解析记录
 func (ds *DNSPod) AddRecord(ctx context.Context, fulldomain, recordType, value string, ttl int) error {
 	log.Info("adding Tencent DNS record",
@@ -98,12 +97,12 @@ func (ds *DNSPod) AddRecord(ctx context.Context, fulldomain, recordType, value s
 	}
 
 	record := DNSRecord{
-		Domain:       domain,
-		SubDomain:    subDomain,
-		RecordType:   recordType,
-		RecordLine:   "默认",
-		Value:         value,
-		TTL:           ttl,
+		Domain:     domain,
+		SubDomain:  subDomain,
+		RecordType: recordType,
+		RecordLine: "默认",
+		Value:      value,
+		TTL:        ttl,
 	}
 
 	response := new(Response)

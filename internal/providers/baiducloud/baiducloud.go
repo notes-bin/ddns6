@@ -27,9 +27,9 @@ const (
 
 // Client 百度云 DNS API 客户端
 type Client struct {
-	accessKey    string
-	secretKey    string
-	baseURL      string
+	accessKey string
+	secretKey string
+	baseURL   string
 	*http.Client
 }
 
@@ -66,25 +66,25 @@ func WithHTTPClient(httpClient *http.Client) Option {
 
 // DNSRecord 百度云 DNS 记录
 type DNSRecord struct {
-	RecordID   string `json:"recordId,omitempty"`
-	Domain     string `json:"domain"`
-	RDType     string `json:"rdtype"`
-	TTL        int    `json:"ttl,omitempty"`
-	RData      string `json:"rdata"`
-	View       string `json:"view"`
-	ZoneName   string `json:"zoneName"`
+	RecordID string `json:"recordId,omitempty"`
+	Domain   string `json:"domain"`
+	RDType   string `json:"rdtype"`
+	TTL      int    `json:"ttl,omitempty"`
+	RData    string `json:"rdata"`
+	View     string `json:"view"`
+	ZoneName string `json:"zoneName"`
 }
 
 // baiduListResponse 查询记录响应
 type baiduListResponse struct {
 	Result []struct {
-		RecordID   string `json:"recordId"`
-		Domain     string `json:"domain"`
-		RDType     string `json:"rdtype"`
-		RData      string `json:"rdata"`
-		TTL        int    `json:"ttl"`
-		View       string `json:"view"`
-		ZoneName   string `json:"zoneName"`
+		RecordID string `json:"recordId"`
+		Domain   string `json:"domain"`
+		RDType   string `json:"rdtype"`
+		RData    string `json:"rdata"`
+		TTL      int    `json:"ttl"`
+		View     string `json:"view"`
+		ZoneName string `json:"zoneName"`
 	} `json:"result"`
 	TotalCount int `json:"totalCount"`
 }
@@ -176,7 +176,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	url := c.baseURL + "/v1/domain/resolve/list"
 	log.Debug("querying BaiduCloud DNS records", "zone", zoneName)
 
-		resp, err := c.request(ctx, http.MethodPost, url, payload)
+	resp, err := c.request(ctx, http.MethodPost, url, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +281,6 @@ func (c *Client) signRequest(req *http.Request, body []byte) {
 	authorization := fmt.Sprintf("%s/%s/%s", authStringPrefix, signedHeaders, signature)
 	req.Header.Set("Authorization", authorization)
 }
-
 
 // splitDomain 分割完整域名为子域名、根域名和 zone 名称
 func splitDomain(fulldomain string) (string, string, string) {
