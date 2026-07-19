@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -52,7 +53,7 @@ var providerDefs = []providerDef{
 			if err != nil {
 				return nil, nil, err
 			}
-			return domains, tencent.NewDNSPod(getFlag(cmd, "secret-id"), getFlag(cmd, "secret-key")), nil
+			return domains, tencent.NewDNSPod(getString(cmd, "secret-id"), getString(cmd, "secret-key")), nil
 		},
 	},
 	{
@@ -65,7 +66,7 @@ var providerDefs = []providerDef{
 			if err != nil {
 				return nil, nil, err
 			}
-			return domains, cloudflare.NewClient(cloudflare.WithAPIToken(getFlag(cmd, "api-token"))), nil
+			return domains, cloudflare.NewClient(cloudflare.WithAPIToken(getString(cmd, "api-token"))), nil
 		},
 	},
 	{
@@ -79,7 +80,7 @@ var providerDefs = []providerDef{
 			if err != nil {
 				return nil, nil, err
 			}
-			return domains, alicloud.NewClient(getFlag(cmd, "access-key-id"), getFlag(cmd, "access-key-secret")), nil
+			return domains, alicloud.NewClient(getString(cmd, "access-key-id"), getString(cmd, "access-key-secret")), nil
 		},
 	},
 	{
@@ -93,7 +94,7 @@ var providerDefs = []providerDef{
 			if err != nil {
 				return nil, nil, err
 			}
-			return domains, godaddy.NewClient(getFlag(cmd, "api-key"), getFlag(cmd, "api-secret")), nil
+			return domains, godaddy.NewClient(getString(cmd, "api-key"), getString(cmd, "api-secret")), nil
 		},
 	},
 	{
@@ -108,7 +109,7 @@ var providerDefs = []providerDef{
 			if err != nil {
 				return nil, nil, err
 			}
-			return domains, huaweicloud.NewClient(getFlag(cmd, "username"), getFlag(cmd, "password"), getFlag(cmd, "domain-name")), nil
+			return domains, huaweicloud.NewClient(getString(cmd, "username"), getString(cmd, "password"), getString(cmd, "domain-name")), nil
 		},
 	},
 	{
@@ -121,7 +122,7 @@ var providerDefs = []providerDef{
 			if err != nil {
 				return nil, nil, err
 			}
-			return domains, duckdns.NewClient(getFlag(cmd, "token")), nil
+			return domains, duckdns.NewClient(getString(cmd, "token")), nil
 		},
 	},
 	{
@@ -135,7 +136,7 @@ var providerDefs = []providerDef{
 			if err != nil {
 				return nil, nil, err
 			}
-			return domains, noip.NewClient(getFlag(cmd, "username"), getFlag(cmd, "password")), nil
+			return domains, noip.NewClient(getString(cmd, "username"), getString(cmd, "password")), nil
 		},
 	},
 	{
@@ -148,7 +149,7 @@ var providerDefs = []providerDef{
 			if err != nil {
 				return nil, nil, err
 			}
-			return domains, he.NewClient(getFlag(cmd, "password")), nil
+			return domains, he.NewClient(getString(cmd, "password")), nil
 		},
 	},
 	{
@@ -161,7 +162,7 @@ var providerDefs = []providerDef{
 			if err != nil {
 				return nil, nil, err
 			}
-			return domains, dynv6.NewClient(getFlag(cmd, "token")), nil
+			return domains, dynv6.NewClient(getString(cmd, "token")), nil
 		},
 	},
 	{
@@ -175,7 +176,7 @@ var providerDefs = []providerDef{
 			if err != nil {
 				return nil, nil, err
 			}
-			return domains, porkbun.NewClient(getFlag(cmd, "api-key"), getFlag(cmd, "api-secret")), nil
+			return domains, porkbun.NewClient(getString(cmd, "api-key"), getString(cmd, "api-secret")), nil
 		},
 	},
 	{
@@ -188,7 +189,7 @@ var providerDefs = []providerDef{
 			if err != nil {
 				return nil, nil, err
 			}
-			return domains, digitalocean.NewClient(getFlag(cmd, "token")), nil
+			return domains, digitalocean.NewClient(getString(cmd, "token")), nil
 		},
 	},
 	{
@@ -202,7 +203,7 @@ var providerDefs = []providerDef{
 			if err != nil {
 				return nil, nil, err
 			}
-			return domains, baiducloud.NewClient(getFlag(cmd, "access-key"), getFlag(cmd, "secret-key")), nil
+			return domains, baiducloud.NewClient(getString(cmd, "access-key"), getString(cmd, "secret-key")), nil
 		},
 	},
 	{
@@ -215,7 +216,7 @@ var providerDefs = []providerDef{
 			if err != nil {
 				return nil, nil, err
 			}
-			return domains, dnspod.NewClient(getFlag(cmd, "login-token")), nil
+			return domains, dnspod.NewClient(getString(cmd, "login-token")), nil
 		},
 	},
 }
@@ -267,20 +268,20 @@ func registerProviders() {
 
 // formatProviderFlags 返回运营商的必填参数格式文本
 func formatProviderFlags(flags []providerFlag) string {
-	s := ""
+	var b strings.Builder
 	for _, f := range flags {
-		s += fmt.Sprintf("  --%-20s %s\n", f.name, f.usage)
+		fmt.Fprintf(&b, "  --%-20s %s\n", f.name, f.usage)
 	}
-	return s
+	return b.String()
 }
 
 // formatSampleFlags 返回示例参数文本
 func formatSampleFlags(flags []providerFlag) string {
-	s := ""
+	var b strings.Builder
 	for _, f := range flags {
-		s += fmt.Sprintf(" --%s YOUR_%s", f.name, f.name)
+		fmt.Fprintf(&b, " --%s YOUR_%s", f.name, f.name)
 	}
-	return s
+	return b.String()
 }
 
 // ============================================================
@@ -290,15 +291,7 @@ func formatSampleFlags(flags []providerFlag) string {
 // startServiceFromConfig 根据配置文件启动 DDNS 服务。
 func startServiceFromConfig(cfg *config.Config, cmd *cobra.Command) error {
 	// 从配置创建域名列表
-	domains := make([]*providers.Domain, len(cfg.Subdomains))
-	for i, sd := range cfg.Subdomains {
-		domains[i] = &providers.Domain{
-			Type:      "AAAA",
-			Domain:    cfg.Domain,
-			SubDomain: sd,
-			TTL:       cfg.GetTTL(),
-		}
-	}
+	domains := buildDomains(cfg.Domain, cfg.Subdomains, cfg.GetTTL())
 
 	// 从配置创建 DNS 服务商
 	p, err := createProviderFromConfig(cfg)
@@ -372,11 +365,6 @@ func getString(cmd *cobra.Command, name string) string {
 	return v
 }
 
-// getFlag 安全获取字符串类型 flag 值（别名）
-func getFlag(cmd *cobra.Command, name string) string {
-	return getString(cmd, name)
-}
-
 // getDuration 安全获取 duration 类型 flag 值
 func getDuration(cmd *cobra.Command, name string) time.Duration {
 	v, err := cmd.Flags().GetDuration(name)
@@ -416,15 +404,19 @@ func createDomainConfigs(cmd *cobra.Command) ([]*providers.Domain, error) {
 		return nil, fmt.Errorf("invalid --ttl flag: %w", err)
 	}
 
+	return buildDomains(domainName, subdomains, ttl), nil
+}
+
+// buildDomains 根据根域名、子域名列表和 TTL 创建 Domain 列表。
+func buildDomains(domain string, subdomains []string, ttl int) []*providers.Domain {
 	domains := make([]*providers.Domain, len(subdomains))
 	for i, sd := range subdomains {
-		d := &providers.Domain{
+		domains[i] = &providers.Domain{
 			Type:      "AAAA",
-			Domain:    domainName,
+			Domain:    domain,
 			SubDomain: sd,
 			TTL:       ttl,
 		}
-		domains[i] = d
 	}
-	return domains, nil
+	return domains
 }

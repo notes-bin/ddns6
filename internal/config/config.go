@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/notes-bin/ddns6/internal/providers"
 	"gopkg.in/yaml.v3"
 )
 
@@ -108,10 +109,10 @@ func (c *Config) GetInterval() time.Duration {
 	return d
 }
 
-// GetTTL 返回 TTL 值，未设置时返回默认值 600。
+// GetTTL 返回 TTL 值，未设置时返回默认值。
 func (c *Config) GetTTL() int {
 	if c.TTL <= 0 {
-		return 600
+		return providers.DefaultTTL
 	}
 	return c.TTL
 }
