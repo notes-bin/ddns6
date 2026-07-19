@@ -101,10 +101,9 @@ func (ds *DNSPod) AddRecord(ctx context.Context, fulldomain, recordType, value s
 		Domain:       domain,
 		SubDomain:    subDomain,
 		RecordType:   recordType,
-		RecordLine:   "0",
-		RecordLineId: "0",
-		Value:        value,
-		TTL:          ttl,
+		RecordLine:   "默认",
+		Value:         value,
+		TTL:           ttl,
 	}
 
 	response := new(Response)

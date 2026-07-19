@@ -1,3 +1,7 @@
+// Package huaweicloud 实现华为云 DNS API 服务
+//
+// 华为云 DNS 使用 SDK-HMAC-SHA256 签名认证，基于 AWS SigV4 变体
+// API 文档：https://support.huaweicloud.com/api-dns/dns_api_64001.html
 package huaweicloud
 
 import (
@@ -10,7 +14,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/providers"
@@ -18,170 +21,163 @@ import (
 
 var log = slog.With("module", "huaweicloud")
 
-// HuaweiCloudClient 华为云 DNS API 客户端
-type HuaweiCloudClient struct {
-	Username   string
-	Password   string
-	DomainName string
-	IAMURL     string
-	DNSURL     string
-	HTTPClient *http.Client
+const (
+	defaultBaseURL = "https://dns.myhuaweicloud.com"
+)
 
-	tokenMu     sync.Mutex
-	cachedToken string
-	tokenExpiry time.Time
+// Client 华为云 DNS API 客户端
+type Client struct {
+	accessKey string
+	secretKey string
+	baseURL   string
+	*http.Client
 }
 
-type Options func(*HuaweiCloudClient)
+// Option 客户端配置选项函数
+type Option func(*Client)
 
 // NewClient 创建华为云 DNS 客户端
-func NewClient(username, password, domainName string, options ...Options) *HuaweiCloudClient {
-	client := &HuaweiCloudClient{
-		Username:   username,
-		Password:   password,
-		DomainName: domainName,
-		IAMURL:     "https://iam.myhuaweicloud.com",
-		DNSURL:     "https://dns.ap-southeast-1.myhuaweicloud.com",
-		HTTPClient: &http.Client{Timeout: 30 * time.Second},
+func NewClient(accessKey, secretKey string, options ...Option) *Client {
+	c := &Client{
+		accessKey: accessKey,
+		secretKey: secretKey,
+		baseURL:   defaultBaseURL,
+		Client:    &http.Client{Timeout: 30 * time.Second},
 	}
-
-	for _, option := range options {
-		option(client)
+	for _, opt := range options {
+		opt(c)
 	}
-
-	return client
+	return c
 }
 
-// WithIAMURL 设置自定义 IAM 地址
-func WithIAMURL(url string) Options {
-	return func(c *HuaweiCloudClient) {
-		c.IAMURL = url
-	}
-}
-
-// WithDNSURL 设置自定义 DNS API 地址
-func WithDNSURL(url string) Options {
-	return func(c *HuaweiCloudClient) {
-		c.DNSURL = url
+// WithBaseURL 设置自定义 API 地址（测试用）
+func WithBaseURL(baseURL string) Option {
+	return func(c *Client) {
+		c.baseURL = strings.TrimSuffix(baseURL, "/")
 	}
 }
 
 // WithHTTPClient 设置自定义 HTTP 客户端
-func WithHTTPClient(httpClient *http.Client) Options {
-	return func(c *HuaweiCloudClient) {
-		c.HTTPClient = httpClient
+func WithHTTPClient(httpClient *http.Client) Option {
+	return func(c *Client) {
+		c.Client = httpClient
 	}
 }
 
-
-// DNSRecord  a Huawei Cloud DNS record
+// DNSRecord 华为云 DNS 记录集
 type DNSRecord struct {
-	ID          string   `json:"id,omitempty"`
-	Name        string   `json:"name"`
-	Description string   `json:"description,omitempty"`
-	Type        string   `json:"type"`
-	TTL         int      `json:"ttl,omitempty"`
-	Records     []string `json:"records"`
+	ID      string   `json:"id,omitempty"`
+	Name    string   `json:"name"`
+	Type    string   `json:"type"`
+	TTL     int      `json:"ttl"`
+	Records []string `json:"records"`
+	Weight  *int     `json:"weight,omitempty"`
+	ZoneID  string   `json:"zone_id,omitempty"`
+}
+
+// recordSetPayload 创建记录集时的请求体
+// weight 只在创建时需要，更新时不传
+type recordSetPayload struct {
+	Name    string   `json:"name"`
+	Type    string   `json:"type"`
+	TTL     int      `json:"ttl"`
+	Records []string `json:"records"`
+	Weight  int      `json:"weight"`
 }
 
 // AddRecord 添加域名解析记录
-func (c *HuaweiCloudClient) AddRecord(ctx context.Context, fulldomain, recordType, value string, ttl int) error {
-	token, err := c.getToken(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get token: %v", err)
-	}
-
-	zoneID, err := c.getZoneID(ctx, token, fulldomain)
+func (c *Client) AddRecord(ctx context.Context, fulldomain, recordType, value string, ttl int) error {
+	zoneID, err := c.getZoneID(ctx, fulldomain)
 	if err != nil {
 		return fmt.Errorf("failed to get zone ID: %v", err)
 	}
 
-	record := DNSRecord{
+	payload := recordSetPayload{
 		Name:    fulldomain + ".",
 		Type:    recordType,
 		TTL:     ttl,
 		Records: []string{value},
+		Weight:  1,
 	}
 
-	_, err = c.createRecordSet(ctx, token, zoneID, record)
-	return err
+	url := c.baseURL + "/v2.1/zones/" + zoneID + "/recordsets"
+	log.Debug("adding HuaweiCloud DNS record", "zone", zoneID, "domain", fulldomain, "type", recordType)
+
+	_, err = c.request(ctx, http.MethodPost, url, payload)
+	if err != nil {
+		return err
+	}
+
+	log.Info("HuaweiCloud DNS record added successfully", "zone", zoneID, "name", fulldomain, "ipv6", value)
+	return nil
 }
 
 // ModifyRecord 修改域名解析记录
-func (c *HuaweiCloudClient) ModifyRecord(ctx context.Context, fulldomain, recordID, recordType, newValue string, ttl int) error {
-	token, err := c.getToken(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get token: %v", err)
-	}
-
-	zoneID, err := c.getZoneID(ctx, token, fulldomain)
+func (c *Client) ModifyRecord(ctx context.Context, fulldomain, recordID, recordType, newValue string, ttl int) error {
+	zoneID, err := c.getZoneID(ctx, fulldomain)
 	if err != nil {
 		return fmt.Errorf("failed to get zone ID: %v", err)
 	}
 
-	record := DNSRecord{
-		Name:    fulldomain + ".",
-		Type:    recordType,
-		TTL:     ttl,
-		Records: []string{newValue},
+	payload := map[string]any{
+		"name":    fulldomain + ".",
+		"type":    recordType,
+		"ttl":     ttl,
+		"records": []string{newValue},
 	}
 
-	_, err = c.updateRecordSet(ctx, token, zoneID, recordID, record)
-	return err
+	url := c.baseURL + "/v2.1/zones/" + zoneID + "/recordsets/" + recordID
+	log.Debug("modifying HuaweiCloud DNS record", "zone", zoneID, "record_id", recordID)
+
+	_, err = c.request(ctx, http.MethodPut, url, payload)
+	if err != nil {
+		return err
+	}
+
+	log.Info("HuaweiCloud DNS record modified successfully", "zone", zoneID, "record_id", recordID, "ipv6", newValue)
+	return nil
 }
 
 // DeleteRecord 删除域名解析记录
-func (c *HuaweiCloudClient) DeleteRecord(ctx context.Context, fulldomain, recordID string) error {
-	token, err := c.getToken(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get token: %v", err)
-	}
-
-	zoneID, err := c.getZoneID(ctx, token, fulldomain)
+func (c *Client) DeleteRecord(ctx context.Context, fulldomain, recordID string) error {
+	zoneID, err := c.getZoneID(ctx, fulldomain)
 	if err != nil {
 		return fmt.Errorf("failed to get zone ID: %v", err)
 	}
 
-	return c.deleteRecordSet(ctx, token, zoneID, recordID)
+	url := c.baseURL + "/v2.1/zones/" + zoneID + "/recordsets/" + recordID
+	log.Debug("deleting HuaweiCloud DNS record", "zone", zoneID, "record_id", recordID)
+
+	_, err = c.request(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return err
+	}
+
+	log.Info("HuaweiCloud DNS record deleted successfully", "zone", zoneID, "record_id", recordID)
+	return nil
 }
 
 // GetRecords 查询域名的解析记录，返回通用 RecordInfo 列表
-func (c *HuaweiCloudClient) GetRecords(ctx context.Context, fulldomain, recordType string) ([]providers.RecordInfo, error) {
-	token, err := c.getToken(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get token: %v", err)
-	}
-
-	zoneID, err := c.getZoneID(ctx, token, fulldomain)
+func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]providers.RecordInfo, error) {
+	zoneID, err := c.getZoneID(ctx, fulldomain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get zone ID: %v", err)
 	}
 
-	// 华为云 DNS API 分页获取全部 recordsets，同时按名称和类型过滤
+	// 查询租户下指定 zone 的记录集列表
+	params := url.Values{}
+	params.Set("type", recordType)
+	params.Set("name", fulldomain+".")
+	params.Set("limit", "500")
+
+	// 华为云 API 分页获取全部 recordsets
 	var allRecordsets []DNSRecord
 	marker := ""
-	fqdn := fulldomain + "."
 	for {
-		reqURL := fmt.Sprintf("%s/v2/zones/%s/recordsets?limit=500&type=%s&name=%s",
-			c.DNSURL, zoneID, recordType, fqdn)
 		if marker != "" {
-			reqURL += "&marker=" + url.QueryEscape(marker)
+			params.Set("marker", marker)
 		}
-		req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
-		if err != nil {
-			return nil, err
-		}
-		req.Header.Set("X-Auth-Token", token)
-
-		resp, err := c.HTTPClient.Do(req)
-		if err != nil {
-			return nil, err
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
-			return nil, fmt.Errorf("failed to get records, status: %d", resp.StatusCode)
-		}
+		reqURL := c.baseURL + "/v2.1/zones/" + zoneID + "/recordsets?" + params.Encode()
 
 		var apiResult struct {
 			Recordsets []DNSRecord `json:"recordsets"`
@@ -190,11 +186,9 @@ func (c *HuaweiCloudClient) GetRecords(ctx context.Context, fulldomain, recordTy
 			} `json:"links"`
 		}
 
-		if err := json.NewDecoder(resp.Body).Decode(&apiResult); err != nil {
-			resp.Body.Close()
+		if err := c.requestRaw(ctx, http.MethodGet, reqURL, &apiResult); err != nil {
 			return nil, err
 		}
-		resp.Body.Close()
 
 		allRecordsets = append(allRecordsets, apiResult.Recordsets...)
 
@@ -202,7 +196,7 @@ func (c *HuaweiCloudClient) GetRecords(ctx context.Context, fulldomain, recordTy
 			break
 		}
 		// 从 next link 中提取 marker
-		if u, err := url.Parse(apiResult.Links.Next); err == nil {
+		if u, parseErr := url.Parse(apiResult.Links.Next); parseErr == nil {
 			marker = u.Query().Get("marker")
 		}
 		if marker == "" {
@@ -210,7 +204,7 @@ func (c *HuaweiCloudClient) GetRecords(ctx context.Context, fulldomain, recordTy
 		}
 	}
 
-	var records []providers.RecordInfo
+	records := make([]providers.RecordInfo, 0, len(allRecordsets))
 	for _, r := range allRecordsets {
 		value := ""
 		if len(r.Records) > 0 {
@@ -227,141 +221,14 @@ func (c *HuaweiCloudClient) GetRecords(ctx context.Context, fulldomain, recordTy
 	return records, nil
 }
 
-// GetDomainRecord 查询单条解析记录详情
-func (c *HuaweiCloudClient) GetDomainRecord(ctx context.Context, fulldomain, recordID string) (*DNSRecord, error) {
-	token, err := c.getToken(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get token: %v", err)
-	}
-
-	zoneID, err := c.getZoneID(ctx, token, fulldomain)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get zone ID: %v", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/v2/zones/%s/recordsets/%s", c.DNSURL, zoneID, recordID), nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("X-Auth-Token", token)
-
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to get record, status: %d", resp.StatusCode)
-	}
-
-	var record DNSRecord
-	if err := json.NewDecoder(resp.Body).Decode(&record); err != nil {
-		return nil, err
-	}
-
-	return &record, nil
-}
-
-// getToken retrieves an authentication token from Huawei Cloud IAM
-func (c *HuaweiCloudClient) getToken(ctx context.Context) (string, error) {
-	c.tokenMu.Lock()
-	if time.Now().Before(c.tokenExpiry) && c.cachedToken != "" {
-		token := c.cachedToken
-		expiry := c.tokenExpiry
-		c.tokenMu.Unlock()
-		log.Debug("using cached Huawei Cloud IAM token",
-			"expires_at", expiry.Format(time.RFC3339))
-		return token, nil
-	}
-	c.tokenMu.Unlock()
-
-	log.Info("acquiring Huawei Cloud IAM token")
-
-	authRequest := map[string]any{
-		"auth": map[string]any{
-			"identity": map[string]any{
-				"methods": []string{"password"},
-				"password": map[string]any{
-					"user": map[string]any{
-						"name":     c.Username,
-						"password": c.Password,
-						"domain": map[string]any{
-							"name": c.DomainName,
-						},
-					},
-				},
-			},
-			"scope": map[string]any{
-				"project": map[string]any{
-					"name": "ap-southeast-1",
-				},
-			},
-		},
-	}
-
-	body, err := json.Marshal(authRequest)
-	if err != nil {
-		return "", err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", c.IAMURL+"/v3/auth/tokens", bytes.NewBuffer(body))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusCreated {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		log.Error("failed to acquire Huawei Cloud IAM token",
-			"status", resp.StatusCode)
-		return "", fmt.Errorf("failed to get token, status: %d, response: %s", resp.StatusCode, string(bodyBytes))
-	}
-
-	token := resp.Header.Get("X-Subject-Token")
-	if token == "" {
-		return "", fmt.Errorf("token not found in response")
-	}
-
-	// 双重检查锁：避免并发获取时重复请求 IAM
-	c.tokenMu.Lock()
-	c.cachedToken = token
-	c.tokenExpiry = time.Now().Add(20 * time.Hour)
-	c.tokenMu.Unlock()
-
-	log.Info("Huawei Cloud IAM token obtained and cached",
-		"expires_in", "20h")
-	return token, nil
-}
-
-// getZoneID finds the zone ID for a given domain
-func (c *HuaweiCloudClient) getZoneID(ctx context.Context, token, domain string) (string, error) {
+// getZoneID 查找域名对应的 Zone ID
+func (c *Client) getZoneID(ctx context.Context, domain string) (string, error) {
 	parts := strings.Split(domain, ".")
 	for i := 1; i < len(parts); i++ {
 		h := strings.Join(parts[i:], ".")
-		log.Debug("looking up Huawei Cloud zone", "domain", h)
+		log.Debug("looking up HuaweiCloud zone", "domain", h)
 
-		req, err := http.NewRequestWithContext(ctx, "GET", c.DNSURL+"/v2/zones?name="+url.QueryEscape(h), nil)
-		if err != nil {
-			return "", err
-		}
-		req.Header.Set("X-Auth-Token", token)
-
-		resp, err := c.HTTPClient.Do(req)
-		if err != nil {
-			return "", err
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
-			continue
-		}
+		reqURL := c.baseURL + "/v2/zones?name=" + url.QueryEscape(h)
 
 		var result struct {
 			Zones []struct {
@@ -370,15 +237,13 @@ func (c *HuaweiCloudClient) getZoneID(ctx context.Context, token, domain string)
 			} `json:"zones"`
 		}
 
-		err = json.NewDecoder(resp.Body).Decode(&result)
-		resp.Body.Close()
-		if err != nil {
+		if err := c.requestRaw(ctx, http.MethodGet, reqURL, &result); err != nil {
 			continue
 		}
 
 		for _, zone := range result.Zones {
 			if zone.Name == h+"." {
-				log.Info("Huawei Cloud zone found",
+				log.Info("HuaweiCloud zone found",
 					"zone", h, "zone_id", zone.ID)
 				return zone.ID, nil
 			}
@@ -386,30 +251,19 @@ func (c *HuaweiCloudClient) getZoneID(ctx context.Context, token, domain string)
 	}
 
 	// 兜底：完整域名即为区域
-	req, err := http.NewRequestWithContext(ctx, "GET", c.DNSURL+"/v2/zones?name="+url.QueryEscape(domain), nil)
-	if err != nil {
-		return "", fmt.Errorf("zone not found for domain %s", domain)
+	reqURL := c.baseURL + "/v2/zones?name=" + url.QueryEscape(domain)
+	var result struct {
+		Zones []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"zones"`
 	}
-	req.Header.Set("X-Auth-Token", token)
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("failed to query zone for domain %s: %w", domain, err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusOK {
-		var result struct {
-			Zones []struct {
-				ID   string `json:"id"`
-				Name string `json:"name"`
-			} `json:"zones"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&result); err == nil {
-			for _, zone := range result.Zones {
-				if zone.Name == domain+"." {
-					log.Info("Huawei Cloud zone found (fallback)",
-						"zone", domain, "zone_id", zone.ID)
-					return zone.ID, nil
-				}
+	if err := c.requestRaw(ctx, http.MethodGet, reqURL, &result); err == nil {
+		for _, zone := range result.Zones {
+			if zone.Name == domain+"." {
+				log.Info("HuaweiCloud zone found (fallback)",
+					"zone", domain, "zone_id", zone.ID)
+				return zone.ID, nil
 			}
 		}
 	}
@@ -417,111 +271,73 @@ func (c *HuaweiCloudClient) getZoneID(ctx context.Context, token, domain string)
 	return "", fmt.Errorf("zone not found for domain %s", domain)
 }
 
-// createRecordSet creates a new DNS record set
-func (c *HuaweiCloudClient) createRecordSet(ctx context.Context, token, zoneID string, record DNSRecord) (DNSRecord, error) {
-	log.Info("creating Huawei Cloud DNS record set",
-		"type", record.Type, "name", record.Name, "zone_id", zoneID)
-
-	body, err := json.Marshal(record)
-	if err != nil {
-		return DNSRecord{}, err
+// request 执行签名 HTTP 请求，自动解码响应
+func (c *Client) request(ctx context.Context, method, url string, payload any) ([]byte, error) {
+	var bodyBytes []byte
+	var err error
+	if payload != nil {
+		bodyBytes, err = json.Marshal(payload)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal payload: %w", err)
+		}
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s/v2/zones/%s/recordsets", c.DNSURL, zoneID), bytes.NewBuffer(body))
+	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewBuffer(bodyBytes))
 	if err != nil {
-		return DNSRecord{}, err
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("X-Auth-Token", token)
+
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.HTTPClient.Do(req)
+	// SDK-HMAC-SHA256 签名
+	signer := &Signer{Key: c.accessKey, Secret: c.secretKey}
+	if err := signer.Sign(req); err != nil {
+		return nil, fmt.Errorf("failed to sign request: %w", err)
+	}
+
+	resp, err := c.Do(req)
 	if err != nil {
-		log.Error("failed to create Huawei Cloud DNS record set",
-			"type", record.Type, "name", record.Name, "err", err)
-		return DNSRecord{}, err
+		return nil, fmt.Errorf("HuaweiCloud API request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusAccepted {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		log.Error("Huawei Cloud create record set returned error status",
-			"status", resp.StatusCode, "type", record.Type)
-		return DNSRecord{}, fmt.Errorf("failed to create record set, status: %d, response: %s", resp.StatusCode, string(bodyBytes))
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	var createdRecord DNSRecord
-	if err := json.NewDecoder(resp.Body).Decode(&createdRecord); err != nil {
-		return DNSRecord{}, err
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("HuaweiCloud API error: status %d, body: %s", resp.StatusCode, string(respBody))
 	}
 
-	return createdRecord, nil
+	return respBody, nil
 }
 
-// updateRecordSet updates an existing DNS record set
-func (c *HuaweiCloudClient) updateRecordSet(ctx context.Context, token, zoneID, recordID string, record DNSRecord) (DNSRecord, error) {
-	log.Info("updating Huawei Cloud DNS record set",
-		"record_id", recordID, "type", record.Type, "zone_id", zoneID)
-
-	body, err := json.Marshal(record)
+// requestRaw 执行签名 HTTP 请求并解码到目标结构体（用于 GET 请求）
+func (c *Client) requestRaw(ctx context.Context, method, url string, result any) error {
+	req, err := http.NewRequestWithContext(ctx, method, url, http.NoBody)
 	if err != nil {
-		return DNSRecord{}, err
+		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "PUT", fmt.Sprintf("%s/v2/zones/%s/recordsets/%s", c.DNSURL, zoneID, recordID), bytes.NewBuffer(body))
-	if err != nil {
-		return DNSRecord{}, err
-	}
-	req.Header.Set("X-Auth-Token", token)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.HTTPClient.Do(req)
+	// SDK-HMAC-SHA256 签名
+	signer := &Signer{Key: c.accessKey, Secret: c.secretKey}
+	if err := signer.Sign(req); err != nil {
+		return fmt.Errorf("failed to sign request: %w", err)
+	}
+
+	resp, err := c.Do(req)
 	if err != nil {
-		log.Error("failed to update Huawei Cloud DNS record set",
-			"record_id", recordID, "err", err)
-		return DNSRecord{}, err
+		return fmt.Errorf("HuaweiCloud API request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusAccepted {
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		log.Error("Huawei Cloud update record set returned error status",
-			"status", resp.StatusCode, "record_id", recordID)
-		return DNSRecord{}, fmt.Errorf("failed to update record set, status: %d, response: %s", resp.StatusCode, string(bodyBytes))
+		return fmt.Errorf("HuaweiCloud API error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
-	var updatedRecord DNSRecord
-	if err := json.NewDecoder(resp.Body).Decode(&updatedRecord); err != nil {
-		return DNSRecord{}, err
-	}
-
-	return updatedRecord, nil
-}
-
-// deleteRecordSet deletes a DNS record set
-func (c *HuaweiCloudClient) deleteRecordSet(ctx context.Context, token, zoneID, recordID string) error {
-	log.Info("deleting Huawei Cloud DNS record set",
-		"record_id", recordID, "zone_id", zoneID)
-
-	req, err := http.NewRequestWithContext(ctx, "DELETE", fmt.Sprintf("%s/v2/zones/%s/recordsets/%s", c.DNSURL, zoneID, recordID), nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("X-Auth-Token", token)
-
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		log.Error("failed to delete Huawei Cloud DNS record set",
-			"record_id", recordID, "err", err)
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusAccepted {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		log.Error("Huawei Cloud delete record set returned error status",
-			"status", resp.StatusCode, "record_id", recordID)
-		return fmt.Errorf("failed to delete record set, status: %d, response: %s", resp.StatusCode, string(bodyBytes))
-	}
-
-	return nil
+	return json.NewDecoder(resp.Body).Decode(result)
 }
