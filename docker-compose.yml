@@ -1,11 +1,37 @@
 services:
-  # ============ 使用示例：选择一个 provider 取消注释 ============
+  # ============================================================
+  # Docker Compose 部署 DDNS6
+  #
+  # 使用方式：
+  #   1. 复制 .env.example 为 .env，填入你的配置
+  #   2. 取消注释所需的 provider 服务
+  #   3. docker compose up -d
+  #
+  # 注意：Netlink 需要主机的网络命名空间，所以必须设置
+  # network_mode: host。这仅在 Linux 上有效。
+  # ============================================================
 
-  # 腾讯云 DNSPod
+  # ---------- 配置文件模式（推荐） ----------
+  # 将 ~/.ddns6/config.yaml 挂载到容器内，无需在命令行输入参数
+  # ddns6-config:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   network_mode: host
+  #   restart: always
+  #   volumes:
+  #     - ~/.ddns6:/root/.ddns6:ro
+  #   command:
+  #     - run
+
+  # ---------- 命令行模式（选择一个取消注释） ----------
+
+  # 腾讯云 DNSPod (API v3)
   ddns6-tencent:
     build:
       context: .
       dockerfile: Dockerfile
+    network_mode: host
     restart: always
     command:
       - run
@@ -14,14 +40,17 @@ services:
       - --secret-key=${TENCENT_SECRET_KEY}
       - --domain=${DOMAIN}
       - --subdomain=${SUBDOMAIN:-@}
+      - --interface=${INTERFACE:-}
+      - --ttl=${TTL:-600}
       - --interval=${INTERVAL:-5m}
-      - --debug=${DEBUG:-false}
+      - --debug
 
   # 阿里云 DNS
   # ddns6-alicloud:
   #   build:
   #     context: .
   #     dockerfile: Dockerfile
+  #   network_mode: host
   #   restart: always
   #   command:
   #     - run
@@ -30,13 +59,16 @@ services:
   #     - --access-key-secret=${ALICLOUD_ACCESS_KEY_SECRET}
   #     - --domain=${DOMAIN}
   #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interface=${INTERFACE:-}
+  #     - --ttl=${TTL:-600}
   #     - --interval=${INTERVAL:-5m}
 
-  # Cloudflare
+  # Cloudflare DNS
   # ddns6-cloudflare:
   #   build:
   #     context: .
   #     dockerfile: Dockerfile
+  #   network_mode: host
   #   restart: always
   #   command:
   #     - run
@@ -44,13 +76,16 @@ services:
   #     - --api-token=${CLOUDFLARE_API_TOKEN}
   #     - --domain=${DOMAIN}
   #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interface=${INTERFACE:-}
+  #     - --ttl=${TTL:-600}
   #     - --interval=${INTERVAL:-5m}
 
-  # GoDaddy
+  # GoDaddy DNS
   # ddns6-godaddy:
   #   build:
   #     context: .
   #     dockerfile: Dockerfile
+  #   network_mode: host
   #   restart: always
   #   command:
   #     - run
@@ -59,6 +94,8 @@ services:
   #     - --api-secret=${GODADDY_API_SECRET}
   #     - --domain=${DOMAIN}
   #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interface=${INTERFACE:-}
+  #     - --ttl=${TTL:-600}
   #     - --interval=${INTERVAL:-5m}
 
   # 华为云 DNS
@@ -66,6 +103,7 @@ services:
   #   build:
   #     context: .
   #     dockerfile: Dockerfile
+  #   network_mode: host
   #   restart: always
   #   command:
   #     - run
@@ -75,4 +113,145 @@ services:
   #     - --domain-name=${HUAWEI_DOMAIN_NAME}
   #     - --domain=${DOMAIN}
   #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interface=${INTERFACE:-}
+  #     - --ttl=${TTL:-600}
+  #     - --interval=${INTERVAL:-5m}
+
+  # DuckDNS (免费 DDNS)
+  # ddns6-duckdns:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   network_mode: host
+  #   restart: always
+  #   command:
+  #     - run
+  #     - duckdns
+  #     - --token=${DUCKDNS_TOKEN}
+  #     - --domain=${DOMAIN}
+  #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interface=${INTERFACE:-}
+  #     - --ttl=${TTL:-600}
+  #     - --interval=${INTERVAL:-5m}
+
+  # No-IP (经典 DDNS)
+  # ddns6-noip:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   network_mode: host
+  #   restart: always
+  #   command:
+  #     - run
+  #     - noip
+  #     - --username=${NOIP_USERNAME}
+  #     - --password=${NOIP_PASSWORD}
+  #     - --domain=${DOMAIN}
+  #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interface=${INTERFACE:-}
+  #     - --ttl=${TTL:-600}
+  #     - --interval=${INTERVAL:-5m}
+
+  # Hurricane Electric (免费 DNS 托管)
+  # ddns6-he:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   network_mode: host
+  #   restart: always
+  #   command:
+  #     - run
+  #     - he
+  #     - --password=${HE_PASSWORD}
+  #     - --domain=${DOMAIN}
+  #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interface=${INTERFACE:-}
+  #     - --ttl=${TTL:-600}
+  #     - --interval=${INTERVAL:-5m}
+
+  # Dynv6 (免费 IPv6 DDNS)
+  # ddns6-dynv6:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   network_mode: host
+  #   restart: always
+  #   command:
+  #     - run
+  #     - dynv6
+  #     - --token=${DYNV6_TOKEN}
+  #     - --domain=${DOMAIN}
+  #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interface=${INTERFACE:-}
+  #     - --ttl=${TTL:-600}
+  #     - --interval=${INTERVAL:-5m}
+
+  # Porkbun DNS API
+  # ddns6-porkbun:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   network_mode: host
+  #   restart: always
+  #   command:
+  #     - run
+  #     - porkbun
+  #     - --api-key=${PORKBUN_API_KEY}
+  #     - --api-secret=${PORKBUN_API_SECRET}
+  #     - --domain=${DOMAIN}
+  #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interface=${INTERFACE:-}
+  #     - --ttl=${TTL:-600}
+  #     - --interval=${INTERVAL:-5m}
+
+  # DigitalOcean DNS API
+  # ddns6-digitalocean:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   network_mode: host
+  #   restart: always
+  #   command:
+  #     - run
+  #     - digitalocean
+  #     - --token=${DIGITALOCEAN_TOKEN}
+  #     - --domain=${DOMAIN}
+  #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interface=${INTERFACE:-}
+  #     - --ttl=${TTL:-600}
+  #     - --interval=${INTERVAL:-5m}
+
+  # 百度云 DNS
+  # ddns6-baiducloud:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   network_mode: host
+  #   restart: always
+  #   command:
+  #     - run
+  #     - baiducloud
+  #     - --access-key=${BAIDU_ACCESS_KEY}
+  #     - --secret-key=${BAIDU_SECRET_KEY}
+  #     - --domain=${DOMAIN}
+  #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interface=${INTERFACE:-}
+  #     - --ttl=${TTL:-600}
+  #     - --interval=${INTERVAL:-5m}
+
+  # DNSPod (旧版 API)
+  # ddns6-dnspod:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   network_mode: host
+  #   restart: always
+  #   command:
+  #     - run
+  #     - dnspod
+  #     - --login-token=${DNSPOD_LOGIN_TOKEN}
+  #     - --domain=${DOMAIN}
+  #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interface=${INTERFACE:-}
+  #     - --ttl=${TTL:-600}
   #     - --interval=${INTERVAL:-5m}
