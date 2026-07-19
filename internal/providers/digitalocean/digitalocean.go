@@ -81,7 +81,7 @@ func (c *Client) AddRecord(ctx context.Context, fulldomain, recordType, value st
 		TTL:  ttl,
 	}
 
-	body, err := json.Marshal(map[string]DomainRecord{"data": record})
+	body, err := json.Marshal(record)
 	if err != nil {
 		return fmt.Errorf("failed to marshal record: %w", err)
 	}
@@ -111,7 +111,7 @@ func (c *Client) ModifyRecord(ctx context.Context, fulldomain, recordID, recordT
 		TTL:  ttl,
 	}
 
-	body, err := json.Marshal(map[string]DomainRecord{"data": record})
+	body, err := json.Marshal(record)
 	if err != nil {
 		return fmt.Errorf("failed to marshal record: %w", err)
 	}
@@ -178,7 +178,6 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	}
 	return result, nil
 }
-
 
 // setAuth 设置 Bearer Token 认证头
 func (c *Client) setAuth(req *http.Request) {

@@ -1,14 +1,15 @@
 // Package ddns 提供动态域名解析（DDNS）服务编排。
 //
 // 核心流程：
-//   Linux: Netlink 监听地址变化 → debounce 10s → 获取 IPv6 → 同步 DNS 记录
-//   其他:   cron 定时轮询 → 获取 IPv6 → 同步 DNS 记录
+//
+//	Linux: Netlink 监听地址变化 → debounce 10s → 获取 IPv6 → 同步 DNS 记录
+//	其他:   cron 定时轮询 → 获取 IPv6 → 同步 DNS 记录
 //
 // 同步策略：
-//   1. 查询目标子域名的所有 AAAA 记录
-//   2. 遍历匹配的子域名记录，IP 相同则跳过，不同则修改
-//   3. 目标子域名无 AAAA 记录则新增
-//   4. 同一个子域名下有多个 AAAA 记录则全部处理
+//  1. 查询目标子域名的所有 AAAA 记录
+//  2. 遍历匹配的子域名记录，IP 相同则跳过，不同则修改
+//  3. 目标子域名无 AAAA 记录则新增
+//  4. 同一个子域名下有多个 AAAA 记录则全部处理
 package ddns
 
 import (
@@ -19,14 +20,6 @@ import (
 
 	"github.com/notes-bin/ddns6/internal/providers"
 )
-
-// effectiveTTL 返回有效的 TTL 值，未设置时使用默认值。
-func effectiveTTL(ttl int) int {
-	if ttl > 0 {
-		return ttl
-	}
-	return providers.DefaultTTL
-}
 
 // hasAddressChanged 检查 IPv6 地址是否改变
 func hasAddressChanged(cached net.IP, newAddr net.IP) bool {
@@ -126,10 +119,10 @@ func SyncRecord(ctx context.Context, d *providers.Domain, ipv6 net.IP, p provide
 // syncDNSRecord 执行实际的 DNS 记录同步。
 //
 // 工作流程：
-//   1. 通过 p.GetRecords() 查询目标子域名下所有记录
-//   2. 遍历记录，只处理匹配当前子域名且类型为 AAAA 的记录
-//   3. 同 IP 则跳过，不同 IP 则修改
-//   4. 目标子域名下无 AAAA 记录则新增
+//  1. 通过 p.GetRecords() 查询目标子域名下所有记录
+//  2. 遍历记录，只处理匹配当前子域名且类型为 AAAA 的记录
+//  3. 同 IP 则跳过，不同 IP 则修改
+//  4. 目标子域名下无 AAAA 记录则新增
 //
 // 同一个子域名下存在多个 AAAA 记录时全部处理（continue 而非 return）。
 func syncDNSRecord(ctx context.Context, d *providers.Domain, p providers.DNSProvider, addr net.IP) error {
@@ -179,7 +172,7 @@ func syncDNSRecord(ctx context.Context, d *providers.Domain, p providers.DNSProv
 		}
 
 		// IP 不同 → 修改记录
-		err = p.ModifyRecord(ctx, fqdn, r.ID, d.Type, ipv6Str, r.TTL)
+		err = p.ModifyRecord(ctx, fqdn, r.ID, d.Type, ipv6Str, d.TTL)
 		if err != nil {
 			log.Error("failed to modify record",
 				"domain", d.Domain, "subdomain", d.SubDomain,
@@ -198,7 +191,7 @@ func syncDNSRecord(ctx context.Context, d *providers.Domain, p providers.DNSProv
 			"domain", d.Domain, "subdomain", d.SubDomain,
 			"fqdn", fqdn, "ipv6", ipv6Str)
 
-		err = p.AddRecord(ctx, fqdn, d.Type, ipv6Str, effectiveTTL(d.TTL))
+		err = p.AddRecord(ctx, fqdn, d.Type, ipv6Str, d.TTL)
 		if err != nil {
 			log.Error("failed to add record",
 				"domain", d.Domain, "subdomain", d.SubDomain,

@@ -60,7 +60,6 @@ func WithHTTPClient(httpClient *http.Client) Options {
 	}
 }
 
-
 // DNSRecord  an Alibaba Cloud DNS record
 type DNSRecord struct {
 	RecordId string `json:"RecordId"`
@@ -202,13 +201,25 @@ func (c *AliDNSClient) getRootDomain(ctx context.Context, domain string) (string
 			"DomainName": h,
 		}
 
-		_, err := c.makeRequest(ctx, params)
+		resp, err := c.makeRequest(ctx, params)
 		if err != nil {
 			continue
 		}
 
-		// 只要 API 调用成功即视为有效根域名
-		// TotalCount 可能为 0（无 DNS 记录时），但域名本身存在
+		var result struct {
+			TotalCount int `json:"TotalCount"`
+		}
+		if err := json.Unmarshal(resp, &result); err != nil {
+			continue
+		}
+
+		// TotalCount > 0 表示域名存在且有 DNS 记录，确认是有效根域名
+		// TotalCount == 0 可能是域名不存在，或是存在但无记录
+		// 无法区分两者，保守起见继续探测更深的域名段
+		if result.TotalCount == 0 {
+			continue
+		}
+
 		subDomain := strings.Join(parts[:i], ".")
 		log.Info("Alibaba root domain found", "root", h, "subdomain", subDomain)
 		return h, subDomain, nil

@@ -251,6 +251,10 @@ func registerProviders() {
 				p.name, formatSampleFlags(p.flags),
 				p.name, formatSampleFlags(p.flags)),
 			RunE: func(cmd *cobra.Command, args []string) error {
+				// 验证必填参数
+				if err := requireFlags(cmd, p.flags); err != nil {
+					return err
+				}
 				domains, task, err := p.run(cmd)
 				if err != nil {
 					return err
@@ -282,6 +286,21 @@ func formatSampleFlags(flags []providerFlag) string {
 		fmt.Fprintf(&b, " --%s YOUR_%s", f.name, f.name)
 	}
 	return b.String()
+}
+
+// requireFlags 验证必填字符串 flag 非空。
+// 在 RunE 中调用，确保必填参数已提供后再执行业务逻辑。
+func requireFlags(cmd *cobra.Command, flags []providerFlag) error {
+	for _, f := range flags {
+		v, err := cmd.Flags().GetString(f.name)
+		if err != nil {
+			return fmt.Errorf("invalid --%s flag: %w", f.name, err)
+		}
+		if v == "" {
+			return fmt.Errorf("--%s is required (use --help to see details)", f.name)
+		}
+	}
+	return nil
 }
 
 // ============================================================
@@ -317,59 +336,92 @@ func startServiceFromConfig(cfg *config.Config, cmd *cobra.Command) error {
 	return ddns.RunService(domains, p, interval, ddns.DefaultIPv6Fetchers, iface)
 }
 
+// ProviderFactory 根据配置创建 DNS 服务商的函数类型。
+type ProviderFactory func(cfg *config.Config) (providers.DNSProvider, error)
+
+// providerFactories 所有支持的 DNS 运营商工厂函数。
+// 新增运营商时在此注册即可。
+var providerFactories = map[string]ProviderFactory{
+	"tencent": func(cfg *config.Config) (providers.DNSProvider, error) {
+		return tencent.NewDNSPod(cfg.Auth["secret_id"], cfg.Auth["secret_key"]), nil
+	},
+	"cloudflare": func(cfg *config.Config) (providers.DNSProvider, error) {
+		return cloudflare.NewClient(cloudflare.WithAPIToken(cfg.Auth["api_token"])), nil
+	},
+	"alicloud": func(cfg *config.Config) (providers.DNSProvider, error) {
+		return alicloud.NewClient(cfg.Auth["access_key_id"], cfg.Auth["access_key_secret"]), nil
+	},
+	"godaddy": func(cfg *config.Config) (providers.DNSProvider, error) {
+		return godaddy.NewClient(cfg.Auth["api_key"], cfg.Auth["api_secret"]), nil
+	},
+	"huaweicloud": func(cfg *config.Config) (providers.DNSProvider, error) {
+		return huaweicloud.NewClient(cfg.Auth["username"], cfg.Auth["password"], cfg.Auth["domain_name"]), nil
+	},
+	"duckdns": func(cfg *config.Config) (providers.DNSProvider, error) {
+		return duckdns.NewClient(cfg.Auth["token"]), nil
+	},
+	"noip": func(cfg *config.Config) (providers.DNSProvider, error) {
+		return noip.NewClient(cfg.Auth["username"], cfg.Auth["password"]), nil
+	},
+	"he": func(cfg *config.Config) (providers.DNSProvider, error) {
+		return he.NewClient(cfg.Auth["password"]), nil
+	},
+	"dynv6": func(cfg *config.Config) (providers.DNSProvider, error) {
+		return dynv6.NewClient(cfg.Auth["token"]), nil
+	},
+	"porkbun": func(cfg *config.Config) (providers.DNSProvider, error) {
+		return porkbun.NewClient(cfg.Auth["api_key"], cfg.Auth["api_secret"]), nil
+	},
+	"digitalocean": func(cfg *config.Config) (providers.DNSProvider, error) {
+		return digitalocean.NewClient(cfg.Auth["token"]), nil
+	},
+	"baiducloud": func(cfg *config.Config) (providers.DNSProvider, error) {
+		return baiducloud.NewClient(cfg.Auth["access_key"], cfg.Auth["secret_key"]), nil
+	},
+	"dnspod": func(cfg *config.Config) (providers.DNSProvider, error) {
+		return dnspod.NewClient(cfg.Auth["login_token"]), nil
+	},
+}
+
+// providerNames 所有支持的运营商名称列表（用于错误提示）。
+var providerNames = func() []string {
+	names := make([]string, 0, len(providerFactories))
+	for name := range providerFactories {
+		names = append(names, name)
+	}
+	return names
+}()
+
 // createProviderFromConfig 根据配置的 provider 类型和 auth 字段创建对应的 DNS 服务商。
 func createProviderFromConfig(cfg *config.Config) (providers.DNSProvider, error) {
-	switch cfg.Provider {
-	case "tencent":
-		return tencent.NewDNSPod(cfg.Auth["secret_id"], cfg.Auth["secret_key"]), nil
-	case "cloudflare":
-		return cloudflare.NewClient(cloudflare.WithAPIToken(cfg.Auth["api_token"])), nil
-	case "alicloud":
-		return alicloud.NewClient(cfg.Auth["access_key_id"], cfg.Auth["access_key_secret"]), nil
-	case "godaddy":
-		return godaddy.NewClient(cfg.Auth["api_key"], cfg.Auth["api_secret"]), nil
-	case "huaweicloud":
-		return huaweicloud.NewClient(cfg.Auth["username"], cfg.Auth["password"], cfg.Auth["domain_name"]), nil
-	case "duckdns":
-		return duckdns.NewClient(cfg.Auth["token"]), nil
-	case "noip":
-		return noip.NewClient(cfg.Auth["username"], cfg.Auth["password"]), nil
-	case "he":
-		return he.NewClient(cfg.Auth["password"]), nil
-	case "dynv6":
-		return dynv6.NewClient(cfg.Auth["token"]), nil
-	case "porkbun":
-		return porkbun.NewClient(cfg.Auth["api_key"], cfg.Auth["api_secret"]), nil
-	case "digitalocean":
-		return digitalocean.NewClient(cfg.Auth["token"]), nil
-	case "baiducloud":
-		return baiducloud.NewClient(cfg.Auth["access_key"], cfg.Auth["secret_key"]), nil
-	case "dnspod":
-		return dnspod.NewClient(cfg.Auth["login_token"]), nil
-	default:
-		return nil, fmt.Errorf("unsupported provider: %s (supported providers: tencent, cloudflare, alicloud, godaddy, huaweicloud, duckdns, noip, he, dynv6, porkbun, digitalocean, baiducloud, dnspod)", cfg.Provider)
+	factory, ok := providerFactories[cfg.Provider]
+	if !ok {
+		return nil, fmt.Errorf("unsupported provider: %s (supported providers: %s)", cfg.Provider, strings.Join(providerNames, ", "))
 	}
+	return factory(cfg)
 }
 
 // ============================================================
 // 辅助函数
 // ============================================================
 
-// getString 安全获取字符串类型 flag 值
+// getString 获取字符串类型 flag 值。
+// 仅用于可选参数（如 --interface），必填参数请使用 requireFlags。
 func getString(cmd *cobra.Command, name string) string {
 	v, err := cmd.Flags().GetString(name)
 	if err != nil {
-		log.Warn("flag not found, returning empty", "flag", name, "err", err)
 		return ""
 	}
 	return v
 }
 
-// getDuration 安全获取 duration 类型 flag 值
+// getDuration 获取 duration 类型 flag 值。
+// 仅用于可选参数（如 --interval），必填参数请使用 requireFlags。
+// getDuration 获取 duration 类型 flag 值。
+// 调用方应确保 flag 已注册（必填参数通过 requireFlags 预验证）。
 func getDuration(cmd *cobra.Command, name string) time.Duration {
 	v, err := cmd.Flags().GetDuration(name)
 	if err != nil {
-		log.Warn("duration flag not found, using default", "flag", name, "err", err)
 		return 5 * time.Minute
 	}
 	return v
@@ -388,12 +440,7 @@ func createDomainConfigs(cmd *cobra.Command) ([]*providers.Domain, error) {
 
 	subdomains, err := cmd.Flags().GetStringArray("subdomain")
 	if err != nil {
-		// 兼容 --subdomain 为单个字符串的情况
-		sd, err2 := cmd.Flags().GetString("subdomain")
-		if err2 != nil {
-			return nil, fmt.Errorf("invalid --subdomain flag: %w", err)
-		}
-		subdomains = []string{sd}
+		return nil, fmt.Errorf("invalid --subdomain flag: %w", err)
 	}
 	if len(subdomains) == 0 {
 		subdomains = []string{"@"}

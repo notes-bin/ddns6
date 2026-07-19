@@ -48,8 +48,10 @@ func startTrigger(ctx context.Context, interval time.Duration, iface string) <-c
 		if iface != "" {
 			ifi, err := net.InterfaceByName(iface)
 			if err != nil {
-				log.Error("failed to resolve interface name",
-					"interface", iface, "err", err)
+				log.Error("failed to resolve interface name, falling back to polling",
+					"interface", iface, "err", err,
+					"fallback_interval", interval)
+				fallbackPolling(ctx, triggerCh, interval)
 				return
 			}
 			targetIndex = ifi.Index
@@ -64,7 +66,9 @@ func startTrigger(ctx context.Context, interval time.Duration, iface string) <-c
 			select {
 			case update, ok := <-updates:
 				if !ok {
-					log.Debug("netlink update channel closed, exiting")
+					log.Warn("netlink update channel closed, falling back to polling",
+						"fallback_interval", interval)
+					fallbackPolling(ctx, triggerCh, interval)
 					return
 				}
 
@@ -98,7 +102,13 @@ func startTrigger(ctx context.Context, interval time.Duration, iface string) <-c
 					debounceTimer = time.NewTimer(debounceDuration)
 					timerC = debounceTimer.C
 				} else {
-					debounceTimer.Stop()
+					if !debounceTimer.Stop() {
+						// 排空已触发的 channel，避免 Reset 后立即触发
+						select {
+						case <-debounceTimer.C:
+						default:
+						}
+					}
 					debounceTimer.Reset(debounceDuration)
 				}
 

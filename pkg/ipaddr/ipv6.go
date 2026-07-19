@@ -1,10 +1,10 @@
 // Package ipaddr 提供本机 IPv6 地址获取功能。
 //
-// 获取策略（每次调用时随机排序）：
-//   1. 随机打乱所有 fetcher 的顺序
-//   2. 按乱序逐个尝试每个 fetcher
-//   3. 第一个成功返回的地址即为结果
-//   4. 全部失败则返回错误
+// 获取策略（每次调用时随机排序后并发竞速）：
+//  1. 随机打乱所有 fetcher 的顺序
+//  2. 所有 fetcher 并发执行
+//  3. 第一个成功返回的地址即为结果
+//  4. 全部失败则返回错误
 package ipaddr
 
 import (
@@ -25,7 +25,7 @@ type IPv6Fetcher interface {
 
 // GetIPv6Addr 获取本机 IPv6 地址。
 //
-// 每次调用都会随机打乱 fetchers 顺序后逐个尝试，
+// 每次调用都会随机打乱 fetchers 顺序后并发执行，
 // 第一个成功返回的地址即作为结果。全部失败则返回错误。
 // 总超时时间为 5 秒。
 func GetIPv6Addr(fetchers ...IPv6Fetcher) (net.IP, error) {
@@ -46,35 +46,37 @@ func GetIPv6Addr(fetchers ...IPv6Fetcher) (net.IP, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	// 并发竞速：所有 fetcher 同时启动，第一个成功返回的即为结果
+	resultCh := make(chan net.IP, len(shuffled))
+	errCh := make(chan error, len(shuffled))
+
+	for _, fn := range shuffled {
+		go func() {
+			log.Debug("starting fetcher", "fetcher", fmt.Sprintf("%T", fn))
+			ip, err := fn.Fetch(ctx)
+			if err != nil {
+				log.Warn("fetcher failed", "fetcher", fmt.Sprintf("%T", fn), "err", err)
+				errCh <- err
+				return
+			}
+			resultCh <- ip
+		}()
+	}
+
+	// 等待第一个成功结果或所有失败
 	var lastErr error
-	for i, fn := range shuffled {
-		// 每次尝试前检查 context 是否已超时
+	remaining := len(shuffled)
+	for remaining > 0 {
 		select {
-		case <-ctx.Done():
-			log.Warn("IPv6 fetch timed out",
-				"tried", i, "total", len(fetchers))
-			return nil, fmt.Errorf("fetch timeout after %d/%d attempts: %w", i, len(fetchers), ctx.Err())
-		default:
-		}
-
-		log.Debug("trying fetcher",
-			"attempt", i+1, "total", len(fetchers),
-			"fetcher", fmt.Sprintf("%T", fn))
-
-		ip, err := fn.Fetch(ctx)
-		if err != nil {
-			log.Warn("fetcher failed",
-				"fetcher", fmt.Sprintf("%T", fn),
-				"attempt", i+1, "err", err)
+		case ip := <-resultCh:
+			log.Info("IPv6 address obtained successfully",
+				"ipv6", ip.String(),
+				"remaining", remaining-1)
+			return ip, nil
+		case err := <-errCh:
 			lastErr = err
-			continue
+			remaining--
 		}
-
-		log.Info("IPv6 address obtained successfully",
-			"fetcher", fmt.Sprintf("%T", fn),
-			"ipv6", ip.String(),
-			"attempt", i+1)
-		return ip, nil
 	}
 
 	log.Error("all IPv6 fetchers failed",
