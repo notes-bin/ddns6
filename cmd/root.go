@@ -33,6 +33,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -52,6 +53,8 @@ var log = slog.With("module", "cmd")
 var rootCmd = &cobra.Command{
 	Use:   "ddns6",
 	Short: "Dynamic DNS update tool for IPv6 addresses",
+	SilenceErrors: true,               // 未知命令等错误由 Execute 统一处理，不打印双重日志
+	SilenceUsage: true,                // 不重复打印用法提示，由 Execute 自行决定
 	Long: `DDNS6 — 动态域名解析工具，自动将本机 IPv6 地址更新到 DNS 记录。
 
 自动检测本地 IPv6 地址变化，实时更新到 DNS 服务商的 AAAA 记录。
@@ -253,6 +256,11 @@ func initRootCmd() {
 func Execute() error {
 	initRootCmd()
 	if err := rootCmd.Execute(); err != nil {
+		// 未知子命令（如 ddns6 config）友好提示后 graceful exit，不视为错误
+		if strings.Contains(err.Error(), "unknown command") {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			return nil
+		}
 		return fmt.Errorf("Command failed: %w", err)
 	}
 	return nil
