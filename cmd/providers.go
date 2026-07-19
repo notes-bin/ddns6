@@ -1,14 +1,13 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
-	"github.com/notes-bin/cron"
+	"github.com/spf13/cobra"
+
+	"github.com/notes-bin/ddns6/internal/config"
+	"github.com/notes-bin/ddns6/internal/ddns"
 	"github.com/notes-bin/ddns6/internal/providers"
 	"github.com/notes-bin/ddns6/internal/providers/alicloud"
 	"github.com/notes-bin/ddns6/internal/providers/baiducloud"
@@ -23,14 +22,7 @@ import (
 	"github.com/notes-bin/ddns6/internal/providers/noip"
 	"github.com/notes-bin/ddns6/internal/providers/porkbun"
 	"github.com/notes-bin/ddns6/internal/providers/tencent"
-	"github.com/notes-bin/ddns6/pkg/ipaddr"
-	"github.com/spf13/cobra"
 )
-
-var runCmd = &cobra.Command{
-	Use:   "run",
-	Short: "Run the DDNS update service",
-}
 
 // providerFlag 运营商命令行参数定义
 type providerFlag struct {
@@ -43,174 +35,227 @@ type providerDef struct {
 	name  string
 	short string
 	flags []providerFlag
-	// run 从命令行参数创建 Domain 和 DNSProvider
-	run func(cmd *cobra.Command) (*providers.Domain, providers.DNSProvider, error)
+	// run 从命令行参数创建域名列表和 DNSProvider
+	run func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error)
 }
 
 // providerDefs 所有支持的 DNS 运营商
 var providerDefs = []providerDef{
 	{
-		name: "tencent", short: "Use Tencent Cloud DNS",
-		flags: []providerFlag{{"secret-id", "Tencent Cloud SecretID"}, {"secret-key", "Tencent Cloud SecretKey"}},
-		run: func(cmd *cobra.Command) (*providers.Domain, providers.DNSProvider, error) {
-			ddns, err := createDomainConfig(cmd)
-			if err != nil {
-				return nil, nil, err
-			}
-			return ddns, tencent.NewDNSPod(getFlag(cmd, "secret-id"), getFlag(cmd, "secret-key")), nil
-		},
-	},
-	{
-		name: "cloudflare", short: "Use Cloudflare DNS",
-		flags: []providerFlag{{"api-token", "Cloudflare API Token"}},
-		run: func(cmd *cobra.Command) (*providers.Domain, providers.DNSProvider, error) {
-			ddns, err := createDomainConfig(cmd)
-			if err != nil {
-				return nil, nil, err
-			}
-			return ddns, cloudflare.NewClient(cloudflare.WithAPIToken(getFlag(cmd, "api-token"))), nil
-		},
-	},
-	{
-		name: "alicloud", short: "Use Alibaba Cloud DNS",
-		flags: []providerFlag{{"access-key-id", "Alibaba Cloud Access Key ID"}, {"access-key-secret", "Alibaba Cloud Access Key Secret"}},
-		run: func(cmd *cobra.Command) (*providers.Domain, providers.DNSProvider, error) {
-			ddns, err := createDomainConfig(cmd)
-			if err != nil {
-				return nil, nil, err
-			}
-			return ddns, alicloud.NewClient(getFlag(cmd, "access-key-id"), getFlag(cmd, "access-key-secret")), nil
-		},
-	},
-	{
-		name: "godaddy", short: "Use GoDaddy DNS",
-		flags: []providerFlag{{"api-key", "GoDaddy API Key"}, {"api-secret", "GoDaddy API Secret"}},
-		run: func(cmd *cobra.Command) (*providers.Domain, providers.DNSProvider, error) {
-			ddns, err := createDomainConfig(cmd)
-			if err != nil {
-				return nil, nil, err
-			}
-			return ddns, godaddy.NewClient(getFlag(cmd, "api-key"), getFlag(cmd, "api-secret")), nil
-		},
-	},
-	{
-		name: "huaweicloud", short: "Use Huawei Cloud DNS",
+		name: "tencent", short: "Tencent Cloud DNS (DNSPod API v3) — 需 --secret-id 和 --secret-key",
 		flags: []providerFlag{
-			{"username", "Huawei Cloud Username"},
-			{"password", "Huawei Cloud Password"},
-			{"domain-name", "Huawei Cloud Domain Name"},
+			{"secret-id", "Tencent Cloud SecretID (必填，从 https://console.cloud.tencent.com/cam 获取)"},
+			{"secret-key", "Tencent Cloud SecretKey (必填)"},
 		},
-		run: func(cmd *cobra.Command) (*providers.Domain, providers.DNSProvider, error) {
-			ddns, err := createDomainConfig(cmd)
+		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+			domains, err := createDomainConfigs(cmd)
 			if err != nil {
 				return nil, nil, err
 			}
-			return ddns, huaweicloud.NewClient(getFlag(cmd, "username"), getFlag(cmd, "password"), getFlag(cmd, "domain-name")), nil
-		},
-	},
-	{
-		name: "duckdns", short: "Use DuckDNS (free DDNS service)",
-		flags: []providerFlag{{"token", "DuckDNS API Token"}},
-		run: func(cmd *cobra.Command) (*providers.Domain, providers.DNSProvider, error) {
-			ddns, err := createDomainConfig(cmd)
-			if err != nil {
-				return nil, nil, err
-			}
-			return ddns, duckdns.NewClient(getFlag(cmd, "token")), nil
+			return domains, tencent.NewDNSPod(getFlag(cmd, "secret-id"), getFlag(cmd, "secret-key")), nil
 		},
 	},
 	{
-		name: "noip", short: "Use No-IP (classic DDNS service)",
-		flags: []providerFlag{{"username", "No-IP Username"}, {"password", "No-IP Password"}},
-		run: func(cmd *cobra.Command) (*providers.Domain, providers.DNSProvider, error) {
-			ddns, err := createDomainConfig(cmd)
+		name: "cloudflare", short: "Cloudflare DNS — 需 --api-token",
+		flags: []providerFlag{
+			{"api-token", "Cloudflare API Token (必填，需具有 DNS:Edit 权限)"},
+		},
+		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+			domains, err := createDomainConfigs(cmd)
 			if err != nil {
 				return nil, nil, err
 			}
-			return ddns, noip.NewClient(getFlag(cmd, "username"), getFlag(cmd, "password")), nil
+			return domains, cloudflare.NewClient(cloudflare.WithAPIToken(getFlag(cmd, "api-token"))), nil
 		},
 	},
 	{
-		name: "he", short: "Use Hurricane Electric DNS (free DNS hosting)",
-		flags: []providerFlag{{"password", "HE DNS DDNS Key"}},
-		run: func(cmd *cobra.Command) (*providers.Domain, providers.DNSProvider, error) {
-			ddns, err := createDomainConfig(cmd)
+		name: "alicloud", short: "Alibaba Cloud DNS — 需 --access-key-id 和 --access-key-secret",
+		flags: []providerFlag{
+			{"access-key-id", "Alibaba Cloud Access Key ID (必填，从 RAM 用户获取)"},
+			{"access-key-secret", "Alibaba Cloud Access Key Secret (必填)"},
+		},
+		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+			domains, err := createDomainConfigs(cmd)
 			if err != nil {
 				return nil, nil, err
 			}
-			return ddns, he.NewClient(getFlag(cmd, "password")), nil
+			return domains, alicloud.NewClient(getFlag(cmd, "access-key-id"), getFlag(cmd, "access-key-secret")), nil
 		},
 	},
 	{
-		name: "dynv6", short: "Use Dynv6 (free IPv6 DDNS service)",
-		flags: []providerFlag{{"token", "Dynv6 API Token"}},
-		run: func(cmd *cobra.Command) (*providers.Domain, providers.DNSProvider, error) {
-			ddns, err := createDomainConfig(cmd)
+		name: "godaddy", short: "GoDaddy DNS — 需 --api-key 和 --api-secret",
+		flags: []providerFlag{
+			{"api-key", "GoDaddy API Key (必填，从 GoDaddy Developer Portal 获取)"},
+			{"api-secret", "GoDaddy API Secret (必填)"},
+		},
+		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+			domains, err := createDomainConfigs(cmd)
 			if err != nil {
 				return nil, nil, err
 			}
-			return ddns, dynv6.NewClient(getFlag(cmd, "token")), nil
+			return domains, godaddy.NewClient(getFlag(cmd, "api-key"), getFlag(cmd, "api-secret")), nil
 		},
 	},
 	{
-		name: "porkbun", short: "Use Porkbun DNS API",
-		flags: []providerFlag{{"api-key", "Porkbun API Key"}, {"api-secret", "Porkbun Secret API Key"}},
-		run: func(cmd *cobra.Command) (*providers.Domain, providers.DNSProvider, error) {
-			ddns, err := createDomainConfig(cmd)
+		name: "huaweicloud", short: "Huawei Cloud DNS — 需 --username、--password 和 --domain-name",
+		flags: []providerFlag{
+			{"username", "Huawei Cloud Username (必填，IAM 用户名)"},
+			{"password", "Huawei Cloud Password (必填)"},
+			{"domain-name", "Huawei Cloud Domain Name (必填，IAM 用户所属账号)"},
+		},
+		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+			domains, err := createDomainConfigs(cmd)
 			if err != nil {
 				return nil, nil, err
 			}
-			return ddns, porkbun.NewClient(getFlag(cmd, "api-key"), getFlag(cmd, "api-secret")), nil
+			return domains, huaweicloud.NewClient(getFlag(cmd, "username"), getFlag(cmd, "password"), getFlag(cmd, "domain-name")), nil
 		},
 	},
 	{
-		name: "digitalocean", short: "Use DigitalOcean DNS API",
-		flags: []providerFlag{{"token", "DigitalOcean API Token"}},
-		run: func(cmd *cobra.Command) (*providers.Domain, providers.DNSProvider, error) {
-			ddns, err := createDomainConfig(cmd)
+		name: "duckdns", short: "DuckDNS (free DDNS) — 需 --token",
+		flags: []providerFlag{
+			{"token", "DuckDNS API Token (必填)"},
+		},
+		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+			domains, err := createDomainConfigs(cmd)
 			if err != nil {
 				return nil, nil, err
 			}
-			return ddns, digitalocean.NewClient(getFlag(cmd, "token")), nil
+			return domains, duckdns.NewClient(getFlag(cmd, "token")), nil
 		},
 	},
 	{
-		name: "baiducloud", short: "Use Baidu Cloud DNS",
-		flags: []providerFlag{{"access-key", "Baidu Cloud Access Key"}, {"secret-key", "Baidu Cloud Secret Key"}},
-		run: func(cmd *cobra.Command) (*providers.Domain, providers.DNSProvider, error) {
-			ddns, err := createDomainConfig(cmd)
+		name: "noip", short: "No-IP (classic DDNS) — 需 --username 和 --password",
+		flags: []providerFlag{
+			{"username", "No-IP Username (必填)"},
+			{"password", "No-IP Password (必填)"},
+		},
+		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+			domains, err := createDomainConfigs(cmd)
 			if err != nil {
 				return nil, nil, err
 			}
-			return ddns, baiducloud.NewClient(getFlag(cmd, "access-key"), getFlag(cmd, "secret-key")), nil
+			return domains, noip.NewClient(getFlag(cmd, "username"), getFlag(cmd, "password")), nil
 		},
 	},
 	{
-		name: "dnspod", short: "Use DNSPod (legacy API)",
-		flags: []providerFlag{{"login-token", "DNSPod Login Token (format: ID,Token)"}},
-		run: func(cmd *cobra.Command) (*providers.Domain, providers.DNSProvider, error) {
-			ddns, err := createDomainConfig(cmd)
+		name: "he", short: "Hurricane Electric DNS (free DNS hosting) — 需 --password",
+		flags: []providerFlag{
+			{"password", "HE DNS DDNS Key (必填，从 dns.he.net 获取)"},
+		},
+		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+			domains, err := createDomainConfigs(cmd)
 			if err != nil {
 				return nil, nil, err
 			}
-			return ddns, dnspod.NewClient(getFlag(cmd, "login-token")), nil
+			return domains, he.NewClient(getFlag(cmd, "password")), nil
+		},
+	},
+	{
+		name: "dynv6", short: "Dynv6 (free IPv6 DDNS) — 需 --token",
+		flags: []providerFlag{
+			{"token", "Dynv6 API Token (必填)"},
+		},
+		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+			domains, err := createDomainConfigs(cmd)
+			if err != nil {
+				return nil, nil, err
+			}
+			return domains, dynv6.NewClient(getFlag(cmd, "token")), nil
+		},
+	},
+	{
+		name: "porkbun", short: "Porkbun DNS API — 需 --api-key 和 --api-secret",
+		flags: []providerFlag{
+			{"api-key", "Porkbun API Key (必填)"},
+			{"api-secret", "Porkbun Secret API Key (必填)"},
+		},
+		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+			domains, err := createDomainConfigs(cmd)
+			if err != nil {
+				return nil, nil, err
+			}
+			return domains, porkbun.NewClient(getFlag(cmd, "api-key"), getFlag(cmd, "api-secret")), nil
+		},
+	},
+	{
+		name: "digitalocean", short: "DigitalOcean DNS API — 需 --token",
+		flags: []providerFlag{
+			{"token", "DigitalOcean API Token (必填，需具有 write 权限)"},
+		},
+		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+			domains, err := createDomainConfigs(cmd)
+			if err != nil {
+				return nil, nil, err
+			}
+			return domains, digitalocean.NewClient(getFlag(cmd, "token")), nil
+		},
+	},
+	{
+		name: "baiducloud", short: "Baidu Cloud DNS — 需 --access-key 和 --secret-key",
+		flags: []providerFlag{
+			{"access-key", "Baidu Cloud Access Key (必填)"},
+			{"secret-key", "Baidu Cloud Secret Key (必填)"},
+		},
+		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+			domains, err := createDomainConfigs(cmd)
+			if err != nil {
+				return nil, nil, err
+			}
+			return domains, baiducloud.NewClient(getFlag(cmd, "access-key"), getFlag(cmd, "secret-key")), nil
+		},
+	},
+	{
+		name: "dnspod", short: "DNSPod (legacy API) — 需 --login-token",
+		flags: []providerFlag{
+			{"login-token", "DNSPod Login Token (必填，格式: ID,Token)"},
+		},
+		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+			domains, err := createDomainConfigs(cmd)
+			if err != nil {
+				return nil, nil, err
+			}
+			return domains, dnspod.NewClient(getFlag(cmd, "login-token")), nil
 		},
 	},
 }
 
-// registerProviders 注册所有 DNS 运营商子命令
+// registerProviders 注册所有 DNS 运营商子命令到 runCmd。
 func registerProviders() {
 	for i := range providerDefs {
 		p := &providerDefs[i]
 		cmd := &cobra.Command{
 			Use:   p.name,
 			Short: p.short,
+			Long: fmt.Sprintf(`%s provider for DDNS6
+
+使用方式:
+  ddns6 run %s [flags]
+
+必填参数:
+%s
+全局参数:
+  --domain string       根域名（必填，如 example.com）
+  --subdomain string    子域名，可多次指定（默认 "@"）
+  --ttl int             DNS 记录 TTL，单位秒（默认 600）
+  --interval duration   非 Linux 平台轮询间隔（默认 5m）
+  --interface string    监听的网络接口（仅 Linux Netlink 模式）
+  --debug               开启调试日志
+
+示例:
+  ddns6 run %s --domain example.com --subdomain www %s
+  ddns6 run %s --domain example.com --subdomain www --subdomain @ %s`,
+				p.name, p.name,
+				formatProviderFlags(p.flags),
+				p.name, formatSampleFlags(p.flags),
+				p.name, formatSampleFlags(p.flags)),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				ddns, task, err := p.run(cmd)
+				domains, task, err := p.run(cmd)
 				if err != nil {
 					return err
 				}
-				return runDDNSService(ddns, task, getDuration(cmd, "interval"), ipv6Fetchers)
+				iface := getString(cmd, "interface")
+				return ddns.RunService(domains, task, getDuration(cmd, "interval"), ddns.DefaultIPv6Fetchers, iface)
 			},
 		}
 		for _, f := range p.flags {
@@ -220,14 +265,116 @@ func registerProviders() {
 	}
 }
 
-// getFlag 安全获取字符串类型 flag 值
-func getFlag(cmd *cobra.Command, name string) string {
+// formatProviderFlags 返回运营商的必填参数格式文本
+func formatProviderFlags(flags []providerFlag) string {
+	s := ""
+	for _, f := range flags {
+		s += fmt.Sprintf("  --%-20s %s\n", f.name, f.usage)
+	}
+	return s
+}
+
+// formatSampleFlags 返回示例参数文本
+func formatSampleFlags(flags []providerFlag) string {
+	s := ""
+	for _, f := range flags {
+		s += fmt.Sprintf(" --%s YOUR_%s", f.name, f.name)
+	}
+	return s
+}
+
+// ============================================================
+// 配置文件模式：从 ~/.ddns6/config.yaml 创建 provider
+// ============================================================
+
+// startServiceFromConfig 根据配置文件启动 DDNS 服务。
+func startServiceFromConfig(cfg *config.Config, cmd *cobra.Command) error {
+	// 从配置创建域名列表
+	domains := make([]*providers.Domain, len(cfg.Subdomains))
+	for i, sd := range cfg.Subdomains {
+		domains[i] = &providers.Domain{
+			Type:      "AAAA",
+			Domain:    cfg.Domain,
+			SubDomain: sd,
+			TTL:       cfg.GetTTL(),
+		}
+	}
+
+	// 从配置创建 DNS 服务商
+	p, err := createProviderFromConfig(cfg)
+	if err != nil {
+		return err
+	}
+
+	// 合并配置与命令行参数（命令行参数优先）
+	interval := cfg.GetInterval()
+	if cmd != nil && cmd.Flags().Changed("interval") {
+		if v, err := cmd.Flags().GetDuration("interval"); err == nil {
+			interval = v
+		}
+	}
+
+	iface := cfg.Interface
+	if cmd != nil && cmd.Flags().Changed("interface") {
+		if v, err := cmd.Flags().GetString("interface"); err == nil {
+			iface = v
+		}
+	}
+
+	return ddns.RunService(domains, p, interval, ddns.DefaultIPv6Fetchers, iface)
+}
+
+// createProviderFromConfig 根据配置的 provider 类型和 auth 字段创建对应的 DNS 服务商。
+func createProviderFromConfig(cfg *config.Config) (providers.DNSProvider, error) {
+	switch cfg.Provider {
+	case "tencent":
+		return tencent.NewDNSPod(cfg.Auth["secret_id"], cfg.Auth["secret_key"]), nil
+	case "cloudflare":
+		return cloudflare.NewClient(cloudflare.WithAPIToken(cfg.Auth["api_token"])), nil
+	case "alicloud":
+		return alicloud.NewClient(cfg.Auth["access_key_id"], cfg.Auth["access_key_secret"]), nil
+	case "godaddy":
+		return godaddy.NewClient(cfg.Auth["api_key"], cfg.Auth["api_secret"]), nil
+	case "huaweicloud":
+		return huaweicloud.NewClient(cfg.Auth["username"], cfg.Auth["password"], cfg.Auth["domain_name"]), nil
+	case "duckdns":
+		return duckdns.NewClient(cfg.Auth["token"]), nil
+	case "noip":
+		return noip.NewClient(cfg.Auth["username"], cfg.Auth["password"]), nil
+	case "he":
+		return he.NewClient(cfg.Auth["password"]), nil
+	case "dynv6":
+		return dynv6.NewClient(cfg.Auth["token"]), nil
+	case "porkbun":
+		return porkbun.NewClient(cfg.Auth["api_key"], cfg.Auth["api_secret"]), nil
+	case "digitalocean":
+		return digitalocean.NewClient(cfg.Auth["token"]), nil
+	case "baiducloud":
+		return baiducloud.NewClient(cfg.Auth["access_key"], cfg.Auth["secret_key"]), nil
+	case "dnspod":
+		return dnspod.NewClient(cfg.Auth["login_token"]), nil
+	default:
+		return nil, fmt.Errorf("unsupported provider: %s (supported providers: tencent, cloudflare, alicloud, godaddy, huaweicloud, duckdns, noip, he, dynv6, porkbun, digitalocean, baiducloud, dnspod)", cfg.Provider)
+	}
+}
+
+// ============================================================
+// 辅助函数
+// ============================================================
+
+// getString 安全获取字符串类型 flag 值
+func getString(cmd *cobra.Command, name string) string {
 	v, err := cmd.Flags().GetString(name)
 	if err != nil {
 		log.Warn("flag not found, returning empty", "flag", name, "err", err)
 		return ""
 	}
 	return v
+}
+
+// getFlag 安全获取字符串类型 flag 值（别名）
+func getFlag(cmd *cobra.Command, name string) string {
+	return getString(cmd, name)
 }
 
 // getDuration 安全获取 duration 类型 flag 值
@@ -240,89 +387,44 @@ func getDuration(cmd *cobra.Command, name string) time.Duration {
 	return v
 }
 
-// createDomainConfig 从命令行参数创建域名配置
-func createDomainConfig(cmd *cobra.Command) (*providers.Domain, error) {
+// createDomainConfigs 从命令行参数创建域名配置列表。
+// 每个 --subdomain 值会生成一个对应的 Domain 实例。
+func createDomainConfigs(cmd *cobra.Command) ([]*providers.Domain, error) {
 	domainName, err := cmd.Flags().GetString("domain")
 	if err != nil {
 		return nil, fmt.Errorf("invalid --domain flag: %w", err)
 	}
-	subdomain, err := cmd.Flags().GetString("subdomain")
-	if err != nil {
-		return nil, fmt.Errorf("invalid --subdomain flag: %w", err)
+	if domainName == "" {
+		return nil, fmt.Errorf("--domain is required (e.g. --domain example.com)")
 	}
+
+	subdomains, err := cmd.Flags().GetStringArray("subdomain")
+	if err != nil {
+		// 兼容 --subdomain 为单个字符串的情况
+		sd, err2 := cmd.Flags().GetString("subdomain")
+		if err2 != nil {
+			return nil, fmt.Errorf("invalid --subdomain flag: %w", err)
+		}
+		subdomains = []string{sd}
+	}
+	if len(subdomains) == 0 {
+		subdomains = []string{"@"}
+	}
+
 	ttl, err := cmd.Flags().GetInt("ttl")
 	if err != nil {
 		return nil, fmt.Errorf("invalid --ttl flag: %w", err)
 	}
-	return &providers.Domain{
-		Type:      "AAAA",
-		Domain:    domainName,
-		SubDomain: subdomain,
-		TTL:       ttl,
-	}, nil
-}
 
-var ipv6Fetchers = []ipaddr.IPv6Fetcher{
-	ipaddr.NewHttpIPv6Fetcher("6.ipw.cn"),
-	ipaddr.NewHttpIPv6Fetcher("ifconfig.co"),
-	ipaddr.NewHttpIPv6Fetcher("v6.ident.me"),
-	ipaddr.NewDnsFetcher("2402:4e00::"),
-	ipaddr.NewDnsFetcher("2400:3200:baba::1"),
-	ipaddr.NewDnsFetcher("2001:4860:4860::8888"),
-	ipaddr.NewDnsFetcher("2606:4700:4700::1111"),
-}
-
-// runDDNSService 运行 DDNS 服务
-func runDDNSService(ddns *providers.Domain, p providers.DNSProvider, interval time.Duration, fetchers []ipaddr.IPv6Fetcher) error {
-	log.Debug("starting DDNS update service",
-		"domain", ddns.Domain, "subdomain", ddns.SubDomain,
-		"interval", interval.String())
-
-	sched := cron.New()
-	sched.Start()
-	defer sched.Stop()
-
-	// 首次获取并更新
-	log.Info("fetching IPv6 address for the first time")
-	ipsvc, err := ipaddr.GetIPv6Addr(fetchers...)
-	if err != nil {
-		return fmt.Errorf("failed to get IPv6 address: %w", err)
-	}
-	log.Info("initial IPv6 address obtained", "ipv6", ipsvc.String())
-	if err := ddns.UpdateRecord(context.Background(), ipsvc, p); err != nil {
-		return fmt.Errorf("failed to update DNS record on first run: %w", err)
-	}
-
-	// 启动定时任务，每次重新获取 IPv6 地址
-	sched.AddFunc(cron.Every(interval), func() {
-		log.Debug("scheduled task triggered",
-			"domain", ddns.Domain, "subdomain", ddns.SubDomain)
-		ipsvc, err := ipaddr.GetIPv6Addr(fetchers...)
-		if err != nil {
-			log.Error("failed to get IPv6 address", "err", err,
-				"domain", ddns.Domain, "subdomain", ddns.SubDomain)
-			return
+	domains := make([]*providers.Domain, len(subdomains))
+	for i, sd := range subdomains {
+		d := &providers.Domain{
+			Type:      "AAAA",
+			Domain:    domainName,
+			SubDomain: sd,
+			TTL:       ttl,
 		}
-		if err := ddns.UpdateRecord(context.Background(), ipsvc, p); err != nil {
-			log.Error("failed to update DNS record", "err", err,
-				"domain", ddns.Domain, "subdomain", ddns.SubDomain)
-		} else {
-			log.Debug("DNS update cycle completed",
-				"domain", ddns.Domain, "subdomain", ddns.SubDomain)
-		}
-	})
-
-	log.Info("ddns6 started successfully",
-		"pid", os.Getpid(),
-		"domain", ddns.Domain,
-		"subdomain", ddns.SubDomain,
-		"interval", interval.String())
-
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-
-	<-sigCh
-
-	log.Info("ddns6 shutting down")
-	return nil
+		domains[i] = d
+	}
+	return domains, nil
 }

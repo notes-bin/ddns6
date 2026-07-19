@@ -91,6 +91,18 @@ func (d *Domain) setAddr(addr net.IP) {
 	copy(d.Addr, addr)
 }
 
+// Lock 锁定 Domain，供外部包保护并发访问
+func (d *Domain) Lock() { d.mu.Lock() }
+
+// Unlock 解锁 Domain
+func (d *Domain) Unlock() { d.mu.Unlock() }
+
+// FullDomain 返回完整的子域名（含主域名）
+func (d *Domain) FullDomain() string { return d.fullDomain() }
+
+// SetAddr 更新缓存的 IPv6 地址（拷贝防止别名）
+func (d *Domain) SetAddr(addr net.IP) { d.setAddr(addr) }
+
 // handleError 处理错误并记录日志
 func (d *Domain) handleError(action string, err error, addr net.IP) error {
 	log.Error("DDNS "+action,
