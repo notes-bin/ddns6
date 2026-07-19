@@ -10,6 +10,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -62,11 +63,12 @@ func WithHTTPClient(httpClient *http.Client) Option {
 }
 
 // DNSRecord Porkbun DNS 记录
+// 注意：Porkbun API 的 TTL 字段为字符串格式，如 "600"
 type DNSRecord struct {
 	Name    string `json:"name,omitempty"`
 	Type    string `json:"type,omitempty"`
 	Content string `json:"content"`
-	TTL     int    `json:"ttl,omitempty"`
+	TTL     string `json:"ttl,omitempty"`
 }
 
 // apiResponse Porkbun API 通用响应
@@ -83,7 +85,7 @@ func (c *Client) AddRecord(ctx context.Context, fulldomain, recordType, value st
 		Name:    subDomain,
 		Type:    recordType,
 		Content: value,
-		TTL:     ttl,
+		TTL:     strconv.Itoa(ttl),
 	}
 
 	url := fmt.Sprintf("%s/create/%s", c.baseURL, domain)
@@ -109,7 +111,7 @@ func (c *Client) ModifyRecord(ctx context.Context, fulldomain, recordID, recordT
 
 	record := DNSRecord{
 		Content: newValue,
-		TTL:     ttl,
+		TTL:     strconv.Itoa(ttl),
 	}
 
 	url := fmt.Sprintf("%s/editByNameType/%s/%s/%s", c.baseURL, domain, recordType, subDomain)
@@ -172,7 +174,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 			Name:  r.Name,
 			Type:  r.Type,
 			Value: r.Content,
-			TTL:   r.TTL,
+			TTL:   parseTTL(r.TTL),
 		})
 	}
 	return result, nil
@@ -231,4 +233,16 @@ func (c *Client) post(ctx context.Context, url string, record *DNSRecord, result
 // splitDomain 将完整域名分割为根域名和子域名
 func splitDomain(fulldomain string) (string, string) {
 	return providers.SplitDomain(fulldomain)
+}
+
+// parseTTL 将 Porkbun 的字符串 TTL 转换为 int，解析失败返回默认值
+func parseTTL(s string) int {
+	if s == "" {
+		return providers.DefaultTTL
+	}
+	v, err := strconv.Atoi(s)
+	if err != nil {
+		return providers.DefaultTTL
+	}
+	return v
 }
