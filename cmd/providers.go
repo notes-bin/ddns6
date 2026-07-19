@@ -145,7 +145,7 @@ var heCmd = &cobra.Command{
 		password := cmd.Flag("password").Value.String()
 
 		ddns := createDomainConfig(cmd)
-		task := he.NewClient("", password)
+		task := he.NewClient(password)
 		return runDDNSService(ddns, task, interval)
 	},
 }

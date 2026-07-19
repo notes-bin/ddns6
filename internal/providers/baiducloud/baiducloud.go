@@ -104,13 +104,12 @@ func (c *Client) AddRecord(ctx context.Context, fulldomain, recordType, value st
 	url := c.baseURL + "/v1/domain/resolve/add"
 	log.Debug("adding BaiduCloud DNS record", "zone", zoneName, "domain", subDomain, "type", recordType)
 
-	resp, err := c.request(ctx, http.MethodPost, url, payload)
+	_, err := c.request(ctx, http.MethodPost, url, payload)
 	if err != nil {
 		return err
 	}
 
 	log.Info("BaiduCloud DNS record added successfully", "zone", zoneName, "domain", subDomain, "ipv6", value)
-	_ = resp
 	return nil
 }
 
@@ -162,7 +161,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	url := c.baseURL + "/v1/domain/resolve/list"
 	log.Debug("querying BaiduCloud DNS records", "zone", zoneName)
 
-	resp, err := c.request(ctx, http.MethodPost, url, payload)
+		resp, err := c.request(ctx, http.MethodPost, url, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -287,17 +286,8 @@ func (c *Client) signRequest(req *http.Request, body []byte) {
 
 // splitDomain 分割完整域名为子域名、根域名和 zone 名称
 func splitDomain(fulldomain string) (string, string, string) {
-	parts := strings.Split(fulldomain, ".")
-	if len(parts) < 2 {
-		return fulldomain, "@", fulldomain
-	}
-	// 百度云 zone 名称（完整的 domain.tld）
-	zoneName := strings.Join(parts[len(parts)-2:], ".")
-	if len(parts) == 2 {
-		return zoneName, "@", zoneName
-	}
-	subDomain := strings.Join(parts[:len(parts)-2], ".")
-	return zoneName, subDomain, zoneName
+	root, sub := providers.SplitDomain(fulldomain)
+	return root, sub, root // zoneName 即根域名
 }
 
 // recordTypeToInt DNS 记录类型转百度云 RDType 数字
