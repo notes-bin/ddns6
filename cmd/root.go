@@ -49,10 +49,26 @@ var (
 
 var log = slog.With("module", "cmd")
 
+// usageTemplate 中文版 cobra 使用信息模板。
+const usageTemplate = `使用方式:
+  {{.UseLine}}
+
+{{if .HasAvailableSubCommands}}可用命令:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}
+
+{{end}}{{if .HasAvailableLocalFlags}}选项:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+全局参数:
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableSubCommands}}
+
+使用 "{{.CommandPath}} [command] --help" 查看子命令详细帮助。{{end}}
+`
+
 // rootCmd 根命令，设置全局参数和子命令结构。
 var rootCmd = &cobra.Command{
 	Use:   "ddns6",
-	Short: "Dynamic DNS update tool for IPv6 addresses",
+	Short: "IPv6 动态域名解析（DDNS）工具",
 	SilenceErrors: true,               // 未知命令等错误由 Execute 统一处理，不打印双重日志
 	SilenceUsage: true,                // 不重复打印用法提示，由 Execute 自行决定
 	Long: `DDNS6 — 动态域名解析工具，自动将本机 IPv6 地址更新到 DNS 记录。
@@ -71,7 +87,7 @@ var rootCmd = &cobra.Command{
   1. 临时测试:  ddns6 run tencent --domain example.com --subdomain www --secret-id xxx --secret-key yyy
   2. 长期运行:  ddns6 init → 编辑 ~/.ddns6/config.yaml → ddns6 run
   3. 查看详情:  ddns6 run --help`,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// version 命令不需要初始化日志
 		if cmd.Name() == "version" || cmd.Name() == "init" {
 			return
@@ -105,7 +121,7 @@ var rootCmd = &cobra.Command{
 // initCmd 生成 ~/.ddns6/config.yaml 配置文件模板。
 var initCmd = &cobra.Command{
 	Use:   "init",
-	Short: "Generate configuration file template at ~/.ddns6/config.yaml",
+	Short: "生成 ~/.ddns6/config.yaml 配置文件模板",
 	Long: `生成 DDNS6 配置文件模板。
 
 在用户主目录下创建 ~/.ddns6/config.yaml 文件，包含所有配置字段的
@@ -149,7 +165,7 @@ var initCmd = &cobra.Command{
 // runCmd 运行 DDNS 服务（父命令，子命令为各运营商）。
 var runCmd = &cobra.Command{
 	Use:   "run [provider]",
-	Short: "Run the DDNS update service",
+	Short: "运行 DDNS 更新服务",
 	Long: `启动 DDNS 服务，持续监听 IPv6 地址变化并更新 DNS 记录。
 
 不指定 provider 子命令时，尝试从 ~/.ddns6/config.yaml 读取配置。
@@ -221,7 +237,7 @@ func runWithConfig(cmd *cobra.Command) error {
 // versionCmd 显示版本信息。
 var versionCmd = &cobra.Command{
 	Use:   "version",
-	Short: "Print version information",
+	Short: "显示版本信息",
 	Long:  `显示 ddns6 的版本、Git 提交和构建时间信息。`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("Version: %s\nCommit: %s\nbuildAt: %s\n", Version, Commit, buildAt)
@@ -235,16 +251,32 @@ var persistentFlags = []struct {
 	defaultValue interface{}
 	usage        string
 }{
-	{"debug", "bool", false, "Enable debug logging with source location"},
-	{"interval", "duration", 5 * time.Minute, `Polling interval for non-Linux platforms (e.g. --interval 10m, default "5m")`},
-	{"domain", "string", "", "Domain name to update (e.g. example.com)"},
-	{"subdomain", "stringArray", []string{"@"}, `Subdomain names, repeatable (default "@", e.g. --subdomain www --subdomain @)`},
-	{"ttl", "int", 600, "DNS record TTL in seconds (default 600)"},
-	{"interface", "string", "", "Network interface to monitor (Linux Netlink mode, e.g. --interface ppp0)"},
+	{"debug", "bool", false, "启用调试日志（含源码位置）"},
+	{"interval", "duration", 5 * time.Minute, "非 Linux 平台的轮询间隔（默认 5m，如 --interval 10m）"},
+	{"domain", "string", "", "要更新的域名（如 example.com）"},
+	{"subdomain", "stringArray", []string{"@"}, "子域名名称，可多次指定（默认 @，如 --subdomain www --subdomain @）"},
+	{"ttl", "int", 600, "DNS 记录 TTL，单位秒（默认 600）"},
+	{"interface", "string", "", "监听的网络接口（仅 Linux Netlink 模式，如 --interface ppp0）"},
 }
 
 // initRootCmd 初始化根命令，注册所有 flag 和子命令。
 func initRootCmd() {
+	rootCmd.SetUsageTemplate(usageTemplate)
+	rootCmd.SetHelpTemplate(usageTemplate)
+
+	// 覆盖 cobra 内置命令和参数的中文显示
+	rootCmd.CompletionOptions.HiddenDefaultCmd = true
+	// 自定义 help flag 中文描述
+	f := rootCmd.PersistentFlags().Lookup("help")
+	if f != nil {
+		f.Usage = "显示帮助信息"
+	}
+	rootCmd.SetHelpCommand(&cobra.Command{
+		Use:   "help [command]",
+		Short: "查看命令帮助",
+		Long:  "查看 ddns6 及其子命令的帮助信息。",
+	})
+
 	// 注册全局持久化参数
 	for _, f := range persistentFlags {
 		switch f.name {
