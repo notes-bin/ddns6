@@ -113,13 +113,33 @@ var initCmd = &cobra.Command{
 
 使用配置文件后，无需每次运行时重复输入参数。
 
+支持通过 --domain、--subdomain 等参数预填配置值，生成后无需
+再用编辑器修改对应字段。
+
 示例:
-  ddns6 init                          生成配置文件模板
+  ddns6 init                          生成配置文件模板，手动编辑
+  ddns6 init --domain example.com --subdomain www --subdomain @
+                                      生成模板并预填域名和子域名
   vim ~/.ddns6/config.yaml           编辑配置（填入运营商和凭证）
   ddns6 run                           从配置文件读取并运行`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Println("Generating DDNS6 configuration file...")
-		if err := config.Generate(); err != nil {
+			domain, _ := cmd.Flags().GetString("domain")
+			subdomains, _ := cmd.Flags().GetStringArray("subdomain")
+			ttl, _ := cmd.Flags().GetInt("ttl")
+			interval, _ := cmd.Flags().GetString("interval")
+			iface, _ := cmd.Flags().GetString("interface")
+
+			params := config.InitParams{
+				Domain:     domain,
+				Subdomains: subdomains,
+				TTL:        ttl,
+				Interval:   interval,
+				Interface:  iface,
+			}
+
+
+		if err := config.Generate(params); err != nil {
 			return fmt.Errorf("failed to generate config: %w", err)
 		}
 		return nil
@@ -244,6 +264,13 @@ func initRootCmd() {
 	}
 
 	// 注册子命令
+	// init 子命令的本地参数（预填值到配置文件）
+	initCmd.Flags().String("domain", "", "根域名, 预填入配置文件")
+	initCmd.Flags().StringArray("subdomain", nil, "子域名列表, 可多次指定, 预填入配置文件")
+	initCmd.Flags().Int("ttl", 0, "DNS 记录 TTL, 单位秒, 预填入配置文件")
+	initCmd.Flags().String("interval", "", "轮询间隔, 如 10m, 预填入配置文件")
+	initCmd.Flags().String("interface", "", "网络接口, 预填入配置文件")
+
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(runCmd)
