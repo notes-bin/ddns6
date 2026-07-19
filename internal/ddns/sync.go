@@ -20,12 +20,12 @@ import (
 	"github.com/notes-bin/ddns6/internal/providers"
 )
 
-// effectiveTTL 返回有效的 TTL 值，如果未设置则返回默认值 600
+// effectiveTTL 返回有效的 TTL 值，未设置时使用默认值。
 func effectiveTTL(ttl int) int {
 	if ttl > 0 {
 		return ttl
 	}
-	return 600
+	return providers.DefaultTTL
 }
 
 // hasAddressChanged 检查 IPv6 地址是否改变

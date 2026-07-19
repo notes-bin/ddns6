@@ -133,22 +133,8 @@ func startTrigger(ctx context.Context, interval time.Duration, iface string) <-c
 
 // fallbackPolling 在 Netlink 不可用时使用定时轮询。
 func fallbackPolling(ctx context.Context, triggerCh chan<- struct{}, interval time.Duration) {
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
 	log.Info("using polling mode as fallback", "interval", interval)
-
-	for {
-		select {
-		case <-ticker.C:
-			select {
-			case triggerCh <- struct{}{}:
-			default:
-			}
-		case <-ctx.Done():
-			return
-		}
-	}
+	pollingLoop(ctx, triggerCh, interval)
 }
 
 // platformTriggerMode 返回当前平台的触发模式描述。

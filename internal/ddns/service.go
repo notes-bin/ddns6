@@ -139,10 +139,6 @@ func RunService(domains []*providers.Domain, p providers.DNSProvider, interval t
 			log.Info("ddns6 stopped")
 			return nil
 
-		case <-ctx.Done():
-			// context 被取消（正常情况下不会走到这里，由 sigCh 分支处理）
-			log.Info("context cancelled, shutting down")
-			return nil
 		}
 	}
 }
@@ -150,4 +146,25 @@ func RunService(domains []*providers.Domain, p providers.DNSProvider, interval t
 // triggerMode 返回当前平台使用的触发模式名称（仅用于日志）。
 func triggerMode() string {
 	return platformTriggerMode()
+}
+
+// pollingLoop 定时轮询，向 triggerCh 发送信号。
+//
+// Linux 平台下 Netlink 不可用时回退到此模式。
+// 非 Linux 平台默认使用此模式。
+func pollingLoop(ctx context.Context, triggerCh chan<- struct{}, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			select {
+			case triggerCh <- struct{}{}:
+			default:
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
 }
