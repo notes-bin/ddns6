@@ -49,7 +49,7 @@ jobs:
               -X github.com/notes-bin/ddns6/cmd.buildAt=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             -o "$BINARY" .
           tar -czf "${BINARY}.tar.gz" \
-            "$BINARY" LICENSE README.md contrib/systemd/ddns6@.service
+            "$BINARY" LICENSE README.md
 
       - uses: actions/upload-artifact@v4
         with:
