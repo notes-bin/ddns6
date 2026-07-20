@@ -273,7 +273,16 @@ var runCmd = &cobra.Command{
   ddns6 run`,
 	// 不指定 provider 子命令时走配置文件模式
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runWithConfig(cmd)
+		// ddns6 run help — 用户意图是查帮助，显示帮助内容
+		if len(args) > 0 && args[0] == "help" {
+			cmd.Help()
+			return nil
+		}
+		if err := runWithConfig(cmd); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
+			os.Exit(1)
+		}
+		return nil
 	},
 }
 
