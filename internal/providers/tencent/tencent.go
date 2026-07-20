@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/notes-bin/ddns6/internal/providers"
+	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
 var log = slog.With("module", "tencent")
@@ -87,82 +87,82 @@ func WithHTTPClient(httpClient *http.Client) Option {
 }
 
 // AddRecord 添加域名解析记录
-func (ds *DNSPod) AddRecord(ctx context.Context, fulldomain, recordType, value string, ttl int) error {
+func (ds *DNSPod) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	log.Info("adding Tencent DNS record",
-		"domain", fulldomain, "type", recordType)
+		"domain", record.Name, "type", record.Type)
 
-	domain, subDomain, err := ds.getRootDomain(ctx, fulldomain)
+	domain, subDomain, err := ds.getRootDomain(ctx, record.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %v", err)
 	}
 
-	record := DNSRecord{
+	dnsRecord := DNSRecord{
 		Domain:     domain,
 		SubDomain:  subDomain,
-		RecordType: recordType,
+		RecordType: record.Type,
 		RecordLine: "默认",
-		Value:      value,
-		TTL:        ttl,
+		Value:      record.Value,
+		TTL:        record.TTL,
 	}
 
 	response := new(Response)
-	err = ds.makeRequest(ctx, "CreateRecord", record, response)
+	err = ds.makeRequest(ctx, "CreateRecord", dnsRecord, response)
 	if err != nil {
 		log.Error("failed to add Tencent DNS record",
-			"domain", fulldomain, "type", recordType, "err", err)
+			"domain", record.Name, "type", record.Type, "err", err)
 	}
 	return err
 }
 
 // ModifyRecord 修改域名解析记录
-func (ds *DNSPod) ModifyRecord(ctx context.Context, fulldomain, recordId, recordType, newValue string, ttl int) error {
+func (ds *DNSPod) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
 	log.Info("modifying Tencent DNS record",
-		"domain", fulldomain, "record_id", recordId, "type", recordType)
+		"domain", record.Name, "record_id", record.ID, "type", record.Type)
 
-	domain, _, err := ds.getRootDomain(ctx, fulldomain)
+	domain, _, err := ds.getRootDomain(ctx, record.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %v", err)
 	}
 
 	payload := DNSRecord{
 		Domain:     domain,
-		RecordId:   recordId,
-		RecordType: recordType,
-		Value:      newValue,
-		TTL:        ttl,
+		RecordId:   record.ID,
+		RecordType: record.Type,
+		Value:      record.Value,
+		TTL:        record.TTL,
 	}
 
 	response := new(Response)
 	err = ds.makeRequest(ctx, "ModifyRecord", payload, response)
 	if err != nil {
 		log.Error("failed to modify Tencent DNS record",
-			"domain", fulldomain, "record_id", recordId, "err", err)
+			"domain", record.Name, "record_id", record.ID, "err", err)
 	}
 	return err
 }
 
 // DeleteRecord 删除域名解析记录
-func (ds *DNSPod) DeleteRecord(ctx context.Context, fulldomain, recordId string) error {
+func (ds *DNSPod) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
 	log.Info("deleting Tencent DNS record",
-		"domain", fulldomain, "record_id", recordId)
+		"domain", record.Name, "record_id", record.ID)
 
-	domain, _, err := ds.getRootDomain(ctx, fulldomain)
+	domain, _, err := ds.getRootDomain(ctx, record.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %v", err)
 	}
 
-	payload := DNSRecord{Domain: domain, RecordId: recordId}
+	payload := DNSRecord{Domain: domain, RecordId: record.ID}
 	response := new(Response)
 	err = ds.makeRequest(ctx, "DeleteRecord", payload, response)
 	if err != nil {
 		log.Error("failed to delete Tencent DNS record",
-			"domain", fulldomain, "record_id", recordId, "err", err)
+			"domain", record.Name, "record_id", record.ID, "err", err)
 	}
 	return err
 }
 
 // GetRecords 查询域名的解析记录，返回通用 RecordInfo 列表
-func (ds *DNSPod) GetRecords(ctx context.Context, fulldomain, recordType string) ([]providers.RecordInfo, error) {
+func (ds *DNSPod) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	domain, subDomain, err := ds.getRootDomain(ctx, fulldomain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root domain: %v", err)
@@ -172,12 +172,12 @@ func (ds *DNSPod) GetRecords(ctx context.Context, fulldomain, recordType string)
 		return nil, err
 	}
 
-	result := make([]providers.RecordInfo, 0, len(records))
+	result := make([]ddns.RecordInfo, 0, len(records))
 	for _, r := range records {
 		if recordType != "" && r.RecordType != recordType {
 			continue
 		}
-		result = append(result, providers.RecordInfo{
+		result = append(result, ddns.RecordInfo{
 			ID:    r.RecordId,
 			Name:  r.SubDomain,
 			Type:  r.RecordType,

@@ -17,8 +17,6 @@ import (
 	"fmt"
 	"net"
 	"strings"
-
-	"github.com/notes-bin/ddns6/internal/providers"
 )
 
 // hasAddressChanged 检查 IPv6 地址是否改变
@@ -94,7 +92,7 @@ func recordNameMatches(rName, fqdn, subDomain string) bool {
 //   - d: 域名配置（含子域名、记录类型等）
 //   - ipv6: 当前本机 IPv6 地址
 //   - p: DNS 服务商实现
-func SyncRecord(ctx context.Context, d *providers.Domain, ipv6 net.IP, p providers.DNSProvider) error {
+func SyncRecord(ctx context.Context, d *Domain, ipv6 net.IP, p DNSProvider) error {
 	d.Lock()
 	defer d.Unlock()
 
@@ -125,7 +123,7 @@ func SyncRecord(ctx context.Context, d *providers.Domain, ipv6 net.IP, p provide
 //  4. 目标子域名下无 AAAA 记录则新增
 //
 // 同一个子域名下存在多个 AAAA 记录时全部处理（continue 而非 return）。
-func syncDNSRecord(ctx context.Context, d *providers.Domain, p providers.DNSProvider, addr net.IP) error {
+func syncDNSRecord(ctx context.Context, d *Domain, p DNSProvider, addr net.IP) error {
 	fqdn := d.FullDomain()
 	ipv6Str := addr.String()
 
@@ -172,7 +170,9 @@ func syncDNSRecord(ctx context.Context, d *providers.Domain, p providers.DNSProv
 		}
 
 		// IP 不同 → 修改记录
-		err = p.ModifyRecord(ctx, fqdn, r.ID, d.Type, ipv6Str, d.TTL)
+		err = p.ModifyRecord(ctx, RecordInfo{
+			ID: r.ID, Name: fqdn, Type: d.Type, Value: ipv6Str, TTL: d.TTL,
+		})
 		if err != nil {
 			log.Error("failed to modify record",
 				"domain", d.Domain, "subdomain", d.SubDomain,
@@ -191,7 +191,9 @@ func syncDNSRecord(ctx context.Context, d *providers.Domain, p providers.DNSProv
 			"domain", d.Domain, "subdomain", d.SubDomain,
 			"fqdn", fqdn, "ipv6", ipv6Str)
 
-		err = p.AddRecord(ctx, fqdn, d.Type, ipv6Str, d.TTL)
+		err = p.AddRecord(ctx, RecordInfo{
+				Name: fqdn, Type: d.Type, Value: ipv6Str, TTL: d.TTL,
+			})
 		if err != nil {
 			log.Error("failed to add record",
 				"domain", d.Domain, "subdomain", d.SubDomain,

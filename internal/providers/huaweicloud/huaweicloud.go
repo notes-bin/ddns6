@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/notes-bin/ddns6/internal/providers"
+	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
 var log = slog.With("module", "huaweicloud")
@@ -86,79 +86,79 @@ type recordSetPayload struct {
 }
 
 // AddRecord 添加域名解析记录
-func (c *Client) AddRecord(ctx context.Context, fulldomain, recordType, value string, ttl int) error {
-	zoneID, err := c.getZoneID(ctx, fulldomain)
+func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
+	zoneID, err := c.getZoneID(ctx, record.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get zone ID: %v", err)
 	}
 
 	payload := recordSetPayload{
-		Name:    fulldomain + ".",
-		Type:    recordType,
-		TTL:     ttl,
-		Records: []string{value},
+		Name:    record.Name + ".",
+		Type:    record.Type,
+		TTL:     record.TTL,
+		Records: []string{record.Value},
 		Weight:  1,
 	}
 
 	url := c.baseURL + "/v2.1/zones/" + zoneID + "/recordsets"
-	log.Debug("adding HuaweiCloud DNS record", "zone", zoneID, "domain", fulldomain, "type", recordType)
+	log.Debug("adding HuaweiCloud DNS record", "zone", zoneID, "domain", record.Name, "type", record.Type)
 
 	_, err = c.request(ctx, http.MethodPost, url, payload)
 	if err != nil {
 		return err
 	}
 
-	log.Info("HuaweiCloud DNS record added successfully", "zone", zoneID, "name", fulldomain, "ipv6", value)
+	log.Info("HuaweiCloud DNS record added successfully", "zone", zoneID, "name", record.Name, "ipv6", record.Value)
 	return nil
 }
 
 // ModifyRecord 修改域名解析记录
-func (c *Client) ModifyRecord(ctx context.Context, fulldomain, recordID, recordType, newValue string, ttl int) error {
-	zoneID, err := c.getZoneID(ctx, fulldomain)
+func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
+	zoneID, err := c.getZoneID(ctx, record.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get zone ID: %v", err)
 	}
 
 	payload := map[string]any{
-		"name":    fulldomain + ".",
-		"type":    recordType,
-		"ttl":     ttl,
-		"records": []string{newValue},
+		"name":    record.Name + ".",
+		"type":    record.Type,
+		"ttl":     record.TTL,
+		"records": []string{record.Value},
 	}
 
-	url := c.baseURL + "/v2.1/zones/" + zoneID + "/recordsets/" + recordID
-	log.Debug("modifying HuaweiCloud DNS record", "zone", zoneID, "record_id", recordID)
+	url := c.baseURL + "/v2.1/zones/" + zoneID + "/recordsets/" + record.ID
+	log.Debug("modifying HuaweiCloud DNS record", "zone", zoneID, "record_id", record.ID)
 
 	_, err = c.request(ctx, http.MethodPut, url, payload)
 	if err != nil {
 		return err
 	}
 
-	log.Info("HuaweiCloud DNS record modified successfully", "zone", zoneID, "record_id", recordID, "ipv6", newValue)
+	log.Info("HuaweiCloud DNS record modified successfully", "zone", zoneID, "record_id", record.ID, "ipv6", record.Value)
 	return nil
 }
 
 // DeleteRecord 删除域名解析记录
-func (c *Client) DeleteRecord(ctx context.Context, fulldomain, recordID string) error {
-	zoneID, err := c.getZoneID(ctx, fulldomain)
+func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
+	zoneID, err := c.getZoneID(ctx, record.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get zone ID: %v", err)
 	}
 
-	url := c.baseURL + "/v2.1/zones/" + zoneID + "/recordsets/" + recordID
-	log.Debug("deleting HuaweiCloud DNS record", "zone", zoneID, "record_id", recordID)
+	url := c.baseURL + "/v2.1/zones/" + zoneID + "/recordsets/" + record.ID
+	log.Debug("deleting HuaweiCloud DNS record", "zone", zoneID, "record_id", record.ID)
 
 	_, err = c.request(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return err
 	}
 
-	log.Info("HuaweiCloud DNS record deleted successfully", "zone", zoneID, "record_id", recordID)
+	log.Info("HuaweiCloud DNS record deleted successfully", "zone", zoneID, "record_id", record.ID)
 	return nil
 }
 
 // GetRecords 查询域名的解析记录，返回通用 RecordInfo 列表
-func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]providers.RecordInfo, error) {
+func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	zoneID, err := c.getZoneID(ctx, fulldomain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get zone ID: %v", err)
@@ -204,13 +204,13 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		}
 	}
 
-	records := make([]providers.RecordInfo, 0, len(allRecordsets))
+	records := make([]ddns.RecordInfo, 0, len(allRecordsets))
 	for _, r := range allRecordsets {
 		value := ""
 		if len(r.Records) > 0 {
 			value = r.Records[0]
 		}
-		records = append(records, providers.RecordInfo{
+		records = append(records, ddns.RecordInfo{
 			ID:    r.ID,
 			Name:  r.Name,
 			Type:  r.Type,

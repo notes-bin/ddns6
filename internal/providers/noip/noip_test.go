@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
 func TestClient_AddRecord(t *testing.T) {
@@ -34,7 +36,7 @@ func TestClient_AddRecord(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("user", "pass", WithBaseURL(server.URL))
-	err := client.AddRecord(context.Background(), "myhost.example.com", "AAAA", "2001:db8::1", 600)
+	err := client.AddRecord(context.Background(), ddns.RecordInfo{Name: "myhost.example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -47,7 +49,7 @@ func TestClient_ModifyRecord(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("user", "pass", WithBaseURL(server.URL))
-	err := client.ModifyRecord(context.Background(), "myhost.example.com", "", "AAAA", "2001:db8::2", 600)
+	err := client.ModifyRecord(context.Background(), ddns.RecordInfo{Name: "myhost.example.com", ID: "", Type: "AAAA", Value: "2001:db8::2", TTL: 600})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -60,7 +62,7 @@ func TestClient_Nochg(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("user", "pass", WithBaseURL(server.URL))
-	err := client.AddRecord(context.Background(), "myhost.example.com", "AAAA", "2001:db8::1", 600)
+	err := client.AddRecord(context.Background(), ddns.RecordInfo{Name: "myhost.example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -84,7 +86,7 @@ func TestClient_AuthError(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("user", "wrongpass", WithBaseURL(server.URL))
-	err := client.AddRecord(context.Background(), "myhost.example.com", "AAAA", "2001:db8::1", 600)
+	err := client.AddRecord(context.Background(), ddns.RecordInfo{Name: "myhost.example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -97,7 +99,7 @@ func TestClient_Nohost(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("user", "pass", WithBaseURL(server.URL))
-	err := client.AddRecord(context.Background(), "nonexistent.example.com", "AAAA", "2001:db8::1", 600)
+	err := client.AddRecord(context.Background(), ddns.RecordInfo{Name: "nonexistent.example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}

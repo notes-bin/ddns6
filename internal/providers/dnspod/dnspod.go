@@ -14,7 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/notes-bin/ddns6/internal/providers"
+	"github.com/notes-bin/ddns6/internal/ddns"
+	"github.com/notes-bin/ddns6/pkg/domainutil"
 )
 
 var log = slog.With("module", "dnspod")
@@ -92,21 +93,21 @@ type recordResponse struct {
 }
 
 // AddRecord 添加域名解析记录
-func (c *Client) AddRecord(ctx context.Context, fulldomain, recordType, value string, ttl int) error {
-	domain, subDomain := splitDomain(fulldomain)
+func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
+	domain, subDomain := splitDomain(record.Name)
 
 	params := url.Values{}
 	params.Set("login_token", c.loginToken)
 	params.Set("format", "json")
 	params.Set("domain", domain)
 	params.Set("sub_domain", subDomain)
-	params.Set("record_type", recordType)
+	params.Set("record_type", record.Type)
 	params.Set("record_line", "默认")
-	params.Set("value", value)
-	params.Set("ttl", strconv.Itoa(ttl))
+	params.Set("value", record.Value)
+	params.Set("ttl", strconv.Itoa(record.TTL))
 
 	url := c.baseURL + "/Record.Create"
-	log.Debug("adding DNSPod record", "domain", domain, "subdomain", subDomain, "type", recordType)
+	log.Debug("adding DNSPod record", "domain", domain, "subdomain", subDomain, "type", record.Type)
 
 	var resp recordResponse
 	if err := c.post(ctx, url, params, &resp); err != nil {
@@ -116,27 +117,27 @@ func (c *Client) AddRecord(ctx context.Context, fulldomain, recordType, value st
 		return fmt.Errorf("DNSPod API error: %s (code: %s)", resp.Status.Message, resp.Status.Code)
 	}
 
-	log.Info("DNSPod record added successfully", "domain", domain, "subdomain", subDomain, "ipv6", value)
+	log.Info("DNSPod record added successfully", "domain", domain, "subdomain", subDomain, "ipv6", record.Value)
 	return nil
 }
 
 // ModifyRecord 修改域名解析记录
-func (c *Client) ModifyRecord(ctx context.Context, fulldomain, recordID, recordType, newValue string, ttl int) error {
-	domain, subDomain := splitDomain(fulldomain)
+func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
+	domain, subDomain := splitDomain(record.Name)
 
 	params := url.Values{}
 	params.Set("login_token", c.loginToken)
 	params.Set("format", "json")
 	params.Set("domain", domain)
-	params.Set("record_id", recordID)
+	params.Set("record_id", record.ID)
 	params.Set("sub_domain", subDomain)
-	params.Set("record_type", recordType)
+	params.Set("record_type", record.Type)
 	params.Set("record_line", "默认")
-	params.Set("value", newValue)
-	params.Set("ttl", strconv.Itoa(ttl))
+	params.Set("value", record.Value)
+	params.Set("ttl", strconv.Itoa(record.TTL))
 
 	url := c.baseURL + "/Record.Modify"
-	log.Debug("modifying DNSPod record", "domain", domain, "record_id", recordID)
+	log.Debug("modifying DNSPod record", "domain", domain, "record_id", record.ID)
 
 	var resp recordResponse
 	if err := c.post(ctx, url, params, &resp); err != nil {
@@ -146,22 +147,22 @@ func (c *Client) ModifyRecord(ctx context.Context, fulldomain, recordID, recordT
 		return fmt.Errorf("DNSPod API error: %s (code: %s)", resp.Status.Message, resp.Status.Code)
 	}
 
-	log.Info("DNSPod record modified successfully", "domain", domain, "record_id", recordID, "ipv6", newValue)
+	log.Info("DNSPod record modified successfully", "domain", domain, "record_id", record.ID, "ipv6", record.Value)
 	return nil
 }
 
 // DeleteRecord 删除域名解析记录
-func (c *Client) DeleteRecord(ctx context.Context, fulldomain, recordID string) error {
-	domain, _ := splitDomain(fulldomain)
+func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
+	domain, _ := splitDomain(record.Name)
 
 	params := url.Values{}
 	params.Set("login_token", c.loginToken)
 	params.Set("format", "json")
 	params.Set("domain", domain)
-	params.Set("record_id", recordID)
+	params.Set("record_id", record.ID)
 
 	url := c.baseURL + "/Record.Remove"
-	log.Debug("deleting DNSPod record", "domain", domain, "record_id", recordID)
+	log.Debug("deleting DNSPod record", "domain", domain, "record_id", record.ID)
 
 	var resp recordResponse
 	if err := c.post(ctx, url, params, &resp); err != nil {
@@ -171,12 +172,12 @@ func (c *Client) DeleteRecord(ctx context.Context, fulldomain, recordID string) 
 		return fmt.Errorf("DNSPod API error: %s (code: %s)", resp.Status.Message, resp.Status.Code)
 	}
 
-	log.Info("DNSPod record deleted successfully", "domain", domain, "record_id", recordID)
+	log.Info("DNSPod record deleted successfully", "domain", domain, "record_id", record.ID)
 	return nil
 }
 
 // GetRecords 查询域名解析记录
-func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]providers.RecordInfo, error) {
+func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	domain, subDomain := splitDomain(fulldomain)
 
 	params := url.Values{}
@@ -199,10 +200,10 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		return nil, fmt.Errorf("DNSPod API error: %s (code: %s)", resp.Status.Message, resp.Status.Code)
 	}
 
-	result := make([]providers.RecordInfo, 0, len(resp.Records))
+	result := make([]ddns.RecordInfo, 0, len(resp.Records))
 	for _, r := range resp.Records {
 		ttl, _ := strconv.Atoi(r.TTL)
-		result = append(result, providers.RecordInfo{
+		result = append(result, ddns.RecordInfo{
 			ID:    strconv.Itoa(r.ID),
 			Name:  r.Name,
 			Type:  r.Type,
@@ -251,5 +252,5 @@ func (c *Client) post(ctx context.Context, reqURL string, params url.Values, res
 
 // splitDomain 分割完整域名为根域名和子域名
 func splitDomain(fulldomain string) (string, string) {
-	return providers.SplitDomain(fulldomain)
+	return domainutil.SplitDomain(fulldomain)
 }

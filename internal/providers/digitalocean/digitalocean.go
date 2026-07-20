@@ -13,7 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/notes-bin/ddns6/internal/providers"
+	"github.com/notes-bin/ddns6/internal/ddns"
+	"github.com/notes-bin/ddns6/pkg/domainutil"
 )
 
 var log = slog.With("module", "digitalocean")
@@ -71,23 +72,23 @@ type DomainRecord struct {
 }
 
 // AddRecord 添加域名解析记录
-func (c *Client) AddRecord(ctx context.Context, fulldomain, recordType, value string, ttl int) error {
-	domain, subDomain := providers.SplitDomain(fulldomain)
+func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
+	domain, subDomain := domainutil.SplitDomain(record.Name)
 
-	record := DomainRecord{
-		Type: recordType,
+	dnsRecord := DomainRecord{
+		Type: record.Type,
 		Name: subDomain,
-		Data: value,
-		TTL:  ttl,
+		Data: record.Value,
+		TTL:  record.TTL,
 	}
 
-	body, err := json.Marshal(record)
+	body, err := json.Marshal(dnsRecord)
 	if err != nil {
 		return fmt.Errorf("failed to marshal record: %w", err)
 	}
 
 	url := fmt.Sprintf("%s/domains/%s/records", c.baseURL, domain)
-	log.Debug("adding DigitalOcean DNS record", "domain", domain, "type", recordType)
+	log.Debug("adding DigitalOcean DNS record", "domain", domain, "type", record.Type)
 
 	respBody, err := c.doRequest(ctx, http.MethodPost, url, body)
 	if err != nil {
@@ -97,56 +98,56 @@ func (c *Client) AddRecord(ctx context.Context, fulldomain, recordType, value st
 	// DigitalOcean 返回 201 Created 或 200 OK
 	_ = respBody // 响应体不需要解析
 
-	log.Info("DigitalOcean DNS record added successfully", "domain", domain, "type", recordType, "ipv6", value)
+	log.Info("DigitalOcean DNS record added successfully", "domain", domain, "type", record.Type, "ipv6", record.Value)
 	return nil
 }
 
 // ModifyRecord 修改域名解析记录
-func (c *Client) ModifyRecord(ctx context.Context, fulldomain, recordID, recordType, newValue string, ttl int) error {
-	domain, _ := providers.SplitDomain(fulldomain)
+func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
+	domain, _ := domainutil.SplitDomain(record.Name)
 
-	record := DomainRecord{
-		Type: recordType,
-		Data: newValue,
-		TTL:  ttl,
+	dnsRecord := DomainRecord{
+		Type: record.Type,
+		Data: record.Value,
+		TTL:  record.TTL,
 	}
 
-	body, err := json.Marshal(record)
+	body, err := json.Marshal(dnsRecord)
 	if err != nil {
 		return fmt.Errorf("failed to marshal record: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/domains/%s/records/%s", c.baseURL, domain, recordID)
-	log.Debug("modifying DigitalOcean DNS record", "domain", domain, "record_id", recordID)
+	url := fmt.Sprintf("%s/domains/%s/records/%s", c.baseURL, domain, record.ID)
+	log.Debug("modifying DigitalOcean DNS record", "domain", domain, "record_id", record.ID)
 
 	_, err = c.doRequest(ctx, http.MethodPut, url, body)
 	if err != nil {
 		return err
 	}
 
-	log.Info("DigitalOcean DNS record modified successfully", "domain", domain, "record_id", recordID, "ipv6", newValue)
+	log.Info("DigitalOcean DNS record modified successfully", "domain", domain, "record_id", record.ID, "ipv6", record.Value)
 	return nil
 }
 
 // DeleteRecord 删除域名解析记录
-func (c *Client) DeleteRecord(ctx context.Context, fulldomain, recordID string) error {
-	domain, _ := providers.SplitDomain(fulldomain)
+func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
+	domain, _ := domainutil.SplitDomain(record.Name)
 
-	url := fmt.Sprintf("%s/domains/%s/records/%s", c.baseURL, domain, recordID)
-	log.Debug("deleting DigitalOcean DNS record", "domain", domain, "record_id", recordID)
+	url := fmt.Sprintf("%s/domains/%s/records/%s", c.baseURL, domain, record.ID)
+	log.Debug("deleting DigitalOcean DNS record", "domain", domain, "record_id", record.ID)
 
 	_, err := c.doRequest(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return err
 	}
 
-	log.Info("DigitalOcean DNS record deleted successfully", "domain", domain, "record_id", recordID)
+	log.Info("DigitalOcean DNS record deleted successfully", "domain", domain, "record_id", record.ID)
 	return nil
 }
 
 // GetRecords 查询域名解析记录
-func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]providers.RecordInfo, error) {
-	domain, _ := providers.SplitDomain(fulldomain)
+func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
+	domain, _ := domainutil.SplitDomain(fulldomain)
 
 	url := fmt.Sprintf("%s/domains/%s/records?per_page=200", c.baseURL, domain)
 	log.Debug("querying DigitalOcean DNS records", "domain", domain, "type", recordType)
@@ -163,12 +164,12 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	result := make([]providers.RecordInfo, 0, len(apiResult.DomainRecords))
+	result := make([]ddns.RecordInfo, 0, len(apiResult.DomainRecords))
 	for _, r := range apiResult.DomainRecords {
 		if recordType != "" && r.Type != recordType {
 			continue
 		}
-		result = append(result, providers.RecordInfo{
+		result = append(result, ddns.RecordInfo{
 			ID:    fmt.Sprintf("%d", r.ID),
 			Name:  r.Name,
 			Type:  r.Type,

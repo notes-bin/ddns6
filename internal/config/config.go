@@ -25,7 +25,7 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/notes-bin/ddns6/internal/providers"
+	"github.com/notes-bin/ddns6/internal/ddns"
 	"gopkg.in/yaml.v3"
 )
 
@@ -114,7 +114,7 @@ func (c *Config) GetInterval() time.Duration {
 // GetTTL 返回 TTL 值，未设置时返回默认值。
 func (c *Config) GetTTL() int {
 	if c.TTL <= 0 {
-		return providers.DefaultTTL
+		return ddns.DefaultTTL
 	}
 	return c.TTL
 }

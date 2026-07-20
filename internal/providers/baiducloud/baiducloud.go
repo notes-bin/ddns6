@@ -16,7 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/notes-bin/ddns6/internal/providers"
+	"github.com/notes-bin/ddns6/internal/ddns"
+	"github.com/notes-bin/ddns6/pkg/domainutil"
 )
 
 var log = slog.With("module", "baiducloud")
@@ -66,7 +67,7 @@ func WithHTTPClient(httpClient *http.Client) Option {
 
 // DNSRecord 百度云 DNS 记录
 type DNSRecord struct {
-	RecordID string `json:"recordId,omitempty"`
+	RecordID string `json:"record.ID,omitempty"`
 	Domain   string `json:"domain"`
 	RDType   string `json:"rdtype"`
 	TTL      int    `json:"ttl,omitempty"`
@@ -90,32 +91,32 @@ type baiduListResponse struct {
 }
 
 // AddRecord 添加域名解析记录
-func (c *Client) AddRecord(ctx context.Context, fulldomain, recordType, value string, ttl int) error {
-	_, subDomain, zoneName := splitDomain(fulldomain)
+func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
+	_, subDomain, zoneName := splitDomain(record.Name)
 
 	payload := map[string]any{
 		"domain":   subDomain,
-		"rdType":   recordType,
-		"rdata":    value,
-		"ttl":      ttl,
+		"rdType":   record.Type,
+		"rdata":    record.Value,
+		"ttl":      record.TTL,
 		"zoneName": zoneName,
 	}
 
 	url := c.baseURL + "/v1/domain/resolve/add"
-	log.Debug("adding BaiduCloud DNS record", "zone", zoneName, "domain", subDomain, "type", recordType)
+	log.Debug("adding BaiduCloud DNS record", "zone", zoneName, "domain", subDomain, "type", record.Type)
 
 	_, err := c.request(ctx, http.MethodPost, url, payload)
 	if err != nil {
 		return err
 	}
 
-	log.Info("BaiduCloud DNS record added successfully", "zone", zoneName, "domain", subDomain, "ipv6", value)
+	log.Info("BaiduCloud DNS record added successfully", "zone", zoneName, "domain", subDomain, "ipv6", record.Value)
 	return nil
 }
 
 // ModifyRecord 修改域名解析记录
-func (c *Client) ModifyRecord(ctx context.Context, fulldomain, recordID, recordType, newValue string, ttl int) error {
-	_, subDomain, zoneName := splitDomain(fulldomain)
+func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
+	_, subDomain, zoneName := splitDomain(record.Name)
 
 	// 查询现有记录获取 View 字段（解析线路）
 	var recordView string
@@ -125,7 +126,7 @@ func (c *Client) ModifyRecord(ctx context.Context, fulldomain, recordID, recordT
 		var listResp baiduListResponse
 		if json.Unmarshal(raw, &listResp) == nil {
 			for _, r := range listResp.Result {
-				if r.RecordID == recordID {
+				if r.RecordID == record.ID {
 					recordView = r.View
 					break
 				}
@@ -134,37 +135,37 @@ func (c *Client) ModifyRecord(ctx context.Context, fulldomain, recordID, recordT
 	}
 
 	payload := map[string]any{
-		"recordId": recordID,
+		"recordId": record.ID,
 		"domain":   subDomain,
-		"rdType":   recordType,
-		"rdata":    newValue,
-		"ttl":      ttl,
+		"rdType":   record.Type,
+		"rdata":    record.Value,
+		"ttl":      record.TTL,
 		"zoneName": zoneName,
 		"view":     recordView,
 	}
 
 	url := c.baseURL + "/v1/domain/resolve/edit"
-	log.Debug("modifying BaiduCloud DNS record", "zone", zoneName, "record_id", recordID)
+	log.Debug("modifying BaiduCloud DNS record", "zone", zoneName, "record_id", record.ID)
 
 	_, err := c.request(ctx, http.MethodPost, url, payload)
 	if err != nil {
 		return err
 	}
 
-	log.Info("BaiduCloud DNS record modified successfully", "zone", zoneName, "record_id", recordID, "ipv6", newValue)
+	log.Info("BaiduCloud DNS record modified successfully", "zone", zoneName, "record_id", record.ID, "ipv6", record.Value)
 	return nil
 }
 
 // DeleteRecord 删除域名解析记录
 // 百度云 DNS API 未直接提供删除记录的接口，暂不支持
-func (c *Client) DeleteRecord(ctx context.Context, fulldomain, recordID string) error {
+func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
 	log.Warn("BaiduCloud does not support deleting records via API, skipping",
-		"domain", fulldomain, "record_id", recordID)
+		"domain", record.Name, "record_id", record.ID)
 	return nil
 }
 
 // GetRecords 查询域名解析记录
-func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]providers.RecordInfo, error) {
+func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	_, subDomain, zoneName := splitDomain(fulldomain)
 
 	payload := map[string]any{
@@ -186,7 +187,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	result := make([]providers.RecordInfo, 0, len(listResp.Result))
+	result := make([]ddns.RecordInfo, 0, len(listResp.Result))
 	for _, r := range listResp.Result {
 		if r.RDType != recordType {
 			continue
@@ -195,7 +196,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		if r.Domain != subDomain && subDomain != "@" {
 			continue
 		}
-		result = append(result, providers.RecordInfo{
+		result = append(result, ddns.RecordInfo{
 			ID:    r.RecordID,
 			Name:  r.Domain,
 			Type:  recordType,
@@ -284,11 +285,11 @@ func (c *Client) signRequest(req *http.Request, body []byte) {
 
 // splitDomain 分割完整域名为子域名、根域名和 zone 名称
 func splitDomain(fulldomain string) (string, string, string) {
-	root, sub := providers.SplitDomain(fulldomain)
+	root, sub := domainutil.SplitDomain(fulldomain)
 	return root, sub, root // zoneName 即根域名
 }
 
-// recordTypeToInt DNS 记录类型转百度云 RDType 数字
+// record.TypeToInt DNS 记录类型转百度云 RDType 数字
 
 // sha256Hex 计算 SHA256 哈希并返回十六进制字符串
 func sha256Hex(data []byte) string {

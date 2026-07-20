@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/notes-bin/ddns6/internal/providers"
+	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
 func TestClient_GetRecords(t *testing.T) {
@@ -54,7 +54,7 @@ func TestClient_AddRecord(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("test-token", WithBaseURL(server.URL))
-	err := client.AddRecord(context.Background(), "www.example.com", "AAAA", "2001:db8::1", 600)
+	err := client.AddRecord(context.Background(), ddns.RecordInfo{Name: "www.example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestClient_ModifyRecord(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("test-token", WithBaseURL(server.URL))
-	err := client.ModifyRecord(context.Background(), "www.example.com", "42", "AAAA", "2001:db8::2", 600)
+	err := client.ModifyRecord(context.Background(), ddns.RecordInfo{Name: "www.example.com", ID: "42", Type: "AAAA", Value: "2001:db8::2", TTL: 600})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestClient_DeleteRecord(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("test-token", WithBaseURL(server.URL))
-	err := client.DeleteRecord(context.Background(), "www.example.com", "42")
+	err := client.DeleteRecord(context.Background(), ddns.RecordInfo{Name: "www.example.com", ID: "42"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -110,23 +110,3 @@ func TestClient_APIError(t *testing.T) {
 	}
 }
 
-func TestSplitDomain(t *testing.T) {
-	tests := []struct {
-		input    string
-		wantRoot string
-		wantSub  string
-	}{
-		{"example.com", "example.com", "@"},
-		{"www.example.com", "example.com", "www"},
-		{"sub.www.example.com", "example.com", "sub.www"},
-	}
-	for _, tt := range tests {
-		root, sub := providers.SplitDomain(tt.input)
-		if root != tt.wantRoot {
-			t.Errorf("SplitDomain(%q) root = %q, want %q", tt.input, root, tt.wantRoot)
-		}
-		if sub != tt.wantSub {
-			t.Errorf("SplitDomain(%q) sub = %q, want %q", tt.input, sub, tt.wantSub)
-		}
-	}
-}

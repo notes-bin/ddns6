@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
 func TestClient_GetRecords(t *testing.T) {
@@ -55,7 +57,7 @@ func TestClient_AddRecord(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(server.URL))
-	err := client.AddRecord(context.Background(), "www.example.com", "AAAA", "2001:db8::1", 600)
+	err := client.AddRecord(context.Background(), ddns.RecordInfo{Name: "www.example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -71,7 +73,7 @@ func TestClient_ModifyRecord(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(server.URL))
-	err := client.ModifyRecord(context.Background(), "www.example.com", "", "AAAA", "2001:db8::2", 600)
+	err := client.ModifyRecord(context.Background(), ddns.RecordInfo{Name: "www.example.com", ID: "", Type: "AAAA", Value: "2001:db8::2", TTL: 600})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -87,7 +89,7 @@ func TestClient_DeleteRecord(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(server.URL))
-	err := client.DeleteRecord(context.Background(), "www.example.com", "")
+	err := client.DeleteRecord(context.Background(), ddns.RecordInfo{Name: "www.example.com", ID: ""})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -100,27 +102,9 @@ func TestClient_ApiError(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(server.URL))
-	err := client.AddRecord(context.Background(), "www.example.com", "AAAA", "2001:db8::1", 600)
+	err := client.AddRecord(context.Background(), ddns.RecordInfo{Name: "www.example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
 }
 
-func TestSplitDomain(t *testing.T) {
-	tests := []struct {
-		input      string
-		wantDomain string
-		wantSub    string
-	}{
-		{"example.com", "example.com", "@"},
-		{"www.example.com", "example.com", "www"},
-		{"sub.www.example.com", "example.com", "sub.www"},
-	}
-	for _, tt := range tests {
-		domain, sub := splitDomain(tt.input)
-		if domain != tt.wantDomain || sub != tt.wantSub {
-			t.Errorf("splitDomain(%q) = (%q, %q), want (%q, %q)",
-				tt.input, domain, sub, tt.wantDomain, tt.wantSub)
-		}
-	}
-}

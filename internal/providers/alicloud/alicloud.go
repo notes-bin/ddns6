@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/notes-bin/ddns6/internal/providers"
+	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
 var log = slog.With("module", "alicloud")
@@ -71,8 +71,8 @@ type DNSRecord struct {
 }
 
 // AddRecord 添加域名解析记录
-func (c *AliDNSClient) AddRecord(ctx context.Context, fulldomain, recordType, value string, ttl int) error {
-	domain, subDomain, err := c.getRootDomain(ctx, fulldomain)
+func (c *AliDNSClient) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
+	domain, subDomain, err := c.getRootDomain(ctx, record.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %v", err)
 	}
@@ -81,9 +81,9 @@ func (c *AliDNSClient) AddRecord(ctx context.Context, fulldomain, recordType, va
 		"Action":     "AddDomainRecord",
 		"DomainName": domain,
 		"RR":         subDomain,
-		"Type":       recordType,
-		"Value":      value,
-		"TTL":        fmt.Sprintf("%d", ttl),
+		"Type":       record.Type,
+		"Value":      record.Value,
+		"TTL":        fmt.Sprintf("%d", record.TTL),
 		"RecordLine": "default",
 	}
 
@@ -92,19 +92,19 @@ func (c *AliDNSClient) AddRecord(ctx context.Context, fulldomain, recordType, va
 }
 
 // ModifyRecord 修改域名解析记录
-func (c *AliDNSClient) ModifyRecord(ctx context.Context, fulldomain, recordID, recordType, newValue string, ttl int) error {
-	_, subDomain, err := c.getRootDomain(ctx, fulldomain)
+func (c *AliDNSClient) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
+	_, subDomain, err := c.getRootDomain(ctx, record.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %v", err)
 	}
 
 	params := map[string]string{
 		"Action":   "UpdateDomainRecord",
-		"RecordId": recordID,
+		"RecordId": record.ID,
 		"RR":       subDomain,
-		"Type":     recordType,
-		"Value":    newValue,
-		"TTL":      fmt.Sprintf("%d", ttl),
+		"Type":     record.Type,
+		"Value":    record.Value,
+		"TTL":      fmt.Sprintf("%d", record.TTL),
 	}
 
 	_, err = c.makeRequest(ctx, params)
@@ -112,10 +112,10 @@ func (c *AliDNSClient) ModifyRecord(ctx context.Context, fulldomain, recordID, r
 }
 
 // DeleteRecord 删除域名解析记录
-func (c *AliDNSClient) DeleteRecord(ctx context.Context, fulldomain, recordID string) error {
+func (c *AliDNSClient) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
 	params := map[string]string{
 		"Action":   "DeleteDomainRecord",
-		"RecordId": recordID,
+		"RecordId": record.ID,
 	}
 
 	_, err := c.makeRequest(ctx, params)
@@ -123,7 +123,7 @@ func (c *AliDNSClient) DeleteRecord(ctx context.Context, fulldomain, recordID st
 }
 
 // GetRecords 查询域名的解析记录，返回通用 RecordInfo 列表
-func (c *AliDNSClient) GetRecords(ctx context.Context, fulldomain, recordType string) ([]providers.RecordInfo, error) {
+func (c *AliDNSClient) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	domain, subDomain, err := c.getRootDomain(ctx, fulldomain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root domain: %v", err)
@@ -151,13 +151,13 @@ func (c *AliDNSClient) GetRecords(ctx context.Context, fulldomain, recordType st
 		return nil, err
 	}
 
-	records := make([]providers.RecordInfo, 0, len(result.DomainRecords.Record))
+	records := make([]ddns.RecordInfo, 0, len(result.DomainRecords.Record))
 	for _, r := range result.DomainRecords.Record {
 		// 客户端精确匹配 RR（API 的 RRKeyWord 是模糊匹配）
 		if subDomain != "" && r.RR != subDomain {
 			continue
 		}
-		records = append(records, providers.RecordInfo{
+		records = append(records, ddns.RecordInfo{
 			ID:    r.RecordId,
 			Name:  r.RR,
 			Type:  r.Type,
