@@ -356,6 +356,14 @@ func (ds *DNSPod) makeRequest(ctx context.Context, action string, payload any, r
 }
 
 // generateSignatureV3 生成Tencent Cloud API v3签名
+// TC3-HMAC-SHA256 签名算法：
+//
+//	SecretDate    = HMAC-SHA256("TC3" + SecretKey, Date)
+//	SecretService = HMAC-SHA256(SecretDate, Service)
+//	SecretSigning = HMAC-SHA256(SecretService, "tc3_request")
+//	Signature     = HexEncode(HMAC-SHA256(SecretSigning, StringToSign))
+//
+// 注意：中间密钥均为原始字节，仅在最后一步 HexEncode
 func (ds *DNSPod) generateSignatureV3(service, action, payload string, timestamp int64) string {
 	algorithm := "TC3-HMAC-SHA256"
 	date := time.Unix(timestamp, 0).UTC().Format("2006-01-02")
@@ -374,11 +382,11 @@ func (ds *DNSPod) generateSignatureV3(service, action, payload string, timestamp
 	hashedRequest := sha256Hex(canonicalRequest)
 	stringToSign := fmt.Sprintf("%s\n%d\n%s\n%s", algorithm, timestamp, credentialScope, hashedRequest)
 
-	// 计算签名
+	// 计算签名 — 密钥链全部使用原始字节，仅在最后一步 HexEncode
 	secretDate := hmacSha256("TC3"+ds.secretKey, date)
-	secretService := hmacSha256Hex(string(secretDate), service)
-	secretSigning := hmacSha256Hex(secretService, "tc3_request")
-	signature := hmacSha256Hex(secretSigning, stringToSign)
+	secretService := hmacSha256Bytes(secretDate, service)
+	secretSigning := hmacSha256Bytes(secretService, "tc3_request")
+	signature := hex.EncodeToString(hmacSha256Bytes(secretSigning, stringToSign))
 
 	return fmt.Sprintf("%s Credential=%s/%s, SignedHeaders=%s, Signature=%s",
 		algorithm, ds.secretId, credentialScope, signedHeaders, signature)
@@ -402,4 +410,11 @@ func hmacSha256Hex(key, data string) string {
 	mac := hmac.New(sha256.New, []byte(key))
 	mac.Write([]byte(data))
 	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// hmacSha256Bytes 计算HMAC-SHA256哈希值（密钥为原始字节）
+func hmacSha256Bytes(key []byte, data string) []byte {
+	mac := hmac.New(sha256.New, key)
+	mac.Write([]byte(data))
+	return mac.Sum(nil)
 }
