@@ -118,8 +118,8 @@ func TestMakeRequest(t *testing.T) {
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(ts.URL))
 
-	_, err := client.makeRequest(ctx, map[string]string{"Action": "TestAction"})
+	_, err := client.makeV1Request(ctx, map[string]string{"Action": "TestAction"})
 	if err != nil {
-		t.Errorf("makeRequest failed: %v", err)
+		t.Errorf("makeV1Request failed: %v", err)
 	}
 }
