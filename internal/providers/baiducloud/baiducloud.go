@@ -67,7 +67,7 @@ func WithHTTPClient(httpClient *http.Client) Option {
 
 // DNSRecord 百度云 DNS 记录
 type DNSRecord struct {
-	RecordID string `json:"record.ID,omitempty"`
+	RecordID string `json:"recordId,omitempty"`
 	Domain   string `json:"domain"`
 	RDType   string `json:"rdtype"`
 	TTL      int    `json:"ttl,omitempty"`

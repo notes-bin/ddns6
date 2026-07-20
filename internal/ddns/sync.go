@@ -192,8 +192,8 @@ func syncDNSRecord(ctx context.Context, d *Domain, p DNSProvider, addr net.IP) e
 			"fqdn", fqdn, "ipv6", ipv6Str)
 
 		err = p.AddRecord(ctx, RecordInfo{
-				Name: fqdn, Type: d.Type, Value: ipv6Str, TTL: d.TTL,
-			})
+			Name: fqdn, Type: d.Type, Value: ipv6Str, TTL: d.TTL,
+		})
 		if err != nil {
 			log.Error("failed to add record",
 				"domain", d.Domain, "subdomain", d.SubDomain,
