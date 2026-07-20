@@ -86,7 +86,7 @@ func (c *AliDNSClient) AddRecord(ctx context.Context, record ddns.RecordInfo) er
 		"RecordLine": "default",
 	}
 
-	_, err = c.makeRequest(ctx, params)
+	_, err = c.makeV1Request(ctx, params)
 	return err
 }
 
@@ -106,7 +106,7 @@ func (c *AliDNSClient) ModifyRecord(ctx context.Context, record ddns.RecordInfo)
 		"TTL":      fmt.Sprintf("%d", record.TTL),
 	}
 
-	_, err = c.makeRequest(ctx, params)
+	_, err = c.makeV1Request(ctx, params)
 	return err
 }
 
@@ -117,7 +117,7 @@ func (c *AliDNSClient) DeleteRecord(ctx context.Context, record ddns.RecordInfo)
 		"RecordId": record.ID,
 	}
 
-	_, err := c.makeRequest(ctx, params)
+	_, err := c.makeV1Request(ctx, params)
 	return err
 }
 
@@ -135,7 +135,7 @@ func (c *AliDNSClient) GetRecords(ctx context.Context, fulldomain, recordType st
 		"TypeKeyWord": recordType,
 	}
 
-	resp, err := c.makeRequest(ctx, params)
+	resp, err := c.makeV1Request(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +174,7 @@ func (c *AliDNSClient) GetDomainRecord(ctx context.Context, fulldomain, recordID
 		"RecordId": recordID,
 	}
 
-	resp, err := c.makeRequest(ctx, params)
+	resp, err := c.makeV1Request(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +199,7 @@ func (c *AliDNSClient) getRootDomain(ctx context.Context, domain string) (string
 			"DomainName": h,
 		}
 
-		resp, err := c.makeRequest(ctx, params)
+		resp, err := c.makeV1Request(ctx, params)
 		if err != nil {
 			continue
 		}
@@ -227,8 +227,11 @@ func (c *AliDNSClient) getRootDomain(ctx context.Context, domain string) (string
 	return domain, "@", nil
 }
 
-// makeRequest performs an authenticated request to Alibaba Cloud API
-func (c *AliDNSClient) makeRequest(ctx context.Context, params map[string]string) ([]byte, error) {
+// makeV1Request 使用 V1 签名（HMAC-SHA1）发起认证请求。
+//
+// 签名方式：所有参数放入查询字符串，对整个查询字符串进行 HMAC-SHA1 签名，
+// 签名结果附加在 URL 末尾。
+func (c *AliDNSClient) makeV1Request(ctx context.Context, params map[string]string) ([]byte, error) {
 	action := params["Action"]
 	slog.Debug("Alibaba Cloud API request", "module", "alicloud", "action", action)
 
@@ -305,4 +308,98 @@ func (c *AliDNSClient) makeRequest(ctx context.Context, params map[string]string
 	}
 
 	return body, nil
+}
+
+// makeV3Request 使用 V3 签名（ACS3-HMAC-SHA256）发起认证请求。
+//
+// 签名方式：参数中的 Action 作为 x-acs-action 头，Version 作为 x-acs-version 头，
+// 其余参数放入查询字符串，使用 HMAC-SHA256 对整个请求进行签名，
+// 签名结果放在 Authorization 头中。
+func (c *AliDNSClient) makeV3Request(ctx context.Context, params map[string]string) ([]byte, error) {
+	action := params["Action"]
+	slog.Debug("Alibaba Cloud API V3 request", "module", "alicloud", "action", action)
+
+	// 从 BaseURL 解析主机名
+	u, err := url.Parse(c.BaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid base URL: %w", err)
+	}
+
+	// 构建 V3 请求头
+	headers := map[string]string{
+		"x-acs-action":  action,
+		"x-acs-version": "2015-01-09",
+	}
+
+	// 分离 Action 和 Version 参数，其余作为查询参数
+	queryParams := make(map[string]string, len(params))
+	for k, v := range params {
+		switch k {
+		case "Action":
+		// 已在 headers 中设置
+		case "Version":
+			headers["x-acs-version"] = v
+		default:
+			queryParams[k] = v
+		}
+	}
+
+	v3Req := &V3Request{
+		AccessKeyId:     c.AccessKeyId,
+		AccessKeySecret: c.AccessKeySecret,
+		Method:          "GET",
+		Host:            u.Host,
+		Path:            u.Path,
+		QueryParams:     queryParams,
+		Headers:         headers,
+	}
+
+	httpReq, err := SignV3(ctx, v3Req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign request: %w", err)
+	}
+
+	// 发起请求
+	resp, err := c.HTTPClient.Do(httpReq)
+	if err != nil {
+		slog.Error("Alibaba Cloud API V3 request failed", "module", "alicloud", "action", action, "err", err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	slog.Debug("Alibaba Cloud API V3 response", "module", "alicloud", "action", action, "status", resp.StatusCode)
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		slog.Error("Alibaba Cloud API V3 returned error status",
+			"module", "alicloud",
+			"action", action, "status", resp.StatusCode, "body", truncateString(string(body), 200))
+		return nil, fmt.Errorf("API request failed with status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// 检查 API 业务错误
+	var apiError struct {
+		Message string `json:"Message"`
+	}
+	if err := json.Unmarshal(body, &apiError); err == nil && apiError.Message != "" {
+		slog.Error("Alibaba Cloud API V3 business error",
+			"module", "alicloud",
+			"action", action, "message", apiError.Message)
+		return nil, fmt.Errorf("API error: %s", apiError.Message)
+	}
+
+	return body, nil
+}
+
+// truncateString 截断字符串到指定长度，用于日志中避免泄露完整响应。
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }
