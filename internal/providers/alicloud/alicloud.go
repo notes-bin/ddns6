@@ -317,6 +317,9 @@ func (c *AliDNSClient) makeV1Request(ctx context.Context, params map[string]stri
 // 签名结果放在 Authorization 头中。
 func (c *AliDNSClient) makeV3Request(ctx context.Context, params map[string]string) ([]byte, error) {
 	action := params["Action"]
+	if action == "" {
+		return nil, fmt.Errorf("makeV3Request: missing 'Action' parameter")
+	}
 	slog.Debug("Alibaba Cloud API V3 request", "module", "alicloud", "action", action)
 
 	// 从 BaseURL 解析主机名

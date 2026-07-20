@@ -60,7 +60,8 @@ func SignV3(ctx context.Context, req *V3Request) (*http.Request, error) {
 	// === 1. 填充请求头 ===
 	headers := make(map[string]string, len(req.Headers)+6)
 	for k, v := range req.Headers {
-		headers[k] = v
+		// HTTP 头不区分大小写，统一转为小写避免规范化和签名时出现重复键
+		headers[strings.ToLower(k)] = v
 	}
 	headers["host"] = req.Host
 	headers["x-acs-date"] = now.Format("2006-01-02T15:04:05Z")
