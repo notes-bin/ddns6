@@ -86,10 +86,15 @@ var rootCmd = &cobra.Command{
   2. 配置文件:  ddns6 init tencent --domain example.com --secret-id xxx --secret-key yyy → ddns6 run
   3. 查看详情:  ddns6 run --help`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// -V 参数显示版本信息后立即退出（在任何命令或日志初始化之前）
-		if showV, _ := cmd.Flags().GetBool("V"); showV {
-			fmt.Printf("Version: %s\nCommit:  %s\nBuildAt: %s\n", Version, Commit, buildAt)
+		// -V / --version 参数显示版本信息后立即退出（在任何命令或日志初始化之前）
+		if showV, _ := cmd.Flags().GetBool("version"); showV {
+			printVersion()
 			os.Exit(0)
+		}
+
+		// 根命令无子命令时（如 ddns6），无需初始化日志即可显示帮助
+		if cmd.Parent() == nil {
+			return
 		}
 
 		// version 和 init 命令不需要初始化日志
@@ -120,7 +125,8 @@ var rootCmd = &cobra.Command{
 		}
 		slog.SetDefault(slog.New(slog.NewJSONHandler(io.MultiWriter(os.Stderr, logFile), opts)))
 	},
-	// Run 使根命令支持直接处理参数（如 ddns6 -V），无子命令时显示帮助
+	// Run 使根命令可运行，否则 cobra 跳过 PersistentPreRun，-V 无法响应。
+	// -V 在 PersistentPreRun 中被拦截并退出，这里仅负责无参时显示帮助。
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},
@@ -289,8 +295,13 @@ var versionCmd = &cobra.Command{
 	Short: "显示版本信息",
 	Long:  `显示 ddns6 的版本、Git 提交和构建时间信息。`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("Version: %s\nCommit:  %s\nBuildAt: %s\n", Version, Commit, buildAt)
+		printVersion()
 	},
+}
+
+// printVersion 输出版本、Git 提交和构建时间信息。
+func printVersion() {
+	fmt.Printf("Version: %s\nCommit:  %s\nBuildAt: %s\n", Version, Commit, buildAt)
 }
 
 // persistentFlag 持久化 flag 定义
@@ -326,8 +337,8 @@ func initRootCmd() {
 		Long:  "查看 ddns6 及其子命令的帮助信息。",
 	})
 
-	// 注册 -V 版本信息参数（必须在遍历 persistentFlags 之前注册，避免冲突）
-	rootCmd.PersistentFlags().BoolP("V", "V", false, "显示版本信息（版本号、Git 提交、构建时间）")
+	// 注册 -V / --version 版本信息参数
+	rootCmd.PersistentFlags().BoolP("version", "V", false, "显示版本信息（版本号、Git 提交、构建时间）")
 
 	// 注册全局持久化参数
 	for _, f := range persistentFlags {
