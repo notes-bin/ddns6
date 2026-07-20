@@ -119,15 +119,17 @@ func (ds *DNSPod) ModifyRecord(ctx context.Context, record ddns.RecordInfo) erro
 	log.Info("modifying Tencent DNS record",
 		"domain", record.Name, "record_id", record.ID, "type", record.Type)
 
-	domain, _, err := ds.getRootDomain(ctx, record.Name)
+	domain, subDomain, err := ds.getRootDomain(ctx, record.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %v", err)
 	}
 
 	payload := DNSRecord{
 		Domain:     domain,
+		SubDomain:  subDomain,
 		RecordId:   record.ID,
 		RecordType: record.Type,
+		RecordLine: "默认",
 		Value:      record.Value,
 		TTL:        record.TTL,
 	}
@@ -286,6 +288,7 @@ func (ds *DNSPod) makeRequest(ctx context.Context, action string, payload any, r
 
 	// 设置请求头
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Host", req.URL.Host)
 	req.Header.Set("Authorization", signature)
 	req.Header.Set("X-TC-Version", version)
 	req.Header.Set("X-TC-Timestamp", strconv.FormatInt(timestamp, 10))
