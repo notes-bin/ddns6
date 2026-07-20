@@ -126,7 +126,8 @@ func TestMakeRequest(t *testing.T) {
 }
 
 func TestMakeV3Request(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	var ts *httptest.Server
+	ts = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// 验证 V3 签名头存在
 		if r.Header.Get("Authorization") == "" {
 			t.Error("missing Authorization header")
@@ -149,8 +150,9 @@ func TestMakeV3Request(t *testing.T) {
 		if r.Header.Get("x-acs-signature-nonce") == "" {
 			t.Error("missing x-acs-signature-nonce header")
 		}
-		if r.Host == "" {
-			t.Error("missing host header")
+		// 验证 Host 头与服务器监听地址一致
+		if r.Host != ts.Listener.Addr().String() {
+			t.Errorf("Host = %q, want %q", r.Host, ts.Listener.Addr().String())
 		}
 
 		w.WriteHeader(http.StatusOK)
