@@ -86,7 +86,13 @@ var rootCmd = &cobra.Command{
   2. 配置文件:  ddns6 init tencent --domain example.com --secret-id xxx --secret-key yyy → ddns6 run
   3. 查看详情:  ddns6 run --help`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// version 命令不需要初始化日志
+		// -V 参数显示版本信息后立即退出（在任何命令或日志初始化之前）
+		if showV, _ := cmd.Flags().GetBool("V"); showV {
+			fmt.Printf("Version: %s\nCommit:  %s\nBuildAt: %s\n", Version, Commit, buildAt)
+			os.Exit(0)
+		}
+
+		// version 和 init 命令不需要初始化日志
 		if cmd.Name() == "version" || cmd.Name() == "init" {
 			return
 		}
@@ -114,12 +120,16 @@ var rootCmd = &cobra.Command{
 		}
 		slog.SetDefault(slog.New(slog.NewJSONHandler(io.MultiWriter(os.Stderr, logFile), opts)))
 	},
+	// Run 使根命令支持直接处理参数（如 ddns6 -V），无子命令时显示帮助
+	Run: func(cmd *cobra.Command, args []string) {
+		cmd.Help()
+	},
 }
 
 // initCmd 生成 ~/.ddns6/config.yaml 配置文件模板。
 var initCmd = &cobra.Command{
-	Use: "init [provider]",
-	Short:   "生成 ~/.ddns6/config.yaml 配置文件模板",
+	Use:   "init [provider]",
+	Short: "生成 ~/.ddns6/config.yaml 配置文件模板",
 	Long: `生成 DDNS6 配置文件模板。
 
 在用户主目录下创建 ~/.ddns6/config.yaml 文件，包含所有配置字段的
@@ -134,7 +144,7 @@ var initCmd = &cobra.Command{
   ddns6 init                          生成配置文件模板，手动编辑
   ddns6 init --domain example.com --subdomain www --subdomain @
                                       生成模板并预填域名和子域名
-  ddns6 init tencent --domain example.com --subdomain www \\
+  ddns6 init tencent --domain example.com --subdomain www \
           --secret-id xxx --secret-key yyy
                                       生成完整配置（含 provider 和 auth）
   vim ~/.ddns6/config.yaml           编辑配置（填入运营商和凭证）
@@ -279,7 +289,7 @@ var versionCmd = &cobra.Command{
 	Short: "显示版本信息",
 	Long:  `显示 ddns6 的版本、Git 提交和构建时间信息。`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("Version: %s\nCommit: %s\nbuildAt: %s\n", Version, Commit, buildAt)
+		fmt.Printf("Version: %s\nCommit:  %s\nBuildAt: %s\n", Version, Commit, buildAt)
 	},
 }
 
@@ -315,6 +325,9 @@ func initRootCmd() {
 		Short: "查看命令帮助",
 		Long:  "查看 ddns6 及其子命令的帮助信息。",
 	})
+
+	// 注册 -V 版本信息参数（必须在遍历 persistentFlags 之前注册，避免冲突）
+	rootCmd.PersistentFlags().BoolP("V", "V", false, "显示版本信息（版本号、Git 提交、构建时间）")
 
 	// 注册全局持久化参数
 	for _, f := range persistentFlags {
