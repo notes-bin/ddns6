@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/notes-bin/ddns6/internal/ddns"
 	"github.com/notes-bin/ddns6/internal/providers/alicloud"
 	"github.com/notes-bin/ddns6/internal/providers/baiducloud"
 	"github.com/notes-bin/ddns6/internal/providers/cloudflare"
@@ -225,7 +226,7 @@ func TestProviderHTTPErrors(t *testing.T) {
 				cloudflare.WithAPIToken("test-token"),
 				cloudflare.WithBaseURL(server.URL+"/client/v4"))
 
-			err := client.AddRecord(context.Background(), "test.example.com", "AAAA", "2001:db8::1", 600)
+			err := client.AddRecord(context.Background(), ddns.RecordInfo{Name: "test.example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600})
 			if tt.shouldFail && err == nil {
 				t.Errorf("expected error for status %d, got nil", tt.statusCode)
 			}
@@ -247,7 +248,7 @@ func TestDNSPodAPIError(t *testing.T) {
 
 	client := dnspod.NewClient("test-token", dnspod.WithBaseURL(server.URL))
 
-	err := client.AddRecord(context.Background(), "test.example.com", "AAAA", "2001:db8::1", 600)
+	err := client.AddRecord(context.Background(), ddns.RecordInfo{Name: "test.example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600})
 	if err == nil {
 		t.Fatal("expected error for invalid token, got nil")
 	}
@@ -386,7 +387,7 @@ func TestPorkbunFullFlow(t *testing.T) {
 		t.Errorf("expected 1 record, got %d", len(records))
 	}
 
-	err = client.ModifyRecord(context.Background(), "test.example.com", "rec1", "AAAA", "2001:db8::2", 600)
+	err = client.ModifyRecord(context.Background(), ddns.RecordInfo{Name: "test.example.com", ID: "rec1", Type: "AAAA", Value: "2001:db8::2", TTL: 600})
 	if err != nil {
 		t.Fatalf("ModifyRecord failed: %v", err)
 	}
@@ -434,12 +435,12 @@ func TestDigitalOceanFullFlow(t *testing.T) {
 		t.Errorf("unexpected records: %+v", records)
 	}
 
-	err = client.ModifyRecord(context.Background(), "www.example.com", "42", "AAAA", "2001:db8::2", 600)
+	err = client.ModifyRecord(context.Background(), ddns.RecordInfo{Name: "www.example.com", ID: "42", Type: "AAAA", Value: "2001:db8::2", TTL: 600})
 	if err != nil {
 		t.Fatalf("ModifyRecord failed: %v", err)
 	}
 
-	err = client.DeleteRecord(context.Background(), "www.example.com", "42")
+	err = client.DeleteRecord(context.Background(), ddns.RecordInfo{Name: "www.example.com", ID: "42"})
 	if err != nil {
 		t.Fatalf("DeleteRecord failed: %v", err)
 	}
@@ -466,7 +467,7 @@ func TestContextTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	err := client.AddRecord(ctx, "test.example.com", "AAAA", "2001:db8::1", 600)
+	err := client.AddRecord(ctx, ddns.RecordInfo{Name: "test.example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600})
 	if err == nil {
 		t.Fatal("expected timeout error, got nil")
 	}
@@ -487,7 +488,7 @@ func TestContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := client.AddRecord(ctx, "test.example.com", "AAAA", "2001:db8::1", 600)
+	err := client.AddRecord(ctx, ddns.RecordInfo{Name: "test.example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600})
 	if err == nil {
 		t.Fatal("expected cancellation error, got nil")
 	}

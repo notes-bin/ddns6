@@ -4,13 +4,12 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"sync"
-	"fmt"
 	"testing"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
-	"github.com/notes-bin/ddns6/internal/providers"
 )
 
 // ============================================================
@@ -23,10 +22,10 @@ import (
 //   - 多子域名同步
 // ============================================================
 
-// mockProvider 实现 providers.DNSProvider 接口
+// mockProvider 实现 ddns.DNSProvider 接口
 type mockProvider struct {
 	mu            sync.Mutex
-	records       []providers.RecordInfo
+	records       []ddns.RecordInfo
 	addCalls      int
 	modifyCalls   int
 	deleteCalls   int
@@ -43,7 +42,7 @@ func newMockProvider() *mockProvider {
 	return &mockProvider{}
 }
 
-func (m *mockProvider) AddRecord(ctx context.Context, domain, recordType, value string, ttl int) error {
+func (m *mockProvider) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.addCalls++
@@ -51,19 +50,19 @@ func (m *mockProvider) AddRecord(ctx context.Context, domain, recordType, value 
 		return fmt.Errorf("mock add error")
 	}
 	if m.addRecordHook != nil {
-		m.addRecordHook(domain, recordType, value)
+		m.addRecordHook(record.Name, record.Type, record.Value)
 	}
-	m.records = append(m.records, providers.RecordInfo{
-		ID:    "new-" + domain,
-		Name:  domain,
-		Type:  recordType,
-		Value: value,
-		TTL:   ttl,
+	m.records = append(m.records, ddns.RecordInfo{
+		ID:    "new-" + record.Name,
+		Name:  record.Name,
+		Type:  record.Type,
+		Value: record.Value,
+		TTL:   record.TTL,
 	})
 	return nil
 }
 
-func (m *mockProvider) ModifyRecord(ctx context.Context, domain, recordID, recordType, value string, ttl int) error {
+func (m *mockProvider) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.modifyCalls++
@@ -71,18 +70,18 @@ func (m *mockProvider) ModifyRecord(ctx context.Context, domain, recordID, recor
 		return fmt.Errorf("mock modify error")
 	}
 	if m.modifyHook != nil {
-		m.modifyHook(recordID, value)
+		m.modifyHook(record.ID, record.Value)
 	}
 	for i := range m.records {
-		if m.records[i].ID == recordID {
-			m.records[i].Value = value
+		if m.records[i].ID == record.ID {
+			m.records[i].Value = record.Value
 			break
 		}
 	}
 	return nil
 }
 
-func (m *mockProvider) DeleteRecord(ctx context.Context, domain, recordID string) error {
+func (m *mockProvider) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.deleteCalls++
@@ -90,7 +89,7 @@ func (m *mockProvider) DeleteRecord(ctx context.Context, domain, recordID string
 		return fmt.Errorf("mock delete error")
 	}
 	for i := range m.records {
-		if m.records[i].ID == recordID {
+		if m.records[i].ID == record.ID {
 			m.records = append(m.records[:i], m.records[i+1:]...)
 			break
 		}
@@ -98,7 +97,7 @@ func (m *mockProvider) DeleteRecord(ctx context.Context, domain, recordID string
 	return nil
 }
 
-func (m *mockProvider) GetRecords(ctx context.Context, domain, recordType string) ([]providers.RecordInfo, error) {
+func (m *mockProvider) GetRecords(ctx context.Context, domain, recordType string) ([]ddns.RecordInfo, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.queryCalls++
@@ -106,14 +105,14 @@ func (m *mockProvider) GetRecords(ctx context.Context, domain, recordType string
 		return nil, fmt.Errorf("mock query error")
 	}
 	// 返回所有匹配的记录
-	var result []providers.RecordInfo
+	var result []ddns.RecordInfo
 	for _, r := range m.records {
 		if r.Type == recordType {
 			result = append(result, r)
 		}
 	}
 	if result == nil {
-		return []providers.RecordInfo{}, nil
+		return []ddns.RecordInfo{}, nil
 	}
 	return result, nil
 }
@@ -123,7 +122,7 @@ func TestSyncIPUnchanged(t *testing.T) {
 	mock := newMockProvider()
 	ip := net.ParseIP("2001:db8::1")
 
-	d := &providers.Domain{
+	d := &ddns.Domain{
 		Domain:    "example.com",
 		SubDomain: "www",
 		Type:      "AAAA",
@@ -148,14 +147,14 @@ func TestSyncIPChanged(t *testing.T) {
 	mock := newMockProvider()
 
 	// 预先存在一条记录
-	mock.records = []providers.RecordInfo{
+	mock.records = []ddns.RecordInfo{
 		{ID: "rec1", Name: "www.example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600},
 	}
 
 	oldIP := net.ParseIP("2001:db8::1") // 缓存的旧 IP
 	newIP := net.ParseIP("2001:db8::2") // 当前新 IP
 
-	d := &providers.Domain{
+	d := &ddns.Domain{
 		Domain:    "example.com",
 		SubDomain: "www",
 		Type:      "AAAA",
@@ -186,7 +185,7 @@ func TestSyncNoExistingRecord(t *testing.T) {
 	mock := newMockProvider()
 	ip := net.ParseIP("2001:db8::1")
 
-	d := &providers.Domain{
+	d := &ddns.Domain{
 		Domain:    "example.com",
 		SubDomain: "www",
 		Type:      "AAAA",
@@ -218,7 +217,7 @@ func TestSyncMultipleDomains(t *testing.T) {
 	mock := newMockProvider()
 	ip := net.ParseIP("2001:db8::1")
 
-	domains := []*providers.Domain{
+	domains := []*ddns.Domain{
 		{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600},
 		{Domain: "example.com", SubDomain: "@", Type: "AAAA", TTL: 600},
 		{Domain: "example.com", SubDomain: "api", Type: "AAAA", TTL: 600},
@@ -241,7 +240,7 @@ func TestSyncConcurrent(t *testing.T) {
 	mock := newMockProvider()
 	ip := net.ParseIP("2001:db8::1")
 
-	domains := []*providers.Domain{
+	domains := []*ddns.Domain{
 		{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600},
 		{Domain: "example.com", SubDomain: "api", Type: "AAAA", TTL: 600},
 		{Domain: "example.com", SubDomain: "mail", Type: "AAAA", TTL: 600},
@@ -250,7 +249,7 @@ func TestSyncConcurrent(t *testing.T) {
 	var wg sync.WaitGroup
 	for _, d := range domains {
 		wg.Add(1)
-		go func(dom *providers.Domain) {
+		go func(dom *ddns.Domain) {
 			defer wg.Done()
 			if err := ddns.SyncRecord(context.Background(), dom, ip, mock); err != nil {
 				t.Errorf("SyncRecord failed for %s: %v", dom.SubDomain, err)
@@ -271,7 +270,7 @@ func TestSyncContextCancel(t *testing.T) {
 	mock := newMockProvider()
 	ip := net.ParseIP("2001:db8::1")
 
-	d := &providers.Domain{
+	d := &ddns.Domain{
 		Domain:    "example.com",
 		SubDomain: "www",
 		Type:      "AAAA",

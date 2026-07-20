@@ -94,7 +94,7 @@ type DNSRecord struct {
 	Type    string `json:"type"`
 	Name    string `json:"name"`
 	Content string `json:"content"`
-	TTL     int    `json:"record.TTL,omitempty"`
+	TTL     int    `json:"ttl,omitempty"`
 }
 
 // APIResponse represents a standard Cloudflare API response
