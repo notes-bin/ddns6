@@ -27,11 +27,12 @@ const (
 )
 
 // DNSRecord 表示 Tencent Cloud DNS 记录
+// 注意：Tencent API v20210323 中 RecordId 为数字类型
 type DNSRecord struct {
 	DomainId     int    `json:"DomainId,omitempty"`
 	Domain       string `json:"Domain,omitempty"`
 	SubDomain    string `json:"SubDomain,omitempty"`
-	RecordId     string `json:"RecordId,omitempty"`
+	RecordId     int    `json:"RecordId,omitempty"`
 	RecordType   string `json:"RecordType,omitempty"`
 	RecordLine   string `json:"RecordLine,omitempty"`
 	RecordLineId string `json:"RecordLineId,omitempty"`
@@ -41,7 +42,7 @@ type DNSRecord struct {
 
 // Response API 响应
 type Response struct {
-	RecordId  string `json:"RecordId"`
+	RecordId  int    `json:"RecordId"`
 	RequestId string `json:"RequestId"`
 }
 
@@ -135,10 +136,15 @@ func (ds *DNSPod) ModifyRecord(ctx context.Context, record ddns.RecordInfo) erro
 		return fmt.Errorf("failed to get root domain: %v", err)
 	}
 
-	payload := DNSRecord{
-		Domain:     domain,
-		SubDomain:  subDomain,
-		RecordId:   record.ID,
+	recordId, err := strconv.Atoi(record.ID)
+	if err != nil {
+		return fmt.Errorf("invalid record ID %q: %v", record.ID, err)
+	}
+
+		payload := DNSRecord{
+			Domain:     domain,
+			SubDomain:  subDomain,
+			RecordId:   recordId,
 		RecordType: record.Type,
 		RecordLine: "默认",
 		Value:      record.Value,
@@ -164,7 +170,12 @@ func (ds *DNSPod) DeleteRecord(ctx context.Context, record ddns.RecordInfo) erro
 		return fmt.Errorf("failed to get root domain: %v", err)
 	}
 
-	payload := DNSRecord{Domain: domain, RecordId: record.ID}
+	recordId, err := strconv.Atoi(record.ID)
+	if err != nil {
+		return fmt.Errorf("invalid record ID %q: %v", record.ID, err)
+	}
+
+	payload := DNSRecord{Domain: domain, RecordId: recordId}
 	response := new(Response)
 	err = ds.makeRequest(ctx, "DeleteRecord", payload, response)
 	if err != nil {
@@ -191,7 +202,7 @@ func (ds *DNSPod) GetRecords(ctx context.Context, fulldomain, recordType string)
 			continue
 		}
 		result = append(result, ddns.RecordInfo{
-			ID:    r.RecordId,
+			ID:    strconv.Itoa(r.RecordId),
 			Name:  r.SubDomain,
 			Type:  r.RecordType,
 			Value: r.Value,
@@ -208,7 +219,12 @@ func (ds *DNSPod) GetDomainRecord(ctx context.Context, fulldomain, recordId stri
 		return nil, fmt.Errorf("failed to get root domain: %v", err)
 	}
 
-	payload := DNSRecord{Domain: domain, RecordId: recordId}
+	recordID, err := strconv.Atoi(recordId)
+	if err != nil {
+		return nil, fmt.Errorf("invalid record ID %q: %v", recordId, err)
+	}
+
+	payload := DNSRecord{Domain: domain, RecordId: recordID}
 
 	var response struct {
 		RecordInfo DNSRecord `json:"RecordInfo"`
@@ -313,8 +329,21 @@ func (ds *DNSPod) getDomainList(ctx context.Context) ([]domainListItem, error) {
 	var resp struct {
 		DomainList []domainListItem `json:"DomainList"`
 	}
-	if err := ds.makeRequest(ctx, "DescribeDomainList", payload, &resp); err != nil {
+	err := ds.makeRequest(ctx, "DescribeDomainList", payload, &resp)
+	if err != nil {
+		log.Warn("DescribeDomainList failed, will fall back to domain probing", "err", err)
 		return nil, err
+	}
+
+	// 记录账户下的域名列表
+	if len(resp.DomainList) == 0 {
+		log.Warn("DescribeDomainList returned empty domain list")
+	} else {
+		names := make([]string, 0, len(resp.DomainList))
+		for _, d := range resp.DomainList {
+			names = append(names, d.Name)
+		}
+		log.Info("DescribeDomainList - domains in account", "domains", names)
 	}
 
 	return resp.DomainList, nil

@@ -24,7 +24,7 @@ func TestAddRecord(t *testing.T) {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"Response": {"RecordId": "123456"}}`))
+		w.Write([]byte(`{"Response": {"RecordId": 123456}}`))
 	}))
 	defer ts.Close()
 
@@ -83,7 +83,7 @@ func TestGetRecords(t *testing.T) {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"Response": {"Domain": "example.com", "RecordList": [{"RecordId": "123456", "Domain": "example.com", "SubDomain": "test", "RecordType": "A", "Value": "192.168.1.1", "TTL": 600}]}}`))
+		w.Write([]byte(`{"Response": {"Domain": "example.com", "RecordList": [{"RecordId": 123456, "Domain": "example.com", "SubDomain": "test", "RecordType": "A", "Value": "192.168.1.1", "TTL": 600}]}}`))
 	}))
 	defer ts.Close()
 
@@ -106,7 +106,7 @@ func TestGetDomainRecord(t *testing.T) {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"Response": {"RecordInfo": {"RecordId": "123456", "Domain": "example.com", "SubDomain": "test", "RecordType": "A", "Value": "192.168.1.1", "TTL": 600}}}`))
+		w.Write([]byte(`{"Response": {"RecordInfo": {"RecordId": 123456, "Domain": "example.com", "SubDomain": "test", "RecordType": "A", "Value": "192.168.1.1", "TTL": 600}}}`))
 	}))
 	defer ts.Close()
 
@@ -117,7 +117,7 @@ func TestGetDomainRecord(t *testing.T) {
 		t.Fatalf("GetDomainRecord failed: %v", err)
 	}
 
-	if record.RecordId != "123456" {
-		t.Errorf("Expected record ID 123456, got %s", record.RecordId)
+	if record.RecordId != 123456 {
+		t.Errorf("Expected record ID 123456, got %d", record.RecordId)
 	}
 }
