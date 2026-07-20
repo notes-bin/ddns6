@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/url"
 	"sort"
@@ -17,7 +18,6 @@ import (
 
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
-
 
 // AliDNSClient 阿里云 DNS API 客户端
 type AliDNSClient struct {
@@ -234,9 +234,7 @@ func (c *AliDNSClient) makeRequest(ctx context.Context, params map[string]string
 
 	// 复制参数避免污染调用方 map
 	reqParams := make(map[string]string, len(params)+8)
-	for k, v := range params {
-		reqParams[k] = v
-	}
+	maps.Copy(reqParams, params)
 	reqParams["Format"] = "JSON"
 	reqParams["Version"] = "2015-01-09"
 	reqParams["AccessKeyId"] = c.AccessKeyId
