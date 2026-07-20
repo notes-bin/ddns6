@@ -26,9 +26,9 @@ import (
 // 每次触发同步时，会随机打乱此列表后逐个尝试，取第一个成功的结果。
 // 包含 HTTP 和 DNS 两种获取方式，互为备份。
 var DefaultIPv6Fetchers = []ipaddr.IPv6Fetcher{
-	ipaddr.NewHttpIPv6Fetcher("6.ipw.cn"),
-	ipaddr.NewHttpIPv6Fetcher("ifconfig.co"),
-	ipaddr.NewHttpIPv6Fetcher("v6.ident.me"),
+	ipaddr.NewHttpIPv6Fetcher("https://6.ipw.cn"),
+	ipaddr.NewHttpIPv6Fetcher("https://ifconfig.co"),
+	ipaddr.NewHttpIPv6Fetcher("https://v6.ident.me"),
 	ipaddr.NewDnsFetcher("2402:4e00::"),
 	ipaddr.NewDnsFetcher("2400:3200:baba::1"),
 	ipaddr.NewDnsFetcher("2001:4860:4860::8888"),
