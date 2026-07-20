@@ -189,13 +189,13 @@ interval: 10m
 
 ### `ddns6 version`
 
-显示版本、Git 提交和构建时间。
+显示版本、Git 提交和构建时间。也可用 `ddns6 -V` 或 `ddns6 --version`。
 
 ```bash
 ./bin/ddns6 version
-# → Version: 1.0.0
-# → Commit: abc1234
-# → buildAt: 2026-07-19T10:00:00Z
+# → Version: 0.0.173
+# → Commit:  abc1234
+# → BuildAt: 2026-07-19T10:00:00Z
 ```
 
 ### `ddns6 help [command]`
@@ -217,6 +217,7 @@ interval: 10m
 | `--interval` | duration | `5m` | 非 Linux 平台轮询间隔 |
 | `--interface` | string | — | 监听的网络接口（仅 Linux）|
 | `--ttl` | int | `600` | DNS 记录 TTL（秒）|
+| `-V, --version` | bool | `false` | 显示版本、Git 提交、构建时间 |
 | `--debug` | bool | `false` | 开启调试日志 |
 
 ---
@@ -265,7 +266,7 @@ RunService(domains, p, interval, fetchers, iface)
 │            [防抖] 10 秒等待窗口，每次新事件重置
 │                 │     ← PPPoE 重拨时可能连续触发多个事件
 │                 ▼
-│            GetIPv6Addr(fetchers...)     ← 随机顺序，逐个尝试
+│            GetIPv6Addr(fetchers...)     ← 随机顺序，并发竞速
 │                 │
 │                 ▼
 │            循环 for _, d := range domains:
@@ -281,9 +282,9 @@ RunService(domains, p, interval, fetchers, iface)
 
 ### IP 获取策略
 
-每次触发时，**随机打乱** fetchers 列表后逐个尝试，分散负载：
+每次触发时，**随机打乱** fetchers 顺序后并发请求，首个成功即返回：
 
-1. HTTP 端点（6.ipw.cn、ifconfig.co、v6.ident.me）
+1. HTTP 端点（https://6.ipw.cn、https://ifconfig.co、https://v6.ident.me）
 2. DNS 直连（2402:4e00::、2400:3200:baba::1、Google DNS、Cloudflare DNS）
 
 首个成功即返回，全部失败则跳过本次同步。
