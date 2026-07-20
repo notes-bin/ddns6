@@ -28,6 +28,8 @@ type V3Request struct {
 	SecurityToken string
 	// Method HTTP 方法（GET / POST / PUT / DELETE）
 	Method string
+	// Scheme 协议 scheme，默认为 "https"
+	Scheme string
 	// Host API 端点主机名（如 alidns.aliyuncs.com）
 	Host string
 	// Path 请求路径，默认为 "/"
@@ -114,7 +116,10 @@ func SignV3(ctx context.Context, req *V3Request) (*http.Request, error) {
 	headers["Authorization"] = authorization
 
 	// === 6. 创建 HTTP 请求 ===
-	scheme := "https"
+	scheme := req.Scheme
+	if scheme == "" {
+		scheme = "https"
+	}
 	rawURL := fmt.Sprintf("%s://%s%s", scheme, req.Host, canonicalURI)
 	if canonicalQueryString != "" {
 		rawURL = fmt.Sprintf("%s?%s", rawURL, canonicalQueryString)
@@ -129,6 +134,8 @@ func SignV3(ctx context.Context, req *V3Request) (*http.Request, error) {
 	for k, v := range headers {
 		httpReq.Header.Set(k, v)
 	}
+	// Go 的 net/http 忽略 Header.Set("Host", ...)，需显式设置 Host 字段
+	httpReq.Host = req.Host
 
 	// 设置请求体
 	if len(req.Body) > 0 {

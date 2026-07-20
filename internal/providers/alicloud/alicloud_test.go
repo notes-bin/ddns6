@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
@@ -121,5 +122,46 @@ func TestMakeRequest(t *testing.T) {
 	_, err := client.makeV1Request(ctx, map[string]string{"Action": "TestAction"})
 	if err != nil {
 		t.Errorf("makeV1Request failed: %v", err)
+	}
+}
+
+func TestMakeV3Request(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 验证 V3 签名头存在
+		if r.Header.Get("Authorization") == "" {
+			t.Error("missing Authorization header")
+		}
+		if !strings.Contains(r.Header.Get("Authorization"), "ACS3-HMAC-SHA256") {
+			t.Error("Authorization header should use ACS3-HMAC-SHA256")
+		}
+		if r.Header.Get("x-acs-action") != "TestAction" {
+			t.Errorf("x-acs-action = %q, want TestAction", r.Header.Get("x-acs-action"))
+		}
+		if r.Header.Get("x-acs-version") != "2015-01-09" {
+			t.Errorf("x-acs-version = %q, want 2015-01-09", r.Header.Get("x-acs-version"))
+		}
+		if r.Header.Get("x-acs-date") == "" {
+			t.Error("missing x-acs-date header")
+		}
+		if r.Header.Get("x-acs-content-sha256") == "" {
+			t.Error("missing x-acs-content-sha256 header")
+		}
+		if r.Header.Get("x-acs-signature-nonce") == "" {
+			t.Error("missing x-acs-signature-nonce header")
+		}
+		if r.Host == "" {
+			t.Error("missing host header")
+		}
+
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"RequestId": "test-request-id"}`))
+	}))
+	defer ts.Close()
+
+	client := NewClient("test-key", "test-secret", WithBaseURL(ts.URL))
+
+	_, err := client.makeV3Request(ctx, map[string]string{"Action": "TestAction"})
+	if err != nil {
+		t.Errorf("makeV3Request failed: %v", err)
 	}
 }

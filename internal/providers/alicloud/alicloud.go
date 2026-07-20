@@ -348,6 +348,7 @@ func (c *AliDNSClient) makeV3Request(ctx context.Context, params map[string]stri
 		AccessKeyId:     c.AccessKeyId,
 		AccessKeySecret: c.AccessKeySecret,
 		Method:          "GET",
+		Scheme:          u.Scheme,
 		Host:            u.Host,
 		Path:            u.Path,
 		QueryParams:     queryParams,
