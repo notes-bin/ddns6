@@ -13,9 +13,16 @@ import (
 
 var ctx = context.Background()
 
+// domainListResponse 用于 DescribeDomainList 的 mock 响应
+const domainListResponse = `{"Response": {"DomainList": [{"DomainId": 1, "Name": "example.com"}]}}`
+
 func TestAddRecord(t *testing.T) {
 	// 创建测试服务器
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-TC-Action") == "DescribeDomainList" {
+			w.Write([]byte(domainListResponse))
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"Response": {"RecordId": "123456"}}`))
 	}))
@@ -33,6 +40,10 @@ func TestAddRecord(t *testing.T) {
 
 func TestModifyRecord(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-TC-Action") == "DescribeDomainList" {
+			w.Write([]byte(domainListResponse))
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"Response": {"RequestId": "req-123"}}`))
 	}))
@@ -48,6 +59,10 @@ func TestModifyRecord(t *testing.T) {
 
 func TestDeleteRecord(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-TC-Action") == "DescribeDomainList" {
+			w.Write([]byte(domainListResponse))
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"Response": {"RequestId": "req-123"}}`))
 	}))
@@ -63,8 +78,12 @@ func TestDeleteRecord(t *testing.T) {
 
 func TestGetRecords(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-TC-Action") == "DescribeDomainList" {
+			w.Write([]byte(domainListResponse))
+			return
+		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"Response": {"RecordList": [{"RecordId": "123456", "Domain": "example.com", "SubDomain": "test", "RecordType": "A", "Value": "192.168.1.1", "TTL": 600}]}}`))
+		w.Write([]byte(`{"Response": {"Domain": "example.com", "RecordList": [{"RecordId": "123456", "Domain": "example.com", "SubDomain": "test", "RecordType": "A", "Value": "192.168.1.1", "TTL": 600}]}}`))
 	}))
 	defer ts.Close()
 
@@ -72,16 +91,20 @@ func TestGetRecords(t *testing.T) {
 
 	records, err := client.GetRecords(ctx, "test.example.com", "A")
 	if err != nil {
-		t.Errorf("GetRecords failed: %v", err)
+		t.Fatalf("GetRecords failed: %v", err)
 	}
 
 	if len(records) != 1 {
-		t.Errorf("Expected 1 record, got %d", len(records))
+		t.Fatalf("Expected 1 record, got %d", len(records))
 	}
 }
 
 func TestGetDomainRecord(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-TC-Action") == "DescribeDomainList" {
+			w.Write([]byte(domainListResponse))
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"Response": {"RecordInfo": {"RecordId": "123456", "Domain": "example.com", "SubDomain": "test", "RecordType": "A", "Value": "192.168.1.1", "TTL": 600}}}`))
 	}))
@@ -91,7 +114,7 @@ func TestGetDomainRecord(t *testing.T) {
 
 	record, err := client.GetDomainRecord(ctx, "test.example.com", "123456")
 	if err != nil {
-		t.Errorf("GetDomainRecord failed: %v", err)
+		t.Fatalf("GetDomainRecord failed: %v", err)
 	}
 
 	if record.RecordId != "123456" {

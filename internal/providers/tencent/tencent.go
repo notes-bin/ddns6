@@ -45,6 +45,12 @@ type Response struct {
 	RequestId string `json:"RequestId"`
 }
 
+// domainListItem DescribeDomainList 返回的域名列表项
+type domainListItem struct {
+	DomainId int    `json:"DomainId"`
+	Name     string `json:"Name"`
+}
+
 // DNSPod Tencent Cloud DNS 服务客户端
 type DNSPod struct {
 	secretId  string
@@ -218,22 +224,48 @@ func (ds *DNSPod) GetDomainRecord(ctx context.Context, fulldomain, recordId stri
 
 // getRootDomain 从域名中提取根域名和子域名
 func (ds *DNSPod) getRootDomain(ctx context.Context, domain string) (string, string, error) {
+	// 优先通过 DescribeDomainList 获取域名列表，直接从列表匹配
+	// 比逐一探测更可靠，且避免 InvalidParameter.DomainInvalid 问题
+	domains, err := ds.getDomainList(ctx)
+	if err == nil {
+		for _, d := range domains {
+			if d.Name == domain {
+				log.Info("Tencent root domain found (exact match)", "root", domain)
+				return domain, "@", nil
+			}
+			if strings.HasSuffix(domain, "."+d.Name) {
+				root := d.Name
+				subDomain := strings.TrimSuffix(domain, "."+root)
+				log.Info("Tencent root domain found", "root", root, "subdomain", subDomain)
+				return root, subDomain, nil
+			}
+		}
+
+		// 域名不在列表中，给出明确提示
+		domainNames := make([]string, 0, len(domains))
+		for _, d := range domains {
+			domainNames = append(domainNames, d.Name)
+		}
+		return "", "", fmt.Errorf("domain %q not found in account, available domains: %v; please add it in Tencent Cloud DNSPod console", domain, domainNames)
+	}
+
+	// DescribeDomainList 失败时回退到原有探测逻辑
+	log.Warn("DescribeDomainList failed, falling back to probing", "err", err)
 	parts := strings.Split(domain, ".")
 	for i := 1; i < len(parts); i++ {
 		h := strings.Join(parts[i:], ".")
 		log.Debug("probing Tencent root domain", "domain", h)
 
-		// 验证是否为有效域名
 		_, err := ds.describeRecords(ctx, h, "@")
 		if err == nil {
 			subDomain := strings.Join(parts[:i], ".")
-			log.Info("Tencent root domain found", "root", h, "subdomain", subDomain)
+			log.Info("Tencent root domain found (probe)", "root", h, "subdomain", subDomain)
 			return h, subDomain, nil
 		}
 	}
 
-	// 兜底：完整域名即为根域名，使用 @ 表示记录主机名
-	_, err := ds.describeRecords(ctx, domain, "@")
+	// 兜底：完整域名即为根域名
+	_, err = ds.describeRecords(ctx, domain, "@")
 	if err == nil {
 		return domain, "@", nil
 	}
@@ -246,6 +278,7 @@ func (ds *DNSPod) describeRecords(ctx context.Context, domain, subDomain string)
 	log.Debug("querying Tencent DNS records", "domain", domain, "subdomain", subDomain)
 
 	payload := map[string]any{"Domain": domain, "Limit": 3000}
+	log.Debug("DescribeRecordList payload", "json", fmt.Sprintf("%v", payload))
 
 	var response struct {
 		RecordList []DNSRecord `json:"RecordList"`
@@ -268,6 +301,23 @@ func (ds *DNSPod) describeRecords(ctx context.Context, domain, subDomain string)
 		}
 	}
 	return filtered, nil
+}
+
+// getDomainList 获取账户下所有域名列表（用于 getRootDomain 查询）
+func (ds *DNSPod) getDomainList(ctx context.Context) ([]domainListItem, error) {
+	payload := map[string]any{
+		"Type":  "ALL",
+		"Limit": 3000,
+	}
+
+	var resp struct {
+		DomainList []domainListItem `json:"DomainList"`
+	}
+	if err := ds.makeRequest(ctx, "DescribeDomainList", payload, &resp); err != nil {
+		return nil, err
+	}
+
+	return resp.DomainList, nil
 }
 
 // makeRequest 执行Authenticated请求到Tencent Cloud API
