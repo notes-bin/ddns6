@@ -62,7 +62,12 @@ func NewDNSPod(secretId, secretKey string, options ...Option) *DNSPod {
 		secretId:  secretId,
 		secretKey: secretKey,
 		apiURL:    "https://dnspod.tencentcloudapi.com",
-		Client:    &http.Client{Timeout: 30 * time.Second},
+		Client: &http.Client{
+			Timeout: 30 * time.Second,
+			Transport: &http.Transport{
+				ForceAttemptHTTP2: false,
+			},
+		},
 	}
 
 	for _, option := range options {
@@ -287,8 +292,8 @@ func (ds *DNSPod) makeRequest(ctx context.Context, action string, payload any, r
 	}
 
 	// 设置请求头
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Host", req.URL.Host)
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	req.Host = req.URL.Host
 	req.Header.Set("Authorization", signature)
 	req.Header.Set("X-TC-Version", version)
 	req.Header.Set("X-TC-Timestamp", strconv.FormatInt(timestamp, 10))
@@ -372,7 +377,7 @@ func (ds *DNSPod) generateSignatureV3(service, action, payload string, timestamp
 	// 构造规范请求
 	canonicalURI := "/"
 	canonicalQuery := ""
-	canonicalHeaders := fmt.Sprintf("content-type:application/json\nhost:%s\nx-tc-action:%s\n", domain, strings.ToLower(action))
+	canonicalHeaders := fmt.Sprintf("content-type:application/json; charset=utf-8\nhost:%s\nx-tc-action:%s\n", domain, strings.ToLower(action))
 	signedHeaders := "content-type;host;x-tc-action"
 	hashedPayload := sha256Hex(payload)
 	canonicalRequest := fmt.Sprintf("POST\n%s\n%s\n%s\n%s\n%s", canonicalURI, canonicalQuery, canonicalHeaders, signedHeaders, hashedPayload)
