@@ -390,9 +390,11 @@ func initRootCmd() {
 func Execute() error {
 	initRootCmd()
 	if err := rootCmd.Execute(); err != nil {
-		// 未知子命令（如 ddns6 config）友好提示后 graceful exit，不视为错误
-		if strings.Contains(err.Error(), "unknown command") {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		errStr := err.Error()
+		// 未知命令、无效 flag、参数错误等用户侧错误，显示帮助后优雅退出
+		if strings.Contains(errStr, "unknown") || strings.Contains(errStr, "flag") {
+			fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
+			rootCmd.Help()
 			return nil
 		}
 		return fmt.Errorf("Command failed: %w", err)
