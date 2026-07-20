@@ -17,8 +17,6 @@ import (
 	"github.com/notes-bin/ddns6/pkg/domainutil"
 )
 
-var log = slog.With("module", "digitalocean")
-
 const (
 	defaultBaseURL = "https://api.digitalocean.com/v2"
 )
@@ -88,7 +86,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	}
 
 	url := fmt.Sprintf("%s/domains/%s/records", c.baseURL, domain)
-	log.Debug("adding DigitalOcean DNS record", "domain", domain, "type", record.Type)
+	slog.Debug("adding DigitalOcean DNS record", "module", "digitalocean", "domain", domain, "type", record.Type)
 
 	respBody, err := c.doRequest(ctx, http.MethodPost, url, body)
 	if err != nil {
@@ -98,7 +96,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	// DigitalOcean 返回 201 Created 或 200 OK
 	_ = respBody // 响应体不需要解析
 
-	log.Info("DigitalOcean DNS record added successfully", "domain", domain, "type", record.Type, "ipv6", record.Value)
+	slog.Info("DigitalOcean DNS record added successfully", "module", "digitalocean", "domain", domain, "type", record.Type, "ipv6", record.Value)
 	return nil
 }
 
@@ -118,14 +116,14 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	}
 
 	url := fmt.Sprintf("%s/domains/%s/records/%s", c.baseURL, domain, record.ID)
-	log.Debug("modifying DigitalOcean DNS record", "domain", domain, "record_id", record.ID)
+	slog.Debug("modifying DigitalOcean DNS record", "module", "digitalocean", "domain", domain, "record_id", record.ID)
 
 	_, err = c.doRequest(ctx, http.MethodPut, url, body)
 	if err != nil {
 		return err
 	}
 
-	log.Info("DigitalOcean DNS record modified successfully", "domain", domain, "record_id", record.ID, "ipv6", record.Value)
+	slog.Info("DigitalOcean DNS record modified successfully", "module", "digitalocean", "domain", domain, "record_id", record.ID, "ipv6", record.Value)
 	return nil
 }
 
@@ -134,14 +132,14 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	domain, _ := domainutil.SplitDomain(record.Name)
 
 	url := fmt.Sprintf("%s/domains/%s/records/%s", c.baseURL, domain, record.ID)
-	log.Debug("deleting DigitalOcean DNS record", "domain", domain, "record_id", record.ID)
+	slog.Debug("deleting DigitalOcean DNS record", "module", "digitalocean", "domain", domain, "record_id", record.ID)
 
 	_, err := c.doRequest(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return err
 	}
 
-	log.Info("DigitalOcean DNS record deleted successfully", "domain", domain, "record_id", record.ID)
+	slog.Info("DigitalOcean DNS record deleted successfully", "module", "digitalocean", "domain", domain, "record_id", record.ID)
 	return nil
 }
 
@@ -150,7 +148,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	domain, _ := domainutil.SplitDomain(fulldomain)
 
 	url := fmt.Sprintf("%s/domains/%s/records?per_page=200", c.baseURL, domain)
-	log.Debug("querying DigitalOcean DNS records", "domain", domain, "type", recordType)
+	slog.Debug("querying DigitalOcean DNS records", "module", "digitalocean", "domain", domain, "type", recordType)
 
 	respBody, err := c.doRequest(ctx, http.MethodGet, url, nil)
 	if err != nil {

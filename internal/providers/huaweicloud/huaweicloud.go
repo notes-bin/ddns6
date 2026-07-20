@@ -19,8 +19,6 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-var log = slog.With("module", "huaweicloud")
-
 const (
 	defaultBaseURL = "https://dns.myhuaweicloud.com"
 )
@@ -101,14 +99,14 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	}
 
 	url := c.baseURL + "/v2.1/zones/" + zoneID + "/recordsets"
-	log.Debug("adding HuaweiCloud DNS record", "zone", zoneID, "domain", record.Name, "type", record.Type)
+	slog.Debug("adding HuaweiCloud DNS record", "module", "huaweicloud", "zone", zoneID, "domain", record.Name, "type", record.Type)
 
 	_, err = c.request(ctx, http.MethodPost, url, payload)
 	if err != nil {
 		return err
 	}
 
-	log.Info("HuaweiCloud DNS record added successfully", "zone", zoneID, "name", record.Name, "ipv6", record.Value)
+	slog.Info("HuaweiCloud DNS record added successfully", "module", "huaweicloud", "zone", zoneID, "name", record.Name, "ipv6", record.Value)
 	return nil
 }
 
@@ -127,14 +125,14 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	}
 
 	url := c.baseURL + "/v2.1/zones/" + zoneID + "/recordsets/" + record.ID
-	log.Debug("modifying HuaweiCloud DNS record", "zone", zoneID, "record_id", record.ID)
+	slog.Debug("modifying HuaweiCloud DNS record", "module", "huaweicloud", "zone", zoneID, "record_id", record.ID)
 
 	_, err = c.request(ctx, http.MethodPut, url, payload)
 	if err != nil {
 		return err
 	}
 
-	log.Info("HuaweiCloud DNS record modified successfully", "zone", zoneID, "record_id", record.ID, "ipv6", record.Value)
+	slog.Info("HuaweiCloud DNS record modified successfully", "module", "huaweicloud", "zone", zoneID, "record_id", record.ID, "ipv6", record.Value)
 	return nil
 }
 
@@ -146,14 +144,14 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	}
 
 	url := c.baseURL + "/v2.1/zones/" + zoneID + "/recordsets/" + record.ID
-	log.Debug("deleting HuaweiCloud DNS record", "zone", zoneID, "record_id", record.ID)
+	slog.Debug("deleting HuaweiCloud DNS record", "module", "huaweicloud", "zone", zoneID, "record_id", record.ID)
 
 	_, err = c.request(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return err
 	}
 
-	log.Info("HuaweiCloud DNS record deleted successfully", "zone", zoneID, "record_id", record.ID)
+	slog.Info("HuaweiCloud DNS record deleted successfully", "module", "huaweicloud", "zone", zoneID, "record_id", record.ID)
 	return nil
 }
 
@@ -226,7 +224,7 @@ func (c *Client) getZoneID(ctx context.Context, domain string) (string, error) {
 	parts := strings.Split(domain, ".")
 	for i := 1; i < len(parts); i++ {
 		h := strings.Join(parts[i:], ".")
-		log.Debug("looking up HuaweiCloud zone", "domain", h)
+		slog.Debug("looking up HuaweiCloud zone", "module", "huaweicloud", "domain", h)
 
 		reqURL := c.baseURL + "/v2/zones?name=" + url.QueryEscape(h)
 
@@ -243,7 +241,8 @@ func (c *Client) getZoneID(ctx context.Context, domain string) (string, error) {
 
 		for _, zone := range result.Zones {
 			if zone.Name == h+"." {
-				log.Info("HuaweiCloud zone found",
+				slog.Info("HuaweiCloud zone found",
+					"module", "huaweicloud",
 					"zone", h, "zone_id", zone.ID)
 				return zone.ID, nil
 			}
@@ -261,7 +260,8 @@ func (c *Client) getZoneID(ctx context.Context, domain string) (string, error) {
 	if err := c.requestRaw(ctx, http.MethodGet, reqURL, &result); err == nil {
 		for _, zone := range result.Zones {
 			if zone.Name == domain+"." {
-				log.Info("HuaweiCloud zone found (fallback)",
+				slog.Info("HuaweiCloud zone found (fallback)",
+					"module", "huaweicloud",
 					"zone", domain, "zone_id", zone.ID)
 				return zone.ID, nil
 			}

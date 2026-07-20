@@ -18,7 +18,6 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-var log = slog.With("module", "alicloud")
 
 // AliDNSClient 阿里云 DNS API 客户端
 type AliDNSClient struct {
@@ -193,7 +192,7 @@ func (c *AliDNSClient) getRootDomain(ctx context.Context, domain string) (string
 	parts := strings.Split(domain, ".")
 	for i := 1; i < len(parts); i++ {
 		h := strings.Join(parts[i:], ".")
-		log.Debug("probing Alibaba root domain", "domain", h)
+		slog.Debug("probing Alibaba root domain", "module", "alicloud", "domain", h)
 
 		params := map[string]string{
 			"Action":     "DescribeDomainRecords",
@@ -220,7 +219,7 @@ func (c *AliDNSClient) getRootDomain(ctx context.Context, domain string) (string
 		}
 
 		subDomain := strings.Join(parts[:i], ".")
-		log.Info("Alibaba root domain found", "root", h, "subdomain", subDomain)
+		slog.Info("Alibaba root domain found", "module", "alicloud", "root", h, "subdomain", subDomain)
 		return h, subDomain, nil
 	}
 
@@ -231,7 +230,7 @@ func (c *AliDNSClient) getRootDomain(ctx context.Context, domain string) (string
 // makeRequest performs an authenticated request to Alibaba Cloud API
 func (c *AliDNSClient) makeRequest(ctx context.Context, params map[string]string) ([]byte, error) {
 	action := params["Action"]
-	log.Debug("Alibaba Cloud API request", "action", action)
+	slog.Debug("Alibaba Cloud API request", "module", "alicloud", "action", action)
 
 	// 复制参数避免污染调用方 map
 	reqParams := make(map[string]string, len(params)+8)
@@ -277,15 +276,16 @@ func (c *AliDNSClient) makeRequest(ctx context.Context, params map[string]string
 	}
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		log.Error("Alibaba Cloud API request failed", "action", action, "err", err)
+		slog.Error("Alibaba Cloud API request failed", "module", "alicloud", "action", action, "err", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	log.Debug("Alibaba Cloud API response", "action", action, "status", resp.StatusCode)
+	slog.Debug("Alibaba Cloud API response", "module", "alicloud", "action", action, "status", resp.StatusCode)
 
 	if resp.StatusCode != http.StatusOK {
-		log.Error("Alibaba Cloud API returned error status",
+		slog.Error("Alibaba Cloud API returned error status",
+			"module", "alicloud",
 			"action", action, "status", resp.StatusCode)
 		return nil, fmt.Errorf("API request failed with status %d", resp.StatusCode)
 	}
@@ -300,7 +300,8 @@ func (c *AliDNSClient) makeRequest(ctx context.Context, params map[string]string
 		Message string `json:"Message"`
 	}
 	if err := json.Unmarshal(body, &apiError); err == nil && apiError.Message != "" {
-		log.Error("Alibaba Cloud API business error",
+		slog.Error("Alibaba Cloud API business error",
+			"module", "alicloud",
 			"action", action, "message", apiError.Message)
 		return nil, fmt.Errorf("API error: %s", apiError.Message)
 	}

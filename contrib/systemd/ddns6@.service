@@ -29,6 +29,9 @@ Wants=network-online.target
 # 以指定用户运行（%i = 实例化模板参数）
 User=%i
 
+# 显式设置 HOME，systemd 默认不设置此环境变量
+Environment=HOME=%h
+
 # 配置文件模式，从 ~/.ddns6/config.yaml 读取配置
 ExecStart=/usr/local/bin/ddns6 run
 

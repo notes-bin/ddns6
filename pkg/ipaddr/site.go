@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"time"
@@ -31,7 +32,7 @@ func (h *HttpIPv6Fetcher) Fetch(ctx context.Context) (net.IP, error) {
 		return nil, fmt.Errorf("failed to create request for %s: %w", *h, err)
 	}
 
-	log.Debug("fetching IPv6 via HTTP", "url", h.String())
+	slog.Debug("fetching IPv6 via HTTP", "module", "ipaddr", "url", h.String())
 
 	client := &http.Client{
 		Timeout: 5 * time.Second,
@@ -65,7 +66,8 @@ func (h *HttpIPv6Fetcher) Fetch(ctx context.Context) (net.IP, error) {
 	if len(respStr) > 100 {
 		respStr = respStr[:100] + "..."
 	}
-	log.Warn("HTTP response is not a valid IPv6 address",
+	slog.Warn("HTTP response is not a valid IPv6 address",
+		"module", "ipaddr",
 		"url", h.String(),
 		"response", respStr,
 	)

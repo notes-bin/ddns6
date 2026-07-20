@@ -15,8 +15,6 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-var log = slog.With("module", "duckdns")
-
 const (
 	defaultBaseURL = "https://www.duckdns.org"
 	updatePath     = "/update"
@@ -80,7 +78,8 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 // GetRecords 查询域名解析记录
 // DuckDNS 不提供记录查询 API，返回空列表
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	log.Debug("DuckDNS does not support querying records, returning empty list",
+	slog.Debug("DuckDNS does not support querying records, returning empty list",
+		"module", "duckdns",
 		"domain", fulldomain)
 	return []ddns.RecordInfo{}, nil
 }
@@ -102,7 +101,7 @@ func (c *Client) update(ctx context.Context, domain, ip string) error {
 	query.Set("verbose", "true")
 
 	reqURL := c.baseURL + updatePath + "?" + query.Encode()
-	log.Debug("updating DuckDNS record", "domain", domain, "ipv6", ip)
+	slog.Debug("updating DuckDNS record", "module", "duckdns", "domain", domain, "ipv6", ip)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
@@ -111,7 +110,7 @@ func (c *Client) update(ctx context.Context, domain, ip string) error {
 
 	resp, err := c.Do(req)
 	if err != nil {
-		log.Error("DuckDNS API request failed", "domain", domain, "err", err)
+		slog.Error("DuckDNS API request failed", "module", "duckdns", "domain", domain, "err", err)
 		return fmt.Errorf("DuckDNS request failed: %w", err)
 	}
 	defer resp.Body.Close()
@@ -123,11 +122,12 @@ func (c *Client) update(ctx context.Context, domain, ip string) error {
 
 	response := strings.TrimSpace(string(body))
 	if response == "OK" {
-		log.Info("DuckDNS record updated successfully", "domain", domain, "ipv6", ip)
+		slog.Info("DuckDNS record updated successfully", "module", "duckdns", "domain", domain, "ipv6", ip)
 		return nil
 	}
 
-	log.Error("DuckDNS API returned unexpected response",
+	slog.Error("DuckDNS API returned unexpected response",
+		"module", "duckdns",
 		"domain", domain, "response", response)
 	return fmt.Errorf("DuckDNS update failed: %s", response)
 }

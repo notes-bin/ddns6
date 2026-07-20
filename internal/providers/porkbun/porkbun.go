@@ -18,8 +18,6 @@ import (
 	"github.com/notes-bin/ddns6/pkg/domainutil"
 )
 
-var log = slog.With("module", "porkbun")
-
 const (
 	defaultBaseURL = "https://api.porkbun.com/api/json/v3/dns"
 )
@@ -90,7 +88,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	}
 
 	url := fmt.Sprintf("%s/create/%s", c.baseURL, domain)
-	log.Debug("adding Porkbun DNS record", "domain", domain, "name", subDomain, "type", record.Type)
+	slog.Debug("adding Porkbun DNS record", "module", "porkbun", "domain", domain, "name", subDomain, "type", record.Type)
 
 	var resp apiResponse
 	err := c.post(ctx, url, &dnsRecord, &resp)
@@ -101,7 +99,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		return fmt.Errorf("Porkbun API error: status %s", resp.Status)
 	}
 
-	log.Info("Porkbun DNS record added successfully", "domain", domain, "name", subDomain, "ipv6", record.Value)
+	slog.Info("Porkbun DNS record added successfully", "module", "porkbun", "domain", domain, "name", subDomain, "ipv6", record.Value)
 	return nil
 }
 
@@ -116,7 +114,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	}
 
 	url := fmt.Sprintf("%s/editByNameType/%s/%s/%s", c.baseURL, domain, record.Type, subDomain)
-	log.Debug("modifying Porkbun DNS record", "domain", domain, "name", subDomain, "type", record.Type)
+	slog.Debug("modifying Porkbun DNS record", "module", "porkbun", "domain", domain, "name", subDomain, "type", record.Type)
 
 	var resp apiResponse
 	err := c.post(ctx, url, &dnsRecord, &resp)
@@ -127,7 +125,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 		return fmt.Errorf("Porkbun API error: status %s", resp.Status)
 	}
 
-	log.Info("Porkbun DNS record modified successfully", "domain", domain, "name", subDomain, "ipv6", record.Value)
+	slog.Info("Porkbun DNS record modified successfully", "module", "porkbun", "domain", domain, "name", subDomain, "ipv6", record.Value)
 	return nil
 }
 
@@ -137,7 +135,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	domain, subDomain := splitDomain(record.Name)
 
 	url := fmt.Sprintf("%s/deleteByNameType/%s/%s/%s", c.baseURL, domain, "AAAA", subDomain)
-	log.Debug("deleting Porkbun DNS record", "domain", domain, "name", subDomain)
+	slog.Debug("deleting Porkbun DNS record", "module", "porkbun", "domain", domain, "name", subDomain)
 
 	var resp apiResponse
 	err := c.post(ctx, url, nil, &resp)
@@ -148,7 +146,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 		return fmt.Errorf("Porkbun API error: status %s", resp.Status)
 	}
 
-	log.Info("Porkbun DNS record deleted successfully", "domain", domain, "name", subDomain)
+	slog.Info("Porkbun DNS record deleted successfully", "module", "porkbun", "domain", domain, "name", subDomain)
 	return nil
 }
 
@@ -158,7 +156,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 
 	// Porkbun 的 retrieveByNameType 会按传入的记录类型和名称过滤
 	url := fmt.Sprintf("%s/retrieveByNameType/%s/%s/%s", c.baseURL, domain, recordType, subDomain)
-	log.Debug("querying Porkbun DNS records", "domain", domain, "name", subDomain, "type", recordType)
+	slog.Debug("querying Porkbun DNS records", "module", "porkbun", "domain", domain, "name", subDomain, "type", recordType)
 
 	var resp apiResponse
 	err := c.post(ctx, url, nil, &resp)

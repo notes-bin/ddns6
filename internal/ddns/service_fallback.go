@@ -4,6 +4,7 @@ package ddns
 
 import (
 	"context"
+	"log/slog"
 	"time"
 )
 
@@ -15,7 +16,8 @@ func startTrigger(ctx context.Context, interval time.Duration, _ string) <-chan 
 	triggerCh := make(chan struct{}, 1)
 
 	go func() {
-		log.Info("using polling mode",
+		slog.Info("using polling mode",
+			"module", "ddns",
 			"interval", interval,
 			"platform", "non-linux")
 

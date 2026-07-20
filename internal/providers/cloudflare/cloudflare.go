@@ -16,8 +16,6 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-var log = slog.With("module", "cloudflare")
-
 // CloudflareClient Cloudflare DNS API 客户端
 type CloudflareClient struct {
 	APIKey     string
@@ -304,7 +302,8 @@ func (c *CloudflareClient) getRecordByID(ctx context.Context, zoneID, recordID s
 
 // updateDNSRecord 更新DNS记录
 func (c *CloudflareClient) updateDNSRecord(ctx context.Context, zoneID, recordID string, record DNSRecord) (*DNSRecord, error) {
-	log.Info("updating Cloudflare DNS record",
+	slog.Info("updating Cloudflare DNS record",
+		"module", "cloudflare",
 		"record_id", recordID, "type", record.Type, "zone_id", zoneID)
 
 	url := fmt.Sprintf("%s/zones/%s/dns_records/%s", c.BaseURL, zoneID, recordID)
@@ -317,7 +316,8 @@ func (c *CloudflareClient) updateDNSRecord(ctx context.Context, zoneID, recordID
 	var result DNSRecord
 	err = c.makeRequest(ctx, "PUT", url, bytes.NewBuffer(body), &result)
 	if err != nil {
-		log.Error("failed to update Cloudflare DNS record",
+		slog.Error("failed to update Cloudflare DNS record",
+			"module", "cloudflare",
 			"record_id", recordID, "err", err)
 	}
 	return &result, err
@@ -352,7 +352,7 @@ func (c *CloudflareClient) getZoneID(ctx context.Context, domain string) (string
 
 // findZoneID searches for a zone ID by name
 func (c *CloudflareClient) findZoneID(ctx context.Context, zone string) (string, error) {
-	log.Debug("looking up Cloudflare zone", "zone", zone)
+	slog.Debug("looking up Cloudflare zone", "module", "cloudflare", "zone", zone)
 
 	query := url.Values{}
 	query.Set("name", zone)
@@ -374,7 +374,7 @@ func (c *CloudflareClient) findZoneID(ctx context.Context, zone string) (string,
 
 	for _, z := range result {
 		if z.Name == zone {
-			log.Info("Cloudflare zone found", "zone", zone, "zone_id", z.ID)
+			slog.Info("Cloudflare zone found", "module", "cloudflare", "zone", zone, "zone_id", z.ID)
 			return z.ID, nil
 		}
 	}
@@ -423,7 +423,8 @@ func (c *CloudflareClient) getTxtRecords(ctx context.Context, zoneID, name, cont
 
 // createDNSRecord creates a new DNS record
 func (c *CloudflareClient) createDNSRecord(ctx context.Context, zoneID string, record DNSRecord) (*DNSRecord, error) {
-	log.Info("creating Cloudflare DNS record",
+	slog.Info("creating Cloudflare DNS record",
+		"module", "cloudflare",
 		"type", record.Type, "name", record.Name, "zone_id", zoneID)
 
 	url := fmt.Sprintf("%s/zones/%s/dns_records", c.BaseURL, zoneID)
@@ -436,7 +437,8 @@ func (c *CloudflareClient) createDNSRecord(ctx context.Context, zoneID string, r
 	var result DNSRecord
 	err = c.makeRequest(ctx, "POST", url, bytes.NewBuffer(body), &result)
 	if err != nil {
-		log.Error("failed to create Cloudflare DNS record",
+		slog.Error("failed to create Cloudflare DNS record",
+			"module", "cloudflare",
 			"type", record.Type, "name", record.Name, "err", err)
 	}
 	return &result, err
@@ -444,19 +446,19 @@ func (c *CloudflareClient) createDNSRecord(ctx context.Context, zoneID string, r
 
 // deleteDNSRecord deletes a DNS record
 func (c *CloudflareClient) deleteDNSRecord(ctx context.Context, zoneID, recordID string) error {
-	log.Info("deleting Cloudflare DNS record", "record_id", recordID, "zone_id", zoneID)
+	slog.Info("deleting Cloudflare DNS record", "module", "cloudflare", "record_id", recordID, "zone_id", zoneID)
 
 	url := fmt.Sprintf("%s/zones/%s/dns_records/%s", c.BaseURL, zoneID, recordID)
 	err := c.makeRequest(ctx, "DELETE", url, nil, nil)
 	if err != nil {
-		log.Error("failed to delete Cloudflare DNS record", "record_id", recordID, "err", err)
+		slog.Error("failed to delete Cloudflare DNS record", "module", "cloudflare", "record_id", recordID, "err", err)
 	}
 	return err
 }
 
 // makeRequest performs an HTTP request to the Cloudflare API
 func (c *CloudflareClient) makeRequest(ctx context.Context, method, url string, body io.Reader, result interface{}) error {
-	log.Debug("Cloudflare API request", "method", method, "url", url)
+	slog.Debug("Cloudflare API request", "module", "cloudflare", "method", method, "url", url)
 
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
@@ -473,18 +475,19 @@ func (c *CloudflareClient) makeRequest(ctx context.Context, method, url string, 
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		log.Error("Cloudflare API request failed", "method", method, "url", url, "err", err)
+		slog.Error("Cloudflare API request failed", "module", "cloudflare", "method", method, "url", url, "err", err)
 		return err
 	}
 	defer resp.Body.Close()
 
-	log.Debug("Cloudflare API response", "method", method, "status", resp.StatusCode)
+	slog.Debug("Cloudflare API response", "module", "cloudflare", "method", method, "status", resp.StatusCode)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		var apiResp APIResponse
 		if err := json.NewDecoder(resp.Body).Decode(&apiResp); err == nil {
 			if len(apiResp.Errors) > 0 {
-				log.Error("Cloudflare API returned error",
+				slog.Error("Cloudflare API returned error",
+					"module", "cloudflare",
 					"method", method, "status", resp.StatusCode,
 					"code", apiResp.Errors[0].Code,
 					"message", apiResp.Errors[0].Message)
@@ -503,7 +506,8 @@ func (c *CloudflareClient) makeRequest(ctx context.Context, method, url string, 
 
 		if !apiResp.Success {
 			if len(apiResp.Errors) > 0 {
-				log.Error("Cloudflare API operation failed",
+				slog.Error("Cloudflare API operation failed",
+					"module", "cloudflare",
 					"method", method, "message", apiResp.Errors[0].Message)
 				return fmt.Errorf("Cloudflare API error: %s", apiResp.Errors[0].Message)
 			}

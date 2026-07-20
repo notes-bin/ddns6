@@ -23,7 +23,7 @@
 //
 // 使用方式：
 //   - 临时运行: ddns6 run tencent --domain example.com --subdomain www --secret-id xxx --secret-key yyy
-//   - 长期运行: ddns6 init → 编辑 ~/.ddns6/config.yaml → ddns6 run
+//   - 长期运行: ddns6 init tencent --domain example.com --secret-id xxx --secret-key yyy → ddns6 run
 //   - 查看帮助: ddns6 run tencent --help
 package cmd
 
@@ -46,8 +46,6 @@ var (
 	Commit  = "none"
 	buildAt = "unknown"
 )
-
-var log = slog.With("module", "cmd")
 
 // usageTemplate 中文版 cobra 使用信息模板。
 const usageTemplate = `使用方式:
@@ -85,7 +83,7 @@ var rootCmd = &cobra.Command{
 
 快速开始:
   1. 临时测试:  ddns6 run tencent --domain example.com --subdomain www --secret-id xxx --secret-key yyy
-  2. 长期运行:  ddns6 init → 编辑 ~/.ddns6/config.yaml → ddns6 run
+  2. 配置文件:  ddns6 init tencent --domain example.com --secret-id xxx --secret-key yyy → ddns6 run
   3. 查看详情:  ddns6 run --help`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// version 命令不需要初始化日志
@@ -95,7 +93,7 @@ var rootCmd = &cobra.Command{
 
 		logFile, err := os.OpenFile("ddns6.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
-			log.Error("failed to create log file", "err", err)
+			slog.Error("failed to create log file", "err", err, "module", "cmd")
 			os.Exit(1)
 		}
 
@@ -120,8 +118,8 @@ var rootCmd = &cobra.Command{
 
 // initCmd 生成 ~/.ddns6/config.yaml 配置文件模板。
 var initCmd = &cobra.Command{
-	Use:   "init",
-	Short: "生成 ~/.ddns6/config.yaml 配置文件模板",
+	Use: "init [provider]",
+	Short:   "生成 ~/.ddns6/config.yaml 配置文件模板",
 	Long: `生成 DDNS6 配置文件模板。
 
 在用户主目录下创建 ~/.ddns6/config.yaml 文件，包含所有配置字段的
@@ -129,15 +127,19 @@ var initCmd = &cobra.Command{
 
 使用配置文件后，无需每次运行时重复输入参数。
 
-支持通过 --domain、--subdomain 等参数预填配置值，生成后无需
-再用编辑器修改对应字段。
+支持通过 --domain、--subdomain 等参数预填配置值。指定 provider
+名称和相应认证参数可直接生成完整配置，无需手动编辑。
 
 示例:
   ddns6 init                          生成配置文件模板，手动编辑
   ddns6 init --domain example.com --subdomain www --subdomain @
                                       生成模板并预填域名和子域名
+  ddns6 init tencent --domain example.com --subdomain www \\
+          --secret-id xxx --secret-key yyy
+                                      生成完整配置（含 provider 和 auth）
   vim ~/.ddns6/config.yaml           编辑配置（填入运营商和凭证）
   ddns6 run                           从配置文件读取并运行`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Println("Generating DDNS6 configuration file...")
 
@@ -168,6 +170,28 @@ var initCmd = &cobra.Command{
 			TTL:        ttl,
 			Interval:   interval,
 			Interface:  iface,
+		}
+
+		// 如果指定了 provider 名称，收集对应的认证参数
+		if len(args) > 0 {
+			provider := args[0]
+			params.Provider = provider
+
+			// 查找该 provider 的 flags 定义，收集非空的认证值
+			auth := make(map[string]string)
+			for _, p := range providerDefs {
+				if p.name == provider {
+					for _, f := range p.flags {
+						if v := getString(cmd, f.name); v != "" {
+							auth[strings.ReplaceAll(f.name, "-", "_")] = v
+						}
+					}
+					break
+				}
+			}
+			if len(auth) > 0 {
+				params.Auth = auth
+			}
 		}
 
 		if err := config.Generate(params); err != nil {
@@ -317,6 +341,18 @@ func initRootCmd() {
 	initCmd.Flags().Int("ttl", 0, "DNS 记录 TTL, 单位秒, 预填入配置文件")
 	initCmd.Flags().String("interval", "", "轮询间隔, 如 10m, 预填入配置文件")
 	initCmd.Flags().String("interface", "", "网络接口, 预填入配置文件")
+
+	// 注册所有 provider 的认证参数到 init 命令（如 --secret-id、--api-token）
+	// 使用 map 去重，确保同一 flag 名只注册一次
+	seenInitFlag := make(map[string]bool)
+	for _, p := range providerDefs {
+		for _, f := range p.flags {
+			if !seenInitFlag[f.name] {
+				seenInitFlag[f.name] = true
+				initCmd.Flags().String(f.name, "", f.usage)
+			}
+		}
+	}
 
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(initCmd)

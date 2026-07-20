@@ -122,6 +122,8 @@ func (c *Config) GetTTL() int {
 // InitParams ddns6 init 命令的可选预填参数。
 // 空值/零值表示不预填，相应字段在配置文件中保持注释状态。
 type InitParams struct {
+	Provider   string            // DNS 运营商名称（如 tencent）
+	Auth       map[string]string // 认证凭据（如 secret_id, secret_key）
 	Domain     string
 	Subdomains []string
 	TTL        int
@@ -139,11 +141,13 @@ const configTemplate = `# DDNS6 配置文件
 # 必填：DNS 运营商名称
 # 支持: tencent, cloudflare, alicloud, godaddy, huaweicloud, duckdns,
 #       noip, he, dynv6, porkbun, digitalocean, baiducloud, dnspod
-provider: ""
+provider: "{{.Provider}}"
 
 # 必填：运营商认证凭据（不同运营商字段不同）
-# 查看各运营商所需字段请运行: ddns6 run <provider> --help
-auth: {}
+{{if .Auth}}auth:
+{{- range $k, $v := .Auth}}
+  {{$k}}: "{{$v}}"{{end}}
+{{else}}auth: {}
   # tencent 示例：
   # secret_id: "your-secret-id"
   # secret_key: "your-secret-key"
@@ -152,7 +156,7 @@ auth: {}
   # 阿里云示例：
   # access_key_id: "your-access-key-id"
   # access_key_secret: "your-access-key-secret"
-
+{{end}}
 # 必填：根域名
 domain: "{{.Domain}}"
 
@@ -214,10 +218,15 @@ func Generate(params InitParams) error {
 	}
 
 	fmt.Printf("Configuration file created at: %s\n", path)
-	if params.Domain == "" {
-		fmt.Println("Edit it with your provider details, then run: ddns6 run")
-	} else {
+	switch {
+	case params.Provider != "" && len(params.Auth) > 0:
+		fmt.Println("Configuration is complete. Run: ddns6 run")
+	case params.Provider != "":
+		fmt.Println("Set your auth credentials in the config, then run: ddns6 run")
+	case params.Domain != "":
 		fmt.Println("Set your provider and auth in the config, then run: ddns6 run")
+	default:
+		fmt.Println("Edit it with your provider details, then run: ddns6 run")
 	}
 	return nil
 }
