@@ -14,7 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/notes-bin/ddns6/internal/providers"
+	"github.com/notes-bin/ddns6/internal/ddns"
+	"github.com/notes-bin/ddns6/pkg/domainutil"
 )
 
 var log = slog.With("module", "porkbun")
@@ -78,21 +79,21 @@ type apiResponse struct {
 }
 
 // AddRecord 添加域名解析记录
-func (c *Client) AddRecord(ctx context.Context, fulldomain, recordType, value string, ttl int) error {
-	domain, subDomain := splitDomain(fulldomain)
+func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
+	domain, subDomain := splitDomain(record.Name)
 
-	record := DNSRecord{
+	dnsRecord := DNSRecord{
 		Name:    subDomain,
-		Type:    recordType,
-		Content: value,
-		TTL:     strconv.Itoa(ttl),
+		Type:    record.Type,
+		Content: record.Value,
+		TTL:     strconv.Itoa(record.TTL),
 	}
 
 	url := fmt.Sprintf("%s/create/%s", c.baseURL, domain)
-	log.Debug("adding Porkbun DNS record", "domain", domain, "name", subDomain, "type", recordType)
+	log.Debug("adding Porkbun DNS record", "domain", domain, "name", subDomain, "type", record.Type)
 
 	var resp apiResponse
-	err := c.post(ctx, url, &record, &resp)
+	err := c.post(ctx, url, &dnsRecord, &resp)
 	if err != nil {
 		return err
 	}
@@ -100,25 +101,25 @@ func (c *Client) AddRecord(ctx context.Context, fulldomain, recordType, value st
 		return fmt.Errorf("Porkbun API error: status %s", resp.Status)
 	}
 
-	log.Info("Porkbun DNS record added successfully", "domain", domain, "name", subDomain, "ipv6", value)
+	log.Info("Porkbun DNS record added successfully", "domain", domain, "name", subDomain, "ipv6", record.Value)
 	return nil
 }
 
 // ModifyRecord 修改域名解析记录
 // Porkbun 使用 editByNameType 接口按名称和类型修改记录
-func (c *Client) ModifyRecord(ctx context.Context, fulldomain, recordID, recordType, newValue string, ttl int) error {
-	domain, subDomain := splitDomain(fulldomain)
+func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
+	domain, subDomain := splitDomain(record.Name)
 
-	record := DNSRecord{
-		Content: newValue,
-		TTL:     strconv.Itoa(ttl),
+	dnsRecord := DNSRecord{
+		Content: record.Value,
+		TTL:     strconv.Itoa(record.TTL),
 	}
 
-	url := fmt.Sprintf("%s/editByNameType/%s/%s/%s", c.baseURL, domain, recordType, subDomain)
-	log.Debug("modifying Porkbun DNS record", "domain", domain, "name", subDomain, "type", recordType)
+	url := fmt.Sprintf("%s/editByNameType/%s/%s/%s", c.baseURL, domain, record.Type, subDomain)
+	log.Debug("modifying Porkbun DNS record", "domain", domain, "name", subDomain, "type", record.Type)
 
 	var resp apiResponse
-	err := c.post(ctx, url, &record, &resp)
+	err := c.post(ctx, url, &dnsRecord, &resp)
 	if err != nil {
 		return err
 	}
@@ -126,14 +127,14 @@ func (c *Client) ModifyRecord(ctx context.Context, fulldomain, recordID, recordT
 		return fmt.Errorf("Porkbun API error: status %s", resp.Status)
 	}
 
-	log.Info("Porkbun DNS record modified successfully", "domain", domain, "name", subDomain, "ipv6", newValue)
+	log.Info("Porkbun DNS record modified successfully", "domain", domain, "name", subDomain, "ipv6", record.Value)
 	return nil
 }
 
 // DeleteRecord 删除域名解析记录
 // Porkbun 使用 deleteByNameType 接口
-func (c *Client) DeleteRecord(ctx context.Context, fulldomain, recordID string) error {
-	domain, subDomain := splitDomain(fulldomain)
+func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
+	domain, subDomain := splitDomain(record.Name)
 
 	url := fmt.Sprintf("%s/deleteByNameType/%s/%s/%s", c.baseURL, domain, "AAAA", subDomain)
 	log.Debug("deleting Porkbun DNS record", "domain", domain, "name", subDomain)
@@ -152,7 +153,7 @@ func (c *Client) DeleteRecord(ctx context.Context, fulldomain, recordID string) 
 }
 
 // GetRecords 查询域名解析记录
-func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]providers.RecordInfo, error) {
+func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	domain, subDomain := splitDomain(fulldomain)
 
 	// Porkbun 的 retrieveByNameType 会按传入的记录类型和名称过滤
@@ -168,9 +169,9 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		return nil, fmt.Errorf("Porkbun API error: status %s", resp.Status)
 	}
 
-	result := make([]providers.RecordInfo, 0, len(resp.Records))
+	result := make([]ddns.RecordInfo, 0, len(resp.Records))
 	for _, r := range resp.Records {
-		result = append(result, providers.RecordInfo{
+		result = append(result, ddns.RecordInfo{
 			Name:  r.Name,
 			Type:  r.Type,
 			Value: r.Content,
@@ -232,17 +233,17 @@ func (c *Client) post(ctx context.Context, url string, record *DNSRecord, result
 
 // splitDomain 将完整域名分割为根域名和子域名
 func splitDomain(fulldomain string) (string, string) {
-	return providers.SplitDomain(fulldomain)
+	return domainutil.SplitDomain(fulldomain)
 }
 
 // parseTTL 将 Porkbun 的字符串 TTL 转换为 int，解析失败返回默认值
 func parseTTL(s string) int {
 	if s == "" {
-		return providers.DefaultTTL
+		return ddns.DefaultTTL
 	}
 	v, err := strconv.Atoi(s)
 	if err != nil {
-		return providers.DefaultTTL
+		return ddns.DefaultTTL
 	}
 	return v
 }

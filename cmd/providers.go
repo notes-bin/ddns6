@@ -9,7 +9,6 @@ import (
 
 	"github.com/notes-bin/ddns6/internal/config"
 	"github.com/notes-bin/ddns6/internal/ddns"
-	"github.com/notes-bin/ddns6/internal/providers"
 	"github.com/notes-bin/ddns6/internal/providers/alicloud"
 	"github.com/notes-bin/ddns6/internal/providers/baiducloud"
 	"github.com/notes-bin/ddns6/internal/providers/cloudflare"
@@ -37,7 +36,7 @@ type providerDef struct {
 	short string
 	flags []providerFlag
 	// run 从命令行参数创建域名列表和 DNSProvider
-	run func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error)
+	run func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error)
 }
 
 // providerDefs 所有支持的 DNS 运营商
@@ -48,7 +47,7 @@ var providerDefs = []providerDef{
 			{"secret-id", "Tencent Cloud SecretID (必填，从 https://console.cloud.tencent.com/cam 获取)"},
 			{"secret-key", "Tencent Cloud SecretKey (必填)"},
 		},
-		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
 			if err != nil {
 				return nil, nil, err
@@ -61,7 +60,7 @@ var providerDefs = []providerDef{
 		flags: []providerFlag{
 			{"api-token", "Cloudflare API Token (必填，需具有 DNS:Edit 权限)"},
 		},
-		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
 			if err != nil {
 				return nil, nil, err
@@ -75,7 +74,7 @@ var providerDefs = []providerDef{
 			{"access-key-id", "Alibaba Cloud Access Key ID (必填，从 RAM 用户获取)"},
 			{"access-key-secret", "Alibaba Cloud Access Key Secret (必填)"},
 		},
-		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
 			if err != nil {
 				return nil, nil, err
@@ -89,7 +88,7 @@ var providerDefs = []providerDef{
 			{"api-key", "GoDaddy API Key (必填，从 GoDaddy Developer Portal 获取)"},
 			{"api-secret", "GoDaddy API Secret (必填)"},
 		},
-		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
 			if err != nil {
 				return nil, nil, err
@@ -103,7 +102,7 @@ var providerDefs = []providerDef{
 			{"access-key", "Huawei Cloud Access Key (必填，从 IAM 用户获取)"},
 			{"secret-key", "Huawei Cloud Secret Key (必填)"},
 		},
-		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
 			if err != nil {
 				return nil, nil, err
@@ -116,7 +115,7 @@ var providerDefs = []providerDef{
 		flags: []providerFlag{
 			{"token", "DuckDNS API Token (必填)"},
 		},
-		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
 			if err != nil {
 				return nil, nil, err
@@ -130,7 +129,7 @@ var providerDefs = []providerDef{
 			{"username", "No-IP Username (必填)"},
 			{"password", "No-IP Password (必填)"},
 		},
-		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
 			if err != nil {
 				return nil, nil, err
@@ -143,7 +142,7 @@ var providerDefs = []providerDef{
 		flags: []providerFlag{
 			{"password", "HE DNS DDNS Key (必填，从 dns.he.net 获取)"},
 		},
-		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
 			if err != nil {
 				return nil, nil, err
@@ -156,7 +155,7 @@ var providerDefs = []providerDef{
 		flags: []providerFlag{
 			{"token", "Dynv6 API Token (必填)"},
 		},
-		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
 			if err != nil {
 				return nil, nil, err
@@ -170,7 +169,7 @@ var providerDefs = []providerDef{
 			{"api-key", "Porkbun API Key (必填)"},
 			{"api-secret", "Porkbun Secret API Key (必填)"},
 		},
-		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
 			if err != nil {
 				return nil, nil, err
@@ -183,7 +182,7 @@ var providerDefs = []providerDef{
 		flags: []providerFlag{
 			{"token", "DigitalOcean API Token (必填，需具有 write 权限)"},
 		},
-		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
 			if err != nil {
 				return nil, nil, err
@@ -197,7 +196,7 @@ var providerDefs = []providerDef{
 			{"access-key", "Baidu Cloud Access Key (必填)"},
 			{"secret-key", "Baidu Cloud Secret Key (必填)"},
 		},
-		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
 			if err != nil {
 				return nil, nil, err
@@ -210,7 +209,7 @@ var providerDefs = []providerDef{
 		flags: []providerFlag{
 			{"login-token", "DNSPod Login Token (必填，格式: ID,Token)"},
 		},
-		run: func(cmd *cobra.Command) ([]*providers.Domain, providers.DNSProvider, error) {
+		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
 			if err != nil {
 				return nil, nil, err
@@ -336,48 +335,48 @@ func startServiceFromConfig(cfg *config.Config, cmd *cobra.Command) error {
 }
 
 // ProviderFactory 根据配置创建 DNS 服务商的函数类型。
-type ProviderFactory func(cfg *config.Config) (providers.DNSProvider, error)
+type ProviderFactory func(cfg *config.Config) (ddns.DNSProvider, error)
 
 // providerFactories 所有支持的 DNS 运营商工厂函数。
 // 新增运营商时在此注册即可。
 var providerFactories = map[string]ProviderFactory{
-	"tencent": func(cfg *config.Config) (providers.DNSProvider, error) {
+	"tencent": func(cfg *config.Config) (ddns.DNSProvider, error) {
 		return tencent.NewDNSPod(cfg.Auth["secret_id"], cfg.Auth["secret_key"]), nil
 	},
-	"cloudflare": func(cfg *config.Config) (providers.DNSProvider, error) {
+	"cloudflare": func(cfg *config.Config) (ddns.DNSProvider, error) {
 		return cloudflare.NewClient(cloudflare.WithAPIToken(cfg.Auth["api_token"])), nil
 	},
-	"alicloud": func(cfg *config.Config) (providers.DNSProvider, error) {
+	"alicloud": func(cfg *config.Config) (ddns.DNSProvider, error) {
 		return alicloud.NewClient(cfg.Auth["access_key_id"], cfg.Auth["access_key_secret"]), nil
 	},
-	"godaddy": func(cfg *config.Config) (providers.DNSProvider, error) {
+	"godaddy": func(cfg *config.Config) (ddns.DNSProvider, error) {
 		return godaddy.NewClient(cfg.Auth["api_key"], cfg.Auth["api_secret"]), nil
 	},
-	"huaweicloud": func(cfg *config.Config) (providers.DNSProvider, error) {
+	"huaweicloud": func(cfg *config.Config) (ddns.DNSProvider, error) {
 		return huaweicloud.NewClient(cfg.Auth["access_key"], cfg.Auth["secret_key"]), nil
 	},
-	"duckdns": func(cfg *config.Config) (providers.DNSProvider, error) {
+	"duckdns": func(cfg *config.Config) (ddns.DNSProvider, error) {
 		return duckdns.NewClient(cfg.Auth["token"]), nil
 	},
-	"noip": func(cfg *config.Config) (providers.DNSProvider, error) {
+	"noip": func(cfg *config.Config) (ddns.DNSProvider, error) {
 		return noip.NewClient(cfg.Auth["username"], cfg.Auth["password"]), nil
 	},
-	"he": func(cfg *config.Config) (providers.DNSProvider, error) {
+	"he": func(cfg *config.Config) (ddns.DNSProvider, error) {
 		return he.NewClient(cfg.Auth["password"]), nil
 	},
-	"dynv6": func(cfg *config.Config) (providers.DNSProvider, error) {
+	"dynv6": func(cfg *config.Config) (ddns.DNSProvider, error) {
 		return dynv6.NewClient(cfg.Auth["token"]), nil
 	},
-	"porkbun": func(cfg *config.Config) (providers.DNSProvider, error) {
+	"porkbun": func(cfg *config.Config) (ddns.DNSProvider, error) {
 		return porkbun.NewClient(cfg.Auth["api_key"], cfg.Auth["api_secret"]), nil
 	},
-	"digitalocean": func(cfg *config.Config) (providers.DNSProvider, error) {
+	"digitalocean": func(cfg *config.Config) (ddns.DNSProvider, error) {
 		return digitalocean.NewClient(cfg.Auth["token"]), nil
 	},
-	"baiducloud": func(cfg *config.Config) (providers.DNSProvider, error) {
+	"baiducloud": func(cfg *config.Config) (ddns.DNSProvider, error) {
 		return baiducloud.NewClient(cfg.Auth["access_key"], cfg.Auth["secret_key"]), nil
 	},
-	"dnspod": func(cfg *config.Config) (providers.DNSProvider, error) {
+	"dnspod": func(cfg *config.Config) (ddns.DNSProvider, error) {
 		return dnspod.NewClient(cfg.Auth["login_token"]), nil
 	},
 }
@@ -392,7 +391,7 @@ var providerNames = func() []string {
 }()
 
 // createProviderFromConfig 根据配置的 provider 类型和 auth 字段创建对应的 DNS 服务商。
-func createProviderFromConfig(cfg *config.Config) (providers.DNSProvider, error) {
+func createProviderFromConfig(cfg *config.Config) (ddns.DNSProvider, error) {
 	factory, ok := providerFactories[cfg.Provider]
 	if !ok {
 		return nil, fmt.Errorf("unsupported provider: %s (supported providers: %s)", cfg.Provider, strings.Join(providerNames, ", "))
@@ -428,7 +427,7 @@ func getDuration(cmd *cobra.Command, name string) time.Duration {
 
 // createDomainConfigs 从命令行参数创建域名配置列表。
 // 每个 --subdomain 值会生成一个对应的 Domain 实例。
-func createDomainConfigs(cmd *cobra.Command) ([]*providers.Domain, error) {
+func createDomainConfigs(cmd *cobra.Command) ([]*ddns.Domain, error) {
 	domainName, err := cmd.Flags().GetString("domain")
 	if err != nil {
 		return nil, fmt.Errorf("invalid --domain flag: %w", err)
@@ -454,10 +453,10 @@ func createDomainConfigs(cmd *cobra.Command) ([]*providers.Domain, error) {
 }
 
 // buildDomains 根据根域名、子域名列表和 TTL 创建 Domain 列表。
-func buildDomains(domain string, subdomains []string, ttl int) []*providers.Domain {
-	domains := make([]*providers.Domain, len(subdomains))
+func buildDomains(domain string, subdomains []string, ttl int) []*ddns.Domain {
+	domains := make([]*ddns.Domain, len(subdomains))
 	for i, sd := range subdomains {
-		domains[i] = &providers.Domain{
+		domains[i] = &ddns.Domain{
 			Type:      "AAAA",
 			Domain:    domain,
 			SubDomain: sd,

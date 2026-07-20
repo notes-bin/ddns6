@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/notes-bin/ddns6/internal/providers"
+	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
 var log = slog.With("module", "duckdns")
@@ -61,28 +61,28 @@ func WithHTTPClient(httpClient *http.Client) Option {
 
 // AddRecord 添加或更新域名解析记录
 // DuckDNS 无独立添加接口，调用 update 覆盖设置
-func (c *Client) AddRecord(ctx context.Context, fulldomain, recordType, value string, ttl int) error {
-	return c.update(ctx, fulldomain, value)
+func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
+	return c.update(ctx, record.Name, record.Value)
 }
 
 // ModifyRecord 修改域名解析记录
 // DuckDNS 无独立修改接口，调用 update 覆盖设置
-func (c *Client) ModifyRecord(ctx context.Context, fulldomain, recordID, recordType, newValue string, ttl int) error {
-	return c.update(ctx, fulldomain, newValue)
+func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
+	return c.update(ctx, record.Name, record.Value)
 }
 
 // DeleteRecord 删除域名解析记录
 // DuckDNS 不支持删除记录，更新为空 IP 以清除
-func (c *Client) DeleteRecord(ctx context.Context, fulldomain, recordID string) error {
-	return c.update(ctx, fulldomain, "")
+func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
+	return c.update(ctx, record.Name, "")
 }
 
 // GetRecords 查询域名解析记录
 // DuckDNS 不提供记录查询 API，返回空列表
-func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]providers.RecordInfo, error) {
+func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	log.Debug("DuckDNS does not support querying records, returning empty list",
 		"domain", fulldomain)
-	return []providers.RecordInfo{}, nil
+	return []ddns.RecordInfo{}, nil
 }
 
 // update 执行 DuckDNS 的 API 更新请求

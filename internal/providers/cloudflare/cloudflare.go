@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/notes-bin/ddns6/internal/providers"
+	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
 var log = slog.With("module", "cloudflare")
@@ -94,7 +94,7 @@ type DNSRecord struct {
 	Type    string `json:"type"`
 	Name    string `json:"name"`
 	Content string `json:"content"`
-	TTL     int    `json:"ttl,omitempty"`
+	TTL     int    `json:"record.TTL,omitempty"`
 }
 
 // APIResponse represents a standard Cloudflare API response
@@ -112,13 +112,13 @@ type ErrorDetails struct {
 }
 
 // AddRecord 添加域名解析记录
-func (c *CloudflareClient) AddRecord(ctx context.Context, fulldomain, recordType, value string, ttl int) error {
-	zoneID, err := c.getZoneID(ctx, fulldomain)
+func (c *CloudflareClient) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
+	zoneID, err := c.getZoneID(ctx, record.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get zone ID: %v", err)
 	}
 
-	records, err := c.getRecords(ctx, zoneID, fulldomain, recordType, value)
+	records, err := c.getRecords(ctx, zoneID, record.Name, record.Type, record.Value)
 	if err != nil {
 		return fmt.Errorf("failed to check existing records: %v", err)
 	}
@@ -127,48 +127,48 @@ func (c *CloudflareClient) AddRecord(ctx context.Context, fulldomain, recordType
 		return nil
 	}
 
-	record := DNSRecord{
-		Type:    recordType,
-		Name:    fulldomain,
-		Content: value,
-		TTL:     ttl,
+	cfRecord := DNSRecord{
+		Type:    record.Type,
+		Name:    record.Name,
+		Content: record.Value,
+		TTL:     record.TTL,
 	}
 
-	_, err = c.createDNSRecord(ctx, zoneID, record)
+	_, err = c.createDNSRecord(ctx, zoneID, cfRecord)
 	return err
 }
 
 // ModifyRecord 修改域名解析记录
-func (c *CloudflareClient) ModifyRecord(ctx context.Context, fulldomain, recordID, recordType, newValue string, ttl int) error {
-	zoneID, err := c.getZoneID(ctx, fulldomain)
+func (c *CloudflareClient) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
+	zoneID, err := c.getZoneID(ctx, record.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get zone ID: %v", err)
 	}
 
-	record, err := c.getRecordByID(ctx, zoneID, recordID)
+	cfRecord, err := c.getRecordByID(ctx, zoneID, record.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get record: %v", err)
 	}
 
-	record.Content = newValue
-	record.TTL = ttl
+	cfRecord.Content = record.Value
+	cfRecord.TTL = record.TTL
 
-	_, err = c.updateDNSRecord(ctx, zoneID, recordID, *record)
+	_, err = c.updateDNSRecord(ctx, zoneID, cfRecord.ID, *cfRecord)
 	return err
 }
 
 // DeleteRecord 删除域名解析记录
-func (c *CloudflareClient) DeleteRecord(ctx context.Context, fulldomain, recordID string) error {
-	zoneID, err := c.getZoneID(ctx, fulldomain)
+func (c *CloudflareClient) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
+	zoneID, err := c.getZoneID(ctx, record.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get zone ID: %v", err)
 	}
 
-	return c.deleteDNSRecord(ctx, zoneID, recordID)
+	return c.deleteDNSRecord(ctx, zoneID, record.ID)
 }
 
 // GetRecords 查询域名的解析记录，返回通用 RecordInfo 列表
-func (c *CloudflareClient) GetRecords(ctx context.Context, fulldomain, recordType string) ([]providers.RecordInfo, error) {
+func (c *CloudflareClient) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	zoneID, err := c.getZoneID(ctx, fulldomain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get zone ID: %v", err)
@@ -179,9 +179,9 @@ func (c *CloudflareClient) GetRecords(ctx context.Context, fulldomain, recordTyp
 		return nil, err
 	}
 
-	result := make([]providers.RecordInfo, len(records))
+	result := make([]ddns.RecordInfo, len(records))
 	for i, r := range records {
-		result[i] = providers.RecordInfo{
+		result[i] = ddns.RecordInfo{
 			ID:    r.ID,
 			Name:  r.Name,
 			Type:  r.Type,
@@ -211,13 +211,13 @@ type resultInfo struct {
 }
 
 // getRecords 获取指定类型的记录
-func (c *CloudflareClient) getRecords(ctx context.Context, zoneID, name, recordType, content string) ([]DNSRecord, error) {
+func (c *CloudflareClient) getRecords(ctx context.Context, zoneID, name, rtype, content string) ([]DNSRecord, error) {
 	var allRecords []DNSRecord
 	page := 1
 
 	for {
 		query := url.Values{}
-		query.Set("type", recordType)
+		query.Set("type", rtype)
 		query.Set("name", name)
 		query.Set("per_page", "100")
 		query.Set("page", strconv.Itoa(page))

@@ -18,7 +18,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/notes-bin/ddns6/internal/providers"
 	"github.com/notes-bin/ddns6/pkg/ipaddr"
 )
 
@@ -57,7 +56,7 @@ var DefaultIPv6Fetchers = []ipaddr.IPv6Fetcher{
 //   - 收到 SIGINT 或 SIGTERM 后优雅关闭
 //   - 先取消正在进行的操作，再等待最多 5 秒让当前同步完成
 //   - 然后返回 nil
-func RunService(domains []*providers.Domain, p providers.DNSProvider, interval time.Duration, fetchers []ipaddr.IPv6Fetcher, iface string) error {
+func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetchers []ipaddr.IPv6Fetcher, iface string) error {
 	log.Info("starting DDNS update service",
 		"domain_count", len(domains),
 		"interval", interval,

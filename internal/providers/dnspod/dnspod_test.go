@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
 func TestClient_GetRecords(t *testing.T) {
@@ -54,7 +56,7 @@ func TestClient_AddRecord(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("12345,mytoken", WithBaseURL(server.URL))
-	err := client.AddRecord(context.Background(), "www.example.com", "AAAA", "2001:db8::1", 600)
+	err := client.AddRecord(context.Background(), ddns.RecordInfo{Name: "www.example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -72,7 +74,7 @@ func TestClient_ModifyRecord(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("12345,mytoken", WithBaseURL(server.URL))
-	err := client.ModifyRecord(context.Background(), "www.example.com", "123", "AAAA", "2001:db8::2", 600)
+	err := client.ModifyRecord(context.Background(), ddns.RecordInfo{Name: "www.example.com", ID: "123", Type: "AAAA", Value: "2001:db8::2", TTL: 600})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -90,7 +92,7 @@ func TestClient_DeleteRecord(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("12345,mytoken", WithBaseURL(server.URL))
-	err := client.DeleteRecord(context.Background(), "www.example.com", "123")
+	err := client.DeleteRecord(context.Background(), ddns.RecordInfo{Name: "www.example.com", ID: "123"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -111,14 +113,3 @@ func TestClient_ApiError(t *testing.T) {
 	}
 }
 
-func TestSplitDomain(t *testing.T) {
-	domain, sub := splitDomain("www.example.com")
-	if domain != "example.com" || sub != "www" {
-		t.Errorf("splitDomain(www.example.com) = (%s, %s), want (example.com, www)", domain, sub)
-	}
-
-	domain, sub = splitDomain("example.com")
-	if domain != "example.com" || sub != "@" {
-		t.Errorf("splitDomain(example.com) = (%s, %s), want (example.com, @)", domain, sub)
-	}
-}

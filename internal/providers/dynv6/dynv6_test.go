@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
 func TestClient_GetRecords_Zone(t *testing.T) {
@@ -88,7 +90,7 @@ func TestClient_AddRecord(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("test-token", WithBaseURL(server.URL))
-	err := client.AddRecord(context.Background(), "www.example.com", "AAAA", "2001:db8::1", 600)
+	err := client.AddRecord(context.Background(), ddns.RecordInfo{Name: "www.example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -112,7 +114,7 @@ func TestClient_ModifyRecord(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("test-token", WithBaseURL(server.URL))
-	err := client.ModifyRecord(context.Background(), "www.example.com", "rec1", "AAAA", "2001:db8::2", 600)
+	err := client.ModifyRecord(context.Background(), ddns.RecordInfo{Name: "www.example.com", ID: "rec1", Type: "AAAA", Value: "2001:db8::2", TTL: 600})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -135,7 +137,7 @@ func TestClient_DeleteRecord(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("test-token", WithBaseURL(server.URL))
-	err := client.DeleteRecord(context.Background(), "www.example.com", "rec1")
+	err := client.DeleteRecord(context.Background(), ddns.RecordInfo{Name: "www.example.com", ID: "rec1"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

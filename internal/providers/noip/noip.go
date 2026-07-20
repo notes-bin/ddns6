@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/notes-bin/ddns6/internal/providers"
+	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
 var log = slog.With("module", "noip")
@@ -62,30 +62,30 @@ func WithHTTPClient(httpClient *http.Client) Option {
 
 // AddRecord 添加或更新域名解析记录
 // No-IP 无独立添加接口，调用 update 覆盖设置
-func (c *Client) AddRecord(ctx context.Context, fulldomain, recordType, value string, ttl int) error {
-	return c.update(ctx, fulldomain, value)
+func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
+	return c.update(ctx, record.Name, record.Value)
 }
 
 // ModifyRecord 修改域名解析记录
 // No-IP 无独立修改接口，调用 update 覆盖设置
-func (c *Client) ModifyRecord(ctx context.Context, fulldomain, recordID, recordType, newValue string, ttl int) error {
-	return c.update(ctx, fulldomain, newValue)
+func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
+	return c.update(ctx, record.Name, record.Value)
 }
 
 // DeleteRecord 删除域名解析记录
 // No-IP 不支持删除记录，设为空操作
-func (c *Client) DeleteRecord(ctx context.Context, fulldomain, recordID string) error {
+func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
 	log.Debug("No-IP does not support deleting records, skipping",
-		"domain", fulldomain)
+		"domain", record.Name)
 	return nil
 }
 
 // GetRecords 查询域名解析记录
 // No-IP 不提供记录查询 API，返回空列表
-func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]providers.RecordInfo, error) {
+func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	log.Debug("No-IP does not support querying records, returning empty list",
 		"domain", fulldomain)
-	return []providers.RecordInfo{}, nil
+	return []ddns.RecordInfo{}, nil
 }
 
 // update 执行 No-IP 的 API 更新请求

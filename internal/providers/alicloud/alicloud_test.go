@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
 var ctx = context.Background()
@@ -18,7 +20,7 @@ func TestAddRecord(t *testing.T) {
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(ts.URL))
 
-	err := client.AddRecord(ctx, "test.example.com", "A", "192.168.1.1", 600)
+	err := client.AddRecord(ctx, ddns.RecordInfo{Name: "test.example.com", Type: "A", Value: "192.168.1.1", TTL: 600})
 	if err != nil {
 		t.Errorf("AddRecord failed: %v", err)
 	}
@@ -33,7 +35,7 @@ func TestModifyRecord(t *testing.T) {
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(ts.URL))
 
-	err := client.ModifyRecord(ctx, "test.example.com", "123456", "A", "192.168.1.2", 600)
+	err := client.ModifyRecord(ctx, ddns.RecordInfo{Name: "test.example.com", ID: "123456", Type: "A", Value: "192.168.1.2", TTL: 600})
 	if err != nil {
 		t.Errorf("ModifyRecord failed: %v", err)
 	}
@@ -48,7 +50,7 @@ func TestDeleteRecord(t *testing.T) {
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(ts.URL))
 
-	err := client.DeleteRecord(ctx, "test.example.com", "123456")
+	err := client.DeleteRecord(ctx, ddns.RecordInfo{Name: "test.example.com", ID: "123456"})
 	if err != nil {
 		t.Errorf("DeleteRecord failed: %v", err)
 	}

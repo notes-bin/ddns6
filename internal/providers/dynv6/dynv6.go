@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/notes-bin/ddns6/internal/providers"
+	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
 var log = slog.With("module", "dynv6")
@@ -77,29 +77,29 @@ type Record struct {
 }
 
 // AddRecord 添加域名解析记录
-func (c *Client) AddRecord(ctx context.Context, fulldomain, recordType, value string, ttl int) error {
-	zoneID, subDomain, err := c.resolveZone(ctx, fulldomain)
+func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
+	zoneID, subDomain, err := c.resolveZone(ctx, record.Name)
 	if err != nil {
 		return fmt.Errorf("failed to resolve zone: %w", err)
 	}
 
 	// 如果是主域名（无子域名），直接更新 zone 的 IPv6 地址
 	if subDomain == "" || subDomain == "@" {
-		return c.updateZoneIP(ctx, zoneID, value)
+		return c.updateZoneIP(ctx, zoneID, record.Value)
 	}
 
-	record := Record{
-		Type: recordType,
+	dnsRec := Record{
+		Type: record.Type,
 		Name: subDomain,
-		Data: value,
+		Data: record.Value,
 	}
-	body, err := json.Marshal(record)
+	body, err := json.Marshal(dnsRec)
 	if err != nil {
 		return fmt.Errorf("failed to marshal record: %w", err)
 	}
 
 	url := fmt.Sprintf("%s/api/v2/zones/%s/records", c.baseURL, zoneID)
-	log.Debug("adding Dynv6 record", "zone_id", zoneID, "name", subDomain, "type", recordType)
+	log.Debug("adding Dynv6 record", "zone_id", zoneID, "name", subDomain, "type", record.Type)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(body))
 	if err != nil {
@@ -119,30 +119,30 @@ func (c *Client) AddRecord(ctx context.Context, fulldomain, recordType, value st
 		return fmt.Errorf("Dynv6 API error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
-	log.Info("Dynv6 record added successfully", "zone_id", zoneID, "name", subDomain, "ipv6", value)
+	log.Info("Dynv6 record added successfully", "zone_id", zoneID, "name", subDomain, "ipv6", record.Value)
 	return nil
 }
 
 // ModifyRecord 修改域名解析记录
-func (c *Client) ModifyRecord(ctx context.Context, fulldomain, recordID, recordType, newValue string, ttl int) error {
-	zoneID, _, err := c.resolveZone(ctx, fulldomain)
+func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
+	zoneID, _, err := c.resolveZone(ctx, record.Name)
 	if err != nil {
 		return fmt.Errorf("failed to resolve zone: %w", err)
 	}
 
 	// PATCH 方式更新记录
-	record := Record{
-		Type: recordType,
-		Data: newValue,
-		TTL:  ttl,
+	dnsRec := Record{
+		Type: record.Type,
+		Data: record.Value,
+		TTL:  record.TTL,
 	}
-	body, err := json.Marshal(record)
+	body, err := json.Marshal(dnsRec)
 	if err != nil {
 		return fmt.Errorf("failed to marshal record: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/api/v2/zones/%s/records/%s", c.baseURL, zoneID, recordID)
-	log.Debug("modifying Dynv6 record", "zone_id", zoneID, "record_id", recordID)
+	url := fmt.Sprintf("%s/api/v2/zones/%s/records/%s", c.baseURL, zoneID, record.ID)
+	log.Debug("modifying Dynv6 record", "zone_id", zoneID, "record_id", record.ID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewBuffer(body))
 	if err != nil {
@@ -162,19 +162,19 @@ func (c *Client) ModifyRecord(ctx context.Context, fulldomain, recordID, recordT
 		return fmt.Errorf("Dynv6 API error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
-	log.Info("Dynv6 record modified successfully", "zone_id", zoneID, "record_id", recordID, "ipv6", newValue)
+	log.Info("Dynv6 record modified successfully", "zone_id", zoneID, "record_id", record.ID, "ipv6", record.Value)
 	return nil
 }
 
 // DeleteRecord 删除域名解析记录
-func (c *Client) DeleteRecord(ctx context.Context, fulldomain, recordID string) error {
-	zoneID, _, err := c.resolveZone(ctx, fulldomain)
+func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
+	zoneID, _, err := c.resolveZone(ctx, record.Name)
 	if err != nil {
 		return fmt.Errorf("failed to resolve zone: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/api/v2/zones/%s/records/%s", c.baseURL, zoneID, recordID)
-	log.Debug("deleting Dynv6 record", "zone_id", zoneID, "record_id", recordID)
+	url := fmt.Sprintf("%s/api/v2/zones/%s/records/%s", c.baseURL, zoneID, record.ID)
+	log.Debug("deleting Dynv6 record", "zone_id", zoneID, "record_id", record.ID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
@@ -193,12 +193,12 @@ func (c *Client) DeleteRecord(ctx context.Context, fulldomain, recordID string) 
 		return fmt.Errorf("Dynv6 API error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
-	log.Info("Dynv6 record deleted successfully", "zone_id", zoneID, "record_id", recordID)
+	log.Info("Dynv6 record deleted successfully", "zone_id", zoneID, "record_id", record.ID)
 	return nil
 }
 
 // GetRecords 查询域名解析记录
-func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]providers.RecordInfo, error) {
+func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	zoneID, subDomain, err := c.resolveZone(ctx, fulldomain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve zone: %w", err)
@@ -211,11 +211,11 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 			return nil, err
 		}
 		if zone.IPv6 != "" {
-			return []providers.RecordInfo{
+			return []ddns.RecordInfo{
 				{ID: zoneID, Name: zone.Name, Type: "AAAA", Value: zone.IPv6},
 			}, nil
 		}
-		return []providers.RecordInfo{}, nil
+		return []ddns.RecordInfo{}, nil
 	}
 
 	// 子域名：查询 records
@@ -242,12 +242,12 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	result := make([]providers.RecordInfo, 0, len(records))
+	result := make([]ddns.RecordInfo, 0, len(records))
 	for _, r := range records {
 		if recordType != "" && r.Type != recordType {
 			continue
 		}
-		result = append(result, providers.RecordInfo{
+		result = append(result, ddns.RecordInfo{
 			ID:    r.ID,
 			Name:  r.Name,
 			Type:  r.Type,

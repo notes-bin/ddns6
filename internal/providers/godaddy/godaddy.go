@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/notes-bin/ddns6/internal/providers"
+	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
 var log = slog.With("module", "godaddy")
@@ -65,52 +65,52 @@ type DNSRecord struct {
 }
 
 // AddRecord 添加域名解析记录
-func (c *GoDaddyClient) AddRecord(ctx context.Context, fulldomain, recordType, value string, ttl int) error {
-	subDomain, domain, err := c.getRootDomain(ctx, fulldomain)
+func (c *GoDaddyClient) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
+	subDomain, domain, err := c.getRootDomain(ctx, record.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %v", err)
 	}
 
-	existingRecords, err := c.getRecords(ctx, domain, subDomain, recordType)
+	existingRecords, err := c.getRecords(ctx, domain, subDomain, record.Type)
 	if err != nil {
 		return fmt.Errorf("failed to get existing records: %v", err)
 	}
 
-	for _, record := range existingRecords {
-		if record.Data == value {
+	for _, r := range existingRecords {
+		if r.Data == record.Value {
 			return nil
 		}
 	}
 
 	newRecord := DNSRecord{
-		Data: value,
-		Type: recordType,
+		Data: record.Value,
+		Type: record.Type,
 		Name: subDomain,
-		TTL:  ttl,
+		TTL:  record.TTL,
 	}
 	newRecords := append(existingRecords, newRecord)
 
-	return c.updateRecords(ctx, domain, subDomain, recordType, newRecords)
+	return c.updateRecords(ctx, domain, subDomain, record.Type, newRecords)
 }
 
 // ModifyRecord 修改域名解析记录
-func (c *GoDaddyClient) ModifyRecord(ctx context.Context, fulldomain, recordID, recordType, value string, ttl int) error {
-	subDomain, domain, err := c.getRootDomain(ctx, fulldomain)
+func (c *GoDaddyClient) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
+	subDomain, domain, err := c.getRootDomain(ctx, record.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %v", err)
 	}
 
-	existingRecords, err := c.getRecords(ctx, domain, subDomain, recordType)
+	existingRecords, err := c.getRecords(ctx, domain, subDomain, record.Type)
 	if err != nil {
 		return fmt.Errorf("failed to get existing records: %v", err)
 	}
 
-	// recordID is used as the old value to match for GoDaddy (no record ID concept)
+	// record.ID is used as the old value to match for GoDaddy (no record ID concept)
 	var modified bool
-	for i, record := range existingRecords {
-		if record.Data == recordID {
-			existingRecords[i].Data = value
-			existingRecords[i].TTL = ttl
+	for i, r := range existingRecords {
+		if r.Data == record.ID {
+			existingRecords[i].Data = record.Value
+			existingRecords[i].TTL = record.TTL
 			modified = true
 			break
 		}
@@ -120,23 +120,23 @@ func (c *GoDaddyClient) ModifyRecord(ctx context.Context, fulldomain, recordID, 
 		return fmt.Errorf("record not found")
 	}
 
-	return c.updateRecords(ctx, domain, subDomain, recordType, existingRecords)
+	return c.updateRecords(ctx, domain, subDomain, record.Type, existingRecords)
 }
 
-// DeleteRecord 删除域名解析记录，recordID 作为匹配值（GoDaddy 无 ID 概念）
-func (c *GoDaddyClient) DeleteRecord(ctx context.Context, fulldomain, recordID string) error {
-	subDomain, domain, err := c.getRootDomain(ctx, fulldomain)
+// DeleteRecord 删除域名解析记录，record.ID 作为匹配值（GoDaddy 无 ID 概念）
+func (c *GoDaddyClient) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
+	subDomain, domain, err := c.getRootDomain(ctx, record.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %v", err)
 	}
 
 	// 按值匹配删除 AAAA 记录
-	return c.deleteRecordsByValue(ctx, domain, subDomain, "AAAA", recordID)
+	return c.deleteRecordsByValue(ctx, domain, subDomain, "AAAA", record.ID)
 }
 
 // deleteRecordsByValue 根据值删除特定类型的记录
-func (c *GoDaddyClient) deleteRecordsByValue(ctx context.Context, domain, subDomain, recordType, value string) error {
-	existingRecords, err := c.getRecords(ctx, domain, subDomain, recordType)
+func (c *GoDaddyClient) deleteRecordsByValue(ctx context.Context, domain, subDomain, rtype, value string) error {
+	existingRecords, err := c.getRecords(ctx, domain, subDomain, rtype)
 	if err != nil {
 		return fmt.Errorf("failed to get existing records: %v", err)
 	}
@@ -156,14 +156,14 @@ func (c *GoDaddyClient) deleteRecordsByValue(ctx context.Context, domain, subDom
 	}
 
 	if len(newRecords) == 0 {
-		return c.deleteRecords(ctx, domain, subDomain, recordType)
+		return c.deleteRecords(ctx, domain, subDomain, rtype)
 	}
 
-	return c.updateRecords(ctx, domain, subDomain, recordType, newRecords)
+	return c.updateRecords(ctx, domain, subDomain, rtype, newRecords)
 }
 
 // GetRecords 查询域名的解析记录，返回通用 RecordInfo 列表
-func (c *GoDaddyClient) GetRecords(ctx context.Context, fulldomain, recordType string) ([]providers.RecordInfo, error) {
+func (c *GoDaddyClient) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	subDomain, domain, err := c.getRootDomain(ctx, fulldomain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root domain: %v", err)
@@ -174,9 +174,9 @@ func (c *GoDaddyClient) GetRecords(ctx context.Context, fulldomain, recordType s
 		return nil, err
 	}
 
-	result := make([]providers.RecordInfo, len(records))
+	result := make([]ddns.RecordInfo, len(records))
 	for i, r := range records {
-		result[i] = providers.RecordInfo{
+		result[i] = ddns.RecordInfo{
 			ID:    r.Data, // GoDaddy 无 ID 概念，用值作为标识
 			Name:  r.Name,
 			Type:  r.Type,
@@ -188,16 +188,16 @@ func (c *GoDaddyClient) GetRecords(ctx context.Context, fulldomain, recordType s
 }
 
 // getRecords 获取指定类型的记录
-func (c *GoDaddyClient) getRecords(ctx context.Context, domain, subDomain, recordType string) ([]DNSRecord, error) {
-	url := fmt.Sprintf("%s/domains/%s/records/%s/%s", c.BaseURL, domain, recordType, subDomain)
+func (c *GoDaddyClient) getRecords(ctx context.Context, domain, subDomain, rtype string) ([]DNSRecord, error) {
+	url := fmt.Sprintf("%s/domains/%s/records/%s/%s", c.BaseURL, domain, rtype, subDomain)
 	var records []DNSRecord
 	err := c.makeRequest(ctx, "GET", url, nil, &records)
 	return records, err
 }
 
 // updateRecords 更新记录
-func (c *GoDaddyClient) updateRecords(ctx context.Context, domain, subDomain, recordType string, records []DNSRecord) error {
-	url := fmt.Sprintf("%s/domains/%s/records/%s/%s", c.BaseURL, domain, recordType, subDomain)
+func (c *GoDaddyClient) updateRecords(ctx context.Context, domain, subDomain, rtype string, records []DNSRecord) error {
+	url := fmt.Sprintf("%s/domains/%s/records/%s/%s", c.BaseURL, domain, rtype, subDomain)
 	body, err := json.Marshal(records)
 	if err != nil {
 		return err
@@ -206,8 +206,8 @@ func (c *GoDaddyClient) updateRecords(ctx context.Context, domain, subDomain, re
 }
 
 // deleteRecords 删除所有记录
-func (c *GoDaddyClient) deleteRecords(ctx context.Context, domain, subDomain, recordType string) error {
-	url := fmt.Sprintf("%s/domains/%s/records/%s/%s", c.BaseURL, domain, recordType, subDomain)
+func (c *GoDaddyClient) deleteRecords(ctx context.Context, domain, subDomain, rtype string) error {
+	url := fmt.Sprintf("%s/domains/%s/records/%s/%s", c.BaseURL, domain, rtype, subDomain)
 	return c.makeRequest(ctx, "DELETE", url, nil, nil)
 }
 
