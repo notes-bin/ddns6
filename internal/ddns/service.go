@@ -21,8 +21,6 @@ import (
 	"github.com/notes-bin/ddns6/pkg/ipaddr"
 )
 
-var log = slog.With("module", "ddns")
-
 // DefaultIPv6Fetchers 默认的 IPv6 地址获取器列表。
 //
 // 每次触发同步时，会随机打乱此列表后逐个尝试，取第一个成功的结果。
@@ -57,7 +55,8 @@ var DefaultIPv6Fetchers = []ipaddr.IPv6Fetcher{
 //   - 先取消正在进行的操作，再等待最多 5 秒让当前同步完成
 //   - 然后返回 nil
 func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetchers []ipaddr.IPv6Fetcher, iface string) error {
-	log.Info("starting DDNS update service",
+	slog.Info("starting DDNS update service",
+		"module", "ddns",
 		"domain_count", len(domains),
 		"interval", interval,
 		"interface", iface)
@@ -72,12 +71,12 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 	// 启动时就进行一次完整的 IPv6 获取 + DNS 同步。
 	// 这样用户无需等待第一次 Netlink 事件或轮询周期。
 	// ============================================================
-	log.Info("performing initial IPv6 address fetch")
+	slog.Info("performing initial IPv6 address fetch", "module", "ddns")
 	ip, err := ipaddr.GetIPv6Addr(fetchers...)
 	if err != nil {
 		return fmt.Errorf("initial IPv6 fetch failed: %w", err)
 	}
-	log.Info("initial IPv6 address obtained", "ipv6", ip.String())
+	slog.Info("initial IPv6 address obtained", "module", "ddns", "ipv6", ip.String())
 
 	for _, d := range domains {
 		if err := SyncRecord(ctx, d, ip, p); err != nil {
@@ -101,7 +100,8 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
-	log.Info("ddns6 started successfully",
+	slog.Info("ddns6 started successfully",
+		"module", "ddns",
 		"pid", os.Getpid(),
 		"domain_count", len(domains),
 		"mode", triggerMode())
@@ -116,26 +116,27 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 			// 触发器事件：重新获取 IPv6 地址并同步所有子域名
 			ip, err := ipaddr.GetIPv6Addr(fetchers...)
 			if err != nil {
-				log.Error("failed to get IPv6 address on trigger", "err", err)
+				slog.Error("failed to get IPv6 address on trigger", "module", "ddns", "err", err)
 				continue
 			}
 			for _, d := range domains {
 				if err := SyncRecord(ctx, d, ip, p); err != nil {
-					log.Error("sync failed on trigger",
+					slog.Error("sync failed on trigger",
+						"module", "ddns",
 						"domain", d.Domain, "subdomain", d.SubDomain, "err", err)
 				}
 			}
 
 		case <-sigCh:
 			// 收到退出信号，开始优雅关闭
-			log.Info("shutdown signal received, initiating graceful shutdown...")
+			slog.Info("shutdown signal received, initiating graceful shutdown...", "module", "ddns")
 			cancel() // 取消正在进行的操作
 
 			// 给正在执行的同步操作最多 5 秒的完成时间
 			// 5 秒后无论是否完成都强制退出
 			time.Sleep(5 * time.Second)
 
-			log.Info("ddns6 stopped")
+			slog.Info("ddns6 stopped", "module", "ddns")
 			return nil
 
 		}

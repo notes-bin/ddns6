@@ -18,7 +18,7 @@ ddns6 是一个用 Go 编写的 CLI 工具，**自动检测本机 IPv6 地址变
 | **10 秒防抖** | 地址变化后等待 10 秒再更新，确保 PPPoE 重拨过程中的地址稳定性 |
 | **13 个运营商** | 腾讯云、阿里云、Cloudflare、华为云、GoDaddy、DuckDNS、No-IP、HE、Dynv6、Porkbun、DigitalOcean、百度云、DNSPod |
 | **多子域名支持** | 一次命令更新多个子域名：`--subdomain www --subdomain @ --subdomain api` |
-| **配置文件模式** | `ddns6 init` 生成配置，长期运行无需反复输入参数 |
+| **配置文件模式** | `ddns6 init [provider]` 一键生成完整配置，长期运行无需反复输入参数 |
 | **智能更新** | 仅在 IPv6 地址变化时才调用 DNS API，避免无效请求 |
 | **优雅关闭** | 收到 SIGINT/SIGTERM 后等待当前操作完成再退出（最长 5 秒） |
 
@@ -49,6 +49,22 @@ make install      # 安装到 $GOPATH/bin
 首次运行会立即获取 IPv6 地址并更新 DNS 记录。后续在 Linux 上通过 Netlink 实时监听变化，在其他平台上每 5 分钟轮询一次。
 
 ### 使用配置文件（长期运行）
+
+#### 方式一：一键生成完整配置（推荐）
+
+```bash
+# 直接生成完整配置（含 provider 和认证凭据）
+./bin/ddns6 init tencent \
+  --domain example.com \
+  --subdomain www \
+  --secret-id YOUR_SECRET_ID \
+  --secret-key YOUR_SECRET_KEY
+
+# 直接运行（从配置文件读取参数）
+./bin/ddns6 run
+```
+
+#### 方式二：生成模板后手动编辑
 
 ```bash
 # 1. 生成配置文件模板
@@ -117,15 +133,38 @@ interval: 10m
 
 ## 命令参考
 
-### `ddns6 init`
+### `ddns6 init [provider]`
 
-生成 `~/.ddns6/config.yaml` 配置文件模板。
+生成 `~/.ddns6/config.yaml` 配置文件。指定 provider 名称和认证参数可直接生成完整配置。
+
+#### 生成完整配置（含 provider 和认证凭据）
+
+```bash
+./bin/ddns6 init tencent --domain example.com --secret-id xxx --secret-key yyy
+# → Configuration file created at: /home/user/.ddns6/config.yaml
+# → Configuration is complete. Run: ddns6 run
+
+./bin/ddns6 init cloudflare --domain example.com --api-token xxx
+./bin/ddns6 init alicloud --domain example.com --access-key-id xxx --access-key-secret yyy
+```
+
+#### 生成模板后手动编辑
 
 ```bash
 ./bin/ddns6 init
 # → Configuration file created at: /home/user/.ddns6/config.yaml
 # → Edit it with your provider details, then run: ddns6 run
 ```
+
+#### 可用认证参数
+
+各 provider 的认证参数与运行模式一致，参见下方"支持的运营商"表格。例如：
+
+| Provider | 可用参数 |
+|----------|---------|
+| tencent | `--secret-id`, `--secret-key` |
+| cloudflare | `--api-token` |
+| alicloud | `--access-key-id`, `--access-key-secret` |
 
 ### `ddns6 run [provider]`
 

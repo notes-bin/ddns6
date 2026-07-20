@@ -15,6 +15,7 @@ package ddns
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"strings"
 )
@@ -23,9 +24,9 @@ import (
 func hasAddressChanged(cached net.IP, newAddr net.IP) bool {
 	changed := cached == nil || !cached.Equal(newAddr)
 	if cached == nil {
-		log.Debug("no cached address, update needed")
+		slog.Debug("no cached address, update needed", "module", "ddns")
 	} else if changed {
-		log.Debug("IPv6 address has changed",
+		slog.Debug("IPv6 address has changed", "module", "ddns",
 			"old_addr", cached.String(), "new_addr", newAddr.String())
 	}
 	return changed
@@ -99,14 +100,14 @@ func SyncRecord(ctx context.Context, d *Domain, ipv6 net.IP, p DNSProvider) erro
 	// 检查 context 是否已取消
 	select {
 	case <-ctx.Done():
-		log.Info("sync task cancelled", "domain", d.Domain, "subdomain", d.SubDomain)
+		slog.Info("sync task cancelled", "module", "ddns", "domain", d.Domain, "subdomain", d.SubDomain)
 		return ctx.Err()
 	default:
 	}
 
 	// 地址未变化则跳过，避免无效的 API 调用
 	if !hasAddressChanged(d.Addr, ipv6) {
-		log.Info("IPv6 address unchanged, skipping update",
+		slog.Info("IPv6 address unchanged, skipping update", "module", "ddns",
 			"domain", d.Domain, "subdomain", d.SubDomain)
 		return nil
 	}
@@ -127,7 +128,7 @@ func syncDNSRecord(ctx context.Context, d *Domain, p DNSProvider, addr net.IP) e
 	fqdn := d.FullDomain()
 	ipv6Str := addr.String()
 
-	log.Debug("querying existing DNS records",
+	slog.Debug("querying existing DNS records", "module", "ddns",
 		"domain", d.Domain, "subdomain", d.SubDomain,
 		"fqdn", fqdn, "type", d.Type)
 
@@ -135,13 +136,13 @@ func syncDNSRecord(ctx context.Context, d *Domain, p DNSProvider, addr net.IP) e
 	// 但有些服务商会返回整个 zone 的记录）
 	records, err := p.GetRecords(ctx, fqdn, d.Type)
 	if err != nil {
-		log.Error("failed to query records",
+		slog.Error("failed to query records", "module", "ddns",
 			"domain", d.Domain, "subdomain", d.SubDomain,
 			"ipv6", ipv6Str, "err", err)
 		return fmt.Errorf("failed to query records: %w", err)
 	}
 
-	log.Debug("DNS records query completed",
+	slog.Debug("DNS records query completed", "module", "ddns",
 		"domain", d.Domain, "subdomain", d.SubDomain,
 		"record_count", len(records))
 
@@ -155,7 +156,7 @@ func syncDNSRecord(ctx context.Context, d *Domain, p DNSProvider, addr net.IP) e
 		}
 		found = true
 
-		log.Debug("comparing DNS record values",
+		slog.Debug("comparing DNS record values", "module", "ddns",
 			"domain", d.Domain, "subdomain", d.SubDomain,
 			"existing_value", r.Value, "new_value", ipv6Str,
 			"record_id", r.ID, "record_type", r.Type)
@@ -163,7 +164,7 @@ func syncDNSRecord(ctx context.Context, d *Domain, p DNSProvider, addr net.IP) e
 		// IP 相同则更新缓存后跳过（多个 AAAA 记录时继续处理下一条）
 		if ipv6Equal(r.Value, ipv6Str) {
 			d.SetAddr(addr)
-			log.Debug("IPv6 record already matches, no update needed",
+			slog.Debug("IPv6 record already matches, no update needed", "module", "ddns",
 				"domain", d.Domain, "subdomain", d.SubDomain,
 				"record_id", r.ID)
 			continue
@@ -174,20 +175,20 @@ func syncDNSRecord(ctx context.Context, d *Domain, p DNSProvider, addr net.IP) e
 			ID: r.ID, Name: fqdn, Type: d.Type, Value: ipv6Str, TTL: d.TTL,
 		})
 		if err != nil {
-			log.Error("failed to modify record",
+			slog.Error("failed to modify record", "module", "ddns",
 				"domain", d.Domain, "subdomain", d.SubDomain,
 				"ipv6", ipv6Str, "record_id", r.ID, "err", err)
 			return fmt.Errorf("failed to modify record: %w", err)
 		}
 		d.SetAddr(addr)
-		log.Info("IPv6 address changed, record modified",
+		slog.Info("IPv6 address changed, record modified", "module", "ddns",
 			"domain", d.Domain, "subdomain", d.SubDomain,
 			"ipv6", ipv6Str, "record_id", r.ID)
 	}
 
 	// 目标子域名下无 AAAA 记录 → 新增
 	if !found {
-		log.Debug("no AAAA record found, adding new record",
+		slog.Debug("no AAAA record found, adding new record", "module", "ddns",
 			"domain", d.Domain, "subdomain", d.SubDomain,
 			"fqdn", fqdn, "ipv6", ipv6Str)
 
@@ -195,13 +196,13 @@ func syncDNSRecord(ctx context.Context, d *Domain, p DNSProvider, addr net.IP) e
 			Name: fqdn, Type: d.Type, Value: ipv6Str, TTL: d.TTL,
 		})
 		if err != nil {
-			log.Error("failed to add record",
+			slog.Error("failed to add record", "module", "ddns",
 				"domain", d.Domain, "subdomain", d.SubDomain,
 				"ipv6", ipv6Str, "err", err)
 			return fmt.Errorf("failed to add record: %w", err)
 		}
 		d.SetAddr(addr)
-		log.Info("IPv6 address changed, record added",
+		slog.Info("IPv6 address changed, record added", "module", "ddns",
 			"domain", d.Domain, "subdomain", d.SubDomain, "ipv6", ipv6Str)
 	}
 

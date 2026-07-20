@@ -14,8 +14,6 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-var log = slog.With("module", "godaddy")
-
 // GoDaddyClient GoDaddy DNS API 客户端
 type GoDaddyClient struct {
 	APIKey     string
@@ -216,12 +214,12 @@ func (c *GoDaddyClient) getRootDomain(ctx context.Context, domain string) (strin
 	parts := strings.Split(domain, ".")
 	for i := 1; i < len(parts); i++ {
 		h := strings.Join(parts[i:], ".")
-		log.Debug("probing GoDaddy root domain", "domain", h)
+		slog.Debug("probing GoDaddy root domain", "module", "godaddy", "domain", h)
 
 		_, err := c.getDomain(ctx, h)
 		if err == nil {
 			subDomain := strings.Join(parts[:i], ".")
-			log.Info("GoDaddy root domain found", "root", h, "subdomain", subDomain)
+			slog.Info("GoDaddy root domain found", "module", "godaddy", "root", h, "subdomain", subDomain)
 			return subDomain, h, nil
 		}
 	}
@@ -245,7 +243,7 @@ func (c *GoDaddyClient) getDomain(ctx context.Context, domain string) (map[strin
 
 // makeRequest performs an HTTP request to the GoDaddy API
 func (c *GoDaddyClient) makeRequest(ctx context.Context, method, url string, body io.Reader, result interface{}) error {
-	log.Debug("GoDaddy API request", "method", method, "url", url)
+	slog.Debug("GoDaddy API request", "module", "godaddy", "method", method, "url", url)
 
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
@@ -257,16 +255,17 @@ func (c *GoDaddyClient) makeRequest(ctx context.Context, method, url string, bod
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		log.Error("GoDaddy API request failed", "method", method, "url", url, "err", err)
+		slog.Error("GoDaddy API request failed", "module", "godaddy", "method", method, "url", url, "err", err)
 		return err
 	}
 	defer resp.Body.Close()
 
-	log.Debug("GoDaddy API response", "method", method, "status", resp.StatusCode)
+	slog.Debug("GoDaddy API response", "module", "godaddy", "method", method, "status", resp.StatusCode)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		log.Error("GoDaddy API returned error status",
+		slog.Error("GoDaddy API returned error status",
+			"module", "godaddy",
 			"method", method, "status", resp.StatusCode)
 		return fmt.Errorf("HTTP request failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 	}

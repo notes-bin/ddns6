@@ -20,8 +20,6 @@ import (
 	"github.com/notes-bin/ddns6/pkg/domainutil"
 )
 
-var log = slog.With("module", "baiducloud")
-
 const (
 	defaultBaseURL = "https://bcd.baidubce.com"
 )
@@ -103,14 +101,14 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	}
 
 	url := c.baseURL + "/v1/domain/resolve/add"
-	log.Debug("adding BaiduCloud DNS record", "zone", zoneName, "domain", subDomain, "type", record.Type)
+	slog.Debug("adding BaiduCloud DNS record", "module", "baiducloud", "zone", zoneName, "domain", subDomain, "type", record.Type)
 
 	_, err := c.request(ctx, http.MethodPost, url, payload)
 	if err != nil {
 		return err
 	}
 
-	log.Info("BaiduCloud DNS record added successfully", "zone", zoneName, "domain", subDomain, "ipv6", record.Value)
+	slog.Info("BaiduCloud DNS record added successfully", "module", "baiducloud", "zone", zoneName, "domain", subDomain, "ipv6", record.Value)
 	return nil
 }
 
@@ -145,21 +143,22 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	}
 
 	url := c.baseURL + "/v1/domain/resolve/edit"
-	log.Debug("modifying BaiduCloud DNS record", "zone", zoneName, "record_id", record.ID)
+	slog.Debug("modifying BaiduCloud DNS record", "module", "baiducloud", "zone", zoneName, "record_id", record.ID)
 
 	_, err := c.request(ctx, http.MethodPost, url, payload)
 	if err != nil {
 		return err
 	}
 
-	log.Info("BaiduCloud DNS record modified successfully", "zone", zoneName, "record_id", record.ID, "ipv6", record.Value)
+	slog.Info("BaiduCloud DNS record modified successfully", "module", "baiducloud", "zone", zoneName, "record_id", record.ID, "ipv6", record.Value)
 	return nil
 }
 
 // DeleteRecord 删除域名解析记录
 // 百度云 DNS API 未直接提供删除记录的接口，暂不支持
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
-	log.Warn("BaiduCloud does not support deleting records via API, skipping",
+	slog.Warn("BaiduCloud does not support deleting records via API, skipping",
+		"module", "baiducloud",
 		"domain", record.Name, "record_id", record.ID)
 	return nil
 }
@@ -175,7 +174,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	}
 
 	url := c.baseURL + "/v1/domain/resolve/list"
-	log.Debug("querying BaiduCloud DNS records", "zone", zoneName)
+	slog.Debug("querying BaiduCloud DNS records", "module", "baiducloud", "zone", zoneName)
 
 	resp, err := c.request(ctx, http.MethodPost, url, payload)
 	if err != nil {

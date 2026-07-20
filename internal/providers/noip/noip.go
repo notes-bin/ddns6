@@ -14,8 +14,6 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-var log = slog.With("module", "noip")
-
 const (
 	defaultBaseURL = "https://dynupdate.no-ip.com"
 	updatePath     = "/nic/update"
@@ -75,7 +73,8 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 // DeleteRecord 删除域名解析记录
 // No-IP 不支持删除记录，设为空操作
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
-	log.Debug("No-IP does not support deleting records, skipping",
+	slog.Debug("No-IP does not support deleting records, skipping",
+		"module", "noip",
 		"domain", record.Name)
 	return nil
 }
@@ -83,7 +82,8 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 // GetRecords 查询域名解析记录
 // No-IP 不提供记录查询 API，返回空列表
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	log.Debug("No-IP does not support querying records, returning empty list",
+	slog.Debug("No-IP does not support querying records, returning empty list",
+		"module", "noip",
 		"domain", fulldomain)
 	return []ddns.RecordInfo{}, nil
 }
@@ -96,7 +96,7 @@ func (c *Client) update(ctx context.Context, hostname, ip string) error {
 		reqURL += "&myip=" + ip
 	}
 
-	log.Debug("updating No-IP record", "hostname", hostname, "ipv6", ip)
+	slog.Debug("updating No-IP record", "module", "noip", "hostname", hostname, "ipv6", ip)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
@@ -107,7 +107,7 @@ func (c *Client) update(ctx context.Context, hostname, ip string) error {
 
 	resp, err := c.Do(req)
 	if err != nil {
-		log.Error("No-IP API request failed", "hostname", hostname, "err", err)
+		slog.Error("No-IP API request failed", "module", "noip", "hostname", hostname, "err", err)
 		return fmt.Errorf("No-IP request failed: %w", err)
 	}
 	defer resp.Body.Close()
@@ -122,10 +122,10 @@ func (c *Client) update(ctx context.Context, hostname, ip string) error {
 	// 解析响应
 	switch {
 	case strings.HasPrefix(response, "good"):
-		log.Info("No-IP record updated successfully", "hostname", hostname, "ipv6", ip)
+		slog.Info("No-IP record updated successfully", "module", "noip", "hostname", hostname, "ipv6", ip)
 		return nil
 	case strings.HasPrefix(response, "nochg"):
-		log.Debug("No-IP record unchanged", "hostname", hostname, "ipv6", ip)
+		slog.Debug("No-IP record unchanged", "module", "noip", "hostname", hostname, "ipv6", ip)
 		return nil
 	case response == "nohost":
 		return fmt.Errorf("No-IP hostname not found: %s", hostname)
@@ -136,7 +136,8 @@ func (c *Client) update(ctx context.Context, hostname, ip string) error {
 	case response == "!":
 		return fmt.Errorf("No-IP abuse detected: too many updates")
 	default:
-		log.Error("No-IP API returned unexpected response",
+		slog.Error("No-IP API returned unexpected response",
+			"module", "noip",
 			"hostname", hostname, "response", response)
 		return fmt.Errorf("No-IP update failed: %s", response)
 	}

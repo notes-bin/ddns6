@@ -7,11 +7,9 @@ import (
 	"github.com/notes-bin/ddns6/cmd"
 )
 
-var log = slog.With("module", "main")
-
 func main() {
 	if err := cmd.Execute(); err != nil {
-		log.Error("command execution failed", "err", err)
+		slog.Error("command execution failed", "err", err, "module", "main")
 		os.Exit(1)
 	}
 }

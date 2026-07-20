@@ -14,8 +14,6 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-var log = slog.With("module", "he")
-
 const (
 	defaultBaseURL = "https://dyn.dns.he.net"
 	updatePath     = "/nic/update"
@@ -73,7 +71,8 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 // DeleteRecord 删除域名解析记录
 // HE 不支持通过 DDNS API 删除记录
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
-	log.Debug("HE DNS does not support deleting records via DDNS API, skipping",
+	slog.Debug("HE DNS does not support deleting records via DDNS API, skipping",
+		"module", "he",
 		"domain", record.Name)
 	return nil
 }
@@ -81,7 +80,8 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 // GetRecords 查询域名解析记录
 // HE DDNS API 不提供记录查询接口，返回空列表
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	log.Debug("HE DNS does not support querying records via DDNS API, returning empty list",
+	slog.Debug("HE DNS does not support querying records via DDNS API, returning empty list",
+		"module", "he",
 		"domain", fulldomain)
 	return []ddns.RecordInfo{}, nil
 }
@@ -93,7 +93,7 @@ func (c *Client) update(ctx context.Context, hostname, ip string) error {
 		reqURL += "&myip=" + ip
 	}
 
-	log.Debug("updating HE DNS record", "hostname", hostname, "ipv6", ip)
+	slog.Debug("updating HE DNS record", "module", "he", "hostname", hostname, "ipv6", ip)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
@@ -105,7 +105,7 @@ func (c *Client) update(ctx context.Context, hostname, ip string) error {
 
 	resp, err := c.Do(req)
 	if err != nil {
-		log.Error("HE DNS API request failed", "hostname", hostname, "err", err)
+		slog.Error("HE DNS API request failed", "module", "he", "hostname", hostname, "err", err)
 		return fmt.Errorf("HE DNS request failed: %w", err)
 	}
 	defer resp.Body.Close()
@@ -120,10 +120,10 @@ func (c *Client) update(ctx context.Context, hostname, ip string) error {
 	// 解析响应
 	switch {
 	case strings.HasPrefix(response, "good"):
-		log.Info("HE DNS record updated successfully", "hostname", hostname, "ipv6", ip)
+		slog.Info("HE DNS record updated successfully", "module", "he", "hostname", hostname, "ipv6", ip)
 		return nil
 	case strings.HasPrefix(response, "nochg"):
-		log.Debug("HE DNS record unchanged", "hostname", hostname, "ipv6", ip)
+		slog.Debug("HE DNS record unchanged", "module", "he", "hostname", hostname, "ipv6", ip)
 		return nil
 	case response == "nohost":
 		return fmt.Errorf("HE DNS hostname not found: %s", hostname)
@@ -134,7 +134,8 @@ func (c *Client) update(ctx context.Context, hostname, ip string) error {
 	case response == "!":
 		return fmt.Errorf("HE DNS abuse detected")
 	default:
-		log.Error("HE DNS API returned unexpected response",
+		slog.Error("HE DNS API returned unexpected response",
+			"module", "he",
 			"hostname", hostname, "response", response)
 		return fmt.Errorf("HE DNS update failed: %s", response)
 	}

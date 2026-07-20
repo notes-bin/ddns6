@@ -4,6 +4,7 @@ package ddns
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"time"
 
@@ -34,29 +35,29 @@ func startTrigger(ctx context.Context, interval time.Duration, iface string) <-c
 		updates := make(chan netlink.AddrUpdate, 128)
 		if err := netlink.AddrSubscribe(updates, ctx.Done()); err != nil {
 			// Netlink 订阅失败（如权限不足），回退到定时轮询
-			log.Warn("netlink subscribe failed, falling back to polling",
-				"err", err, "fallback_interval", interval)
+			slog.Warn("netlink subscribe failed, falling back to polling",
+				"module", "ddns", "err", err, "fallback_interval", interval)
 			fallbackPolling(ctx, triggerCh, interval)
 			return
 		}
 
-		log.Info("netlink address listener started",
-			"interface", iface, "debounce", debounceDuration)
+		slog.Info("netlink address listener started",
+			"module", "ddns", "interface", iface, "debounce", debounceDuration)
 
 		// 解析目标接口索引（如果指定了接口名）
 		var targetIndex int
 		if iface != "" {
 			ifi, err := net.InterfaceByName(iface)
 			if err != nil {
-				log.Error("failed to resolve interface name, falling back to polling",
-					"interface", iface, "err", err,
+				slog.Error("failed to resolve interface name, falling back to polling",
+					"module", "ddns", "interface", iface, "err", err,
 					"fallback_interval", interval)
 				fallbackPolling(ctx, triggerCh, interval)
 				return
 			}
 			targetIndex = ifi.Index
-			log.Debug("filtering netlink events by interface",
-				"interface", iface, "index", targetIndex)
+			slog.Debug("filtering netlink events by interface",
+				"module", "ddns", "interface", iface, "index", targetIndex)
 		}
 
 		var debounceTimer *time.Timer
@@ -66,8 +67,8 @@ func startTrigger(ctx context.Context, interval time.Duration, iface string) <-c
 			select {
 			case update, ok := <-updates:
 				if !ok {
-					log.Warn("netlink update channel closed, falling back to polling",
-						"fallback_interval", interval)
+					slog.Warn("netlink update channel closed, falling back to polling",
+						"module", "ddns", "fallback_interval", interval)
 					fallbackPolling(ctx, triggerCh, interval)
 					return
 				}
@@ -112,7 +113,7 @@ func startTrigger(ctx context.Context, interval time.Duration, iface string) <-c
 					debounceTimer.Reset(debounceDuration)
 				}
 
-				evtLog := log.With(
+				evtLog := slog.With(
 					"interface_index", update.LinkIndex,
 					"addr", update.LinkAddress.IP.String(),
 				)
@@ -120,7 +121,8 @@ func startTrigger(ctx context.Context, interval time.Duration, iface string) <-c
 
 			case <-timerC:
 				// Debounce 时间到，地址已稳定 — 触发同步
-				log.Debug("debounce timer expired, triggering DNS sync")
+				slog.Debug("debounce timer expired, triggering DNS sync",
+					"module", "ddns")
 				select {
 				case triggerCh <- struct{}{}:
 				default:
@@ -129,7 +131,8 @@ func startTrigger(ctx context.Context, interval time.Duration, iface string) <-c
 				timerC = nil
 
 			case <-ctx.Done():
-				log.Debug("netlink trigger shutting down")
+				slog.Debug("netlink trigger shutting down",
+					"module", "ddns")
 				if debounceTimer != nil {
 					debounceTimer.Stop()
 				}
@@ -143,7 +146,7 @@ func startTrigger(ctx context.Context, interval time.Duration, iface string) <-c
 
 // fallbackPolling 在 Netlink 不可用时使用定时轮询。
 func fallbackPolling(ctx context.Context, triggerCh chan<- struct{}, interval time.Duration) {
-	log.Info("using polling mode as fallback", "interval", interval)
+	slog.Info("using polling mode as fallback", "module", "ddns", "interval", interval)
 	pollingLoop(ctx, triggerCh, interval)
 }
 

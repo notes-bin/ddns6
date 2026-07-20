@@ -18,8 +18,6 @@ import (
 	"github.com/notes-bin/ddns6/pkg/domainutil"
 )
 
-var log = slog.With("module", "dnspod")
-
 const (
 	defaultBaseURL = "https://dnsapi.cn"
 )
@@ -107,7 +105,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	params.Set("ttl", strconv.Itoa(record.TTL))
 
 	url := c.baseURL + "/Record.Create"
-	log.Debug("adding DNSPod record", "domain", domain, "subdomain", subDomain, "type", record.Type)
+	slog.Debug("adding DNSPod record", "module", "dnspod", "domain", domain, "subdomain", subDomain, "type", record.Type)
 
 	var resp recordResponse
 	if err := c.post(ctx, url, params, &resp); err != nil {
@@ -117,7 +115,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		return fmt.Errorf("DNSPod API error: %s (code: %s)", resp.Status.Message, resp.Status.Code)
 	}
 
-	log.Info("DNSPod record added successfully", "domain", domain, "subdomain", subDomain, "ipv6", record.Value)
+	slog.Info("DNSPod record added successfully", "module", "dnspod", "domain", domain, "subdomain", subDomain, "ipv6", record.Value)
 	return nil
 }
 
@@ -137,7 +135,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	params.Set("ttl", strconv.Itoa(record.TTL))
 
 	url := c.baseURL + "/Record.Modify"
-	log.Debug("modifying DNSPod record", "domain", domain, "record_id", record.ID)
+	slog.Debug("modifying DNSPod record", "module", "dnspod", "domain", domain, "record_id", record.ID)
 
 	var resp recordResponse
 	if err := c.post(ctx, url, params, &resp); err != nil {
@@ -147,7 +145,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 		return fmt.Errorf("DNSPod API error: %s (code: %s)", resp.Status.Message, resp.Status.Code)
 	}
 
-	log.Info("DNSPod record modified successfully", "domain", domain, "record_id", record.ID, "ipv6", record.Value)
+	slog.Info("DNSPod record modified successfully", "module", "dnspod", "domain", domain, "record_id", record.ID, "ipv6", record.Value)
 	return nil
 }
 
@@ -162,7 +160,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	params.Set("record_id", record.ID)
 
 	url := c.baseURL + "/Record.Remove"
-	log.Debug("deleting DNSPod record", "domain", domain, "record_id", record.ID)
+	slog.Debug("deleting DNSPod record", "module", "dnspod", "domain", domain, "record_id", record.ID)
 
 	var resp recordResponse
 	if err := c.post(ctx, url, params, &resp); err != nil {
@@ -172,7 +170,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 		return fmt.Errorf("DNSPod API error: %s (code: %s)", resp.Status.Message, resp.Status.Code)
 	}
 
-	log.Info("DNSPod record deleted successfully", "domain", domain, "record_id", record.ID)
+	slog.Info("DNSPod record deleted successfully", "module", "dnspod", "domain", domain, "record_id", record.ID)
 	return nil
 }
 
@@ -190,7 +188,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	}
 
 	url := c.baseURL + "/Record.List"
-	log.Debug("querying DNSPod records", "domain", domain, "subdomain", subDomain, "type", recordType)
+	slog.Debug("querying DNSPod records", "module", "dnspod", "domain", domain, "subdomain", subDomain, "type", recordType)
 
 	var resp recordListResponse
 	if err := c.post(ctx, url, params, &resp); err != nil {

@@ -16,7 +16,6 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-var log = slog.With("module", "dynv6")
 
 const (
 	defaultBaseURL = "https://dynv6.com"
@@ -99,7 +98,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	}
 
 	url := fmt.Sprintf("%s/api/v2/zones/%s/records", c.baseURL, zoneID)
-	log.Debug("adding Dynv6 record", "zone_id", zoneID, "name", subDomain, "type", record.Type)
+	slog.Debug("adding Dynv6 record", "module", "dynv6", "zone_id", zoneID, "name", subDomain, "type", record.Type)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(body))
 	if err != nil {
@@ -119,7 +118,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		return fmt.Errorf("Dynv6 API error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
-	log.Info("Dynv6 record added successfully", "zone_id", zoneID, "name", subDomain, "ipv6", record.Value)
+	slog.Info("Dynv6 record added successfully", "module", "dynv6", "zone_id", zoneID, "name", subDomain, "ipv6", record.Value)
 	return nil
 }
 
@@ -142,7 +141,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	}
 
 	url := fmt.Sprintf("%s/api/v2/zones/%s/records/%s", c.baseURL, zoneID, record.ID)
-	log.Debug("modifying Dynv6 record", "zone_id", zoneID, "record_id", record.ID)
+	slog.Debug("modifying Dynv6 record", "module", "dynv6", "zone_id", zoneID, "record_id", record.ID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewBuffer(body))
 	if err != nil {
@@ -162,7 +161,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 		return fmt.Errorf("Dynv6 API error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
-	log.Info("Dynv6 record modified successfully", "zone_id", zoneID, "record_id", record.ID, "ipv6", record.Value)
+	slog.Info("Dynv6 record modified successfully", "module", "dynv6", "zone_id", zoneID, "record_id", record.ID, "ipv6", record.Value)
 	return nil
 }
 
@@ -174,7 +173,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	}
 
 	url := fmt.Sprintf("%s/api/v2/zones/%s/records/%s", c.baseURL, zoneID, record.ID)
-	log.Debug("deleting Dynv6 record", "zone_id", zoneID, "record_id", record.ID)
+	slog.Debug("deleting Dynv6 record", "module", "dynv6", "zone_id", zoneID, "record_id", record.ID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
@@ -193,7 +192,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 		return fmt.Errorf("Dynv6 API error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
-	log.Info("Dynv6 record deleted successfully", "zone_id", zoneID, "record_id", record.ID)
+	slog.Info("Dynv6 record deleted successfully", "module", "dynv6", "zone_id", zoneID, "record_id", record.ID)
 	return nil
 }
 
@@ -293,7 +292,7 @@ func (c *Client) resolveZone(ctx context.Context, domain string) (string, string
 				if i > 0 {
 					subDomain = strings.Join(parts[:i], ".")
 				}
-				log.Debug("resolved Dynv6 zone", "zone", zoneName, "zone_id", z.ID, "subdomain", subDomain)
+				slog.Debug("resolved Dynv6 zone", "module", "dynv6", "zone", zoneName, "zone_id", z.ID, "subdomain", subDomain)
 				return z.ID, subDomain, nil
 			}
 		}
@@ -355,7 +354,7 @@ func (c *Client) updateZoneIP(ctx context.Context, zoneID, ipv6 string) error {
 		return fmt.Errorf("Dynv6 API error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
-	log.Info("Dynv6 zone IPv6 updated", "zone_id", zoneID, "ipv6", ipv6)
+	slog.Info("Dynv6 zone IPv6 updated", "module", "dynv6", "zone_id", zoneID, "ipv6", ipv6)
 	return nil
 }
 
