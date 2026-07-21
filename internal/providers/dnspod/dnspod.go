@@ -204,9 +204,15 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	result := make([]ddns.RecordInfo, 0, len(resp.Records))
 	for _, r := range resp.Records {
 		ttl, _ := strconv.Atoi(r.TTL)
+
+		// 构建完整记录名（含根域名），确保后续 DeleteRecord 能正确提取根域名
+		recordName := domain
+		if r.Name != "@" && r.Name != "" {
+			recordName = r.Name + "." + domain
+		}
 		result = append(result, ddns.RecordInfo{
 			ID:    strconv.Itoa(r.ID),
-			Name:  r.Name,
+			Name:  recordName,
 			Type:  r.Type,
 			Value: r.Value,
 			TTL:   ttl,
