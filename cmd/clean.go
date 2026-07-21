@@ -97,24 +97,36 @@ func handleClean(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
+	// 按根域名分组，每个根域名只查一次 API
+	rootGroups := make(map[string][]*ddns.Domain)
+	for _, d := range domains {
+		rootGroups[d.Domain] = append(rootGroups[d.Domain], d)
+	}
+
 	// 收集要删除的记录
 	var toDelete []ddns.RecordInfo
 	seen := make(map[string]bool)
 
-	for _, d := range domains {
-		fqdn := d.FullDomain()
-
+	for rootDomain, group := range rootGroups {
 		slog.Debug("fetching records for cleanup",
-			"module", "cmd", "domain", d.Domain, "subdomain", d.SubDomain,
-			"fqdn", fqdn, "type", recordType)
+			"module", "cmd", "root_domain", rootDomain, "type", recordType,
+			"subdomain_count", len(group))
 
-		records, err := p.GetRecords(ctx, fqdn, recordType)
+		records, err := p.GetRecords(ctx, rootDomain, recordType)
 		if err != nil {
-			return fmt.Errorf("failed to query records for %s: %w", fqdn, err)
+			return fmt.Errorf("failed to query records for %s: %w", rootDomain, err)
 		}
 
 		for _, r := range records {
-			if !recordNameMatches(r.Name, fqdn, d.SubDomain) {
+			// 匹配任意一个指定子域名即视为待删除记录
+			matched := false
+			for _, d := range group {
+				if recordNameMatches(r.Name, d.FullDomain(), d.SubDomain) {
+					matched = true
+					break
+				}
+			}
+			if !matched {
 				continue
 			}
 			if recordType != "" && r.Type != recordType {

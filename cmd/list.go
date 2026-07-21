@@ -76,27 +76,44 @@ func handleList(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider) 
 	var allRecords []ddns.RecordInfo
 	seen := make(map[string]bool) // 去重
 
+	// 按根域名分组，每个根域名只查一次 API
+	// 多个子域名共享同一根域名时（如 --subdomain test --subdomain test1），
+	// 合并查询可大幅减少 API 调用次数和 getRootDomain 的探测日志
+	rootGroups := make(map[string][]*ddns.Domain)
 	for _, d := range domains {
-		fqdn := d.FullDomain()
+		rootGroups[d.Domain] = append(rootGroups[d.Domain], d)
+	}
 
-		slog.Debug("listing DNS records",
-			"module", "cmd", "domain", d.Domain, "subdomain", d.SubDomain,
-			"fqdn", fqdn, "type", recordType)
+	for rootDomain, group := range rootGroups {
+		// 使用根域名查询，获取该域名下所有记录
+		slog.Debug("listing DNS records for root domain",
+			"module", "cmd", "root_domain", rootDomain, "type", recordType,
+			"subdomain_count", len(group))
 
-		records, err := p.GetRecords(ctx, fqdn, recordType)
+		records, err := p.GetRecords(ctx, rootDomain, recordType)
 		if err != nil {
-			return fmt.Errorf("failed to list records for %s: %w", fqdn, err)
+			return fmt.Errorf("failed to list records for %s: %w", rootDomain, err)
 		}
 
 		// 按子域名过滤 + 去重
 		for _, r := range records {
-			if filterBySubdomain && !recordNameMatches(r.Name, fqdn, d.SubDomain) {
-				continue
+			if filterBySubdomain {
+				// 匹配任意一个指定子域名即保留
+				matched := false
+				for _, d := range group {
+					if recordNameMatches(r.Name, d.FullDomain(), d.SubDomain) {
+						matched = true
+						break
+					}
+				}
+				if !matched {
+					continue
+				}
 			}
 			if recordType != "" && r.Type != recordType {
 				continue
 			}
-			// 去重（同一记录可能被多个子域名查询重复返回）
+			// 去重（同一记录可能被多次返回）
 			key := r.ID + "|" + r.Name + "|" + r.Type + "|" + r.Value
 			if seen[key] {
 				continue
