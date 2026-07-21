@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -73,54 +72,9 @@ func handleList(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider) 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	var allRecords []ddns.RecordInfo
-	seen := make(map[string]bool) // 去重
-
-	// 按根域名分组，每个根域名只查一次 API
-	// 多个子域名共享同一根域名时（如 --subdomain test --subdomain test1），
-	// 合并查询可大幅减少 API 调用次数和 getRootDomain 的探测日志
-	rootGroups := make(map[string][]*ddns.Domain)
-	for _, d := range domains {
-		rootGroups[d.Domain] = append(rootGroups[d.Domain], d)
-	}
-
-	for rootDomain, group := range rootGroups {
-		// 使用根域名查询，获取该域名下所有记录
-		slog.Debug("listing DNS records for root domain",
-			"module", "cmd", "root_domain", rootDomain, "type", recordType,
-			"subdomain_count", len(group))
-
-		records, err := p.GetRecords(ctx, rootDomain, recordType)
-		if err != nil {
-			return fmt.Errorf("failed to list records for %s: %w", rootDomain, err)
-		}
-
-		// 按子域名过滤 + 去重
-		for _, r := range records {
-			if filterBySubdomain {
-				// 匹配任意一个指定子域名即保留
-				matched := false
-				for _, d := range group {
-					if recordNameMatches(r.Name, d.FullDomain(), d.SubDomain) {
-						matched = true
-						break
-					}
-				}
-				if !matched {
-					continue
-				}
-			}
-			if recordType != "" && r.Type != recordType {
-				continue
-			}
-			// 去重（同一记录可能被多次返回）
-			key := r.ID + "|" + r.Name + "|" + r.Type + "|" + r.Value
-			if seen[key] {
-				continue
-			}
-			seen[key] = true
-			allRecords = append(allRecords, r)
-		}
+	allRecords, err := ddns.CollectMatchingRecords(ctx, p, domains, recordType, filterBySubdomain)
+	if err != nil {
+		return fmt.Errorf("failed to list records: %w", err)
 	}
 
 	// 输出
@@ -143,18 +97,9 @@ func handleList(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider) 
 
 // runListWithConfig 从 ~/.ddns6/config.yaml 加载配置并执行 list。
 func runListWithConfig(cmd *cobra.Command) error {
-	cfg, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("cannot load config: %w\n\nUse 'ddns6 init' to create a config file, or specify a provider: ddns6 list <provider> --help", err)
-	}
-
-	domains := buildDomains(cfg.Domain, cfg.Subdomains, cfg.GetTTL())
-	p, err := createProviderFromConfig(cfg)
-	if err != nil {
-		return err
-	}
-
-	return handleList(cmd, domains, p)
+	return runWithConfig(cmd, "list", func(cmd *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error {
+		return handleList(cmd, domains, p)
+	})
 }
 
 // recordTypeDesc 返回记录类型的中文描述。
@@ -178,25 +123,4 @@ func buildFilterInfo(domains []*ddns.Domain) string {
 		}
 	}
 	return strings.Join(parts, ", ")
-}
-
-// recordNameMatches 判断 DNS 记录名是否匹配目标子域名。
-//
-// 不同服务商 API 返回的记录名格式不一致，需统一处理以下格式:
-//   - 完整域名（www.example.com）
-//   - 完整域名后带点号（www.example.com.）
-//   - 仅子域名标签（www、@）
-//   - 根域名返回空字符串或 "@"
-func recordNameMatches(rName, fqdn, subDomain string) bool {
-	name := strings.TrimSuffix(rName, ".")
-	if name == fqdn {
-		return true
-	}
-	if name == subDomain {
-		return true
-	}
-	if subDomain == "@" && (name == "" || name == "@") {
-		return true
-	}
-	return false
 }

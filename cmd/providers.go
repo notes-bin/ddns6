@@ -30,17 +30,23 @@ type providerFlag struct {
 	usage string
 }
 
-// providerDef DNS 运营商命令模板
-type providerDef struct {
-	name  string
-	short string
-	flags []providerFlag
+// providerFactory DNS 运营商工厂定义
+//
+// 统一管理 CLI 模式和配置文件模式的 Provider 创建。
+// run 用于 CLI 模式（从命令行参数创建），fromConfig 用于配置文件模式。
+// 新增运营商只需在此列表中追加一个条目。
+type providerFactory struct {
+	name       string
+	short      string
+	flags      []providerFlag
 	// run 从命令行参数创建域名列表和 DNSProvider
 	run func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error)
+	// fromConfig 从配置文件创建 DNSProvider
+	fromConfig func(cfg *config.Config) (ddns.DNSProvider, error)
 }
 
-// providerDefs 所有支持的 DNS 运营商
-var providerDefs = []providerDef{
+// providerFactories 所有支持的 DNS 运营商
+var providerFactories = []providerFactory{
 	{
 		name: "tencent", short: "Tencent Cloud DNS (DNSPod API v3) — 需 --secret-id 和 --secret-key",
 		flags: []providerFlag{
@@ -54,6 +60,9 @@ var providerDefs = []providerDef{
 			}
 			return domains, tencent.NewDNSPod(getString(cmd, "secret-id"), getString(cmd, "secret-key")), nil
 		},
+		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
+			return tencent.NewDNSPod(cfg.Auth["secret_id"], cfg.Auth["secret_key"]), nil
+		},
 	},
 	{
 		name: "cloudflare", short: "Cloudflare DNS — 需 --api-token",
@@ -66,6 +75,9 @@ var providerDefs = []providerDef{
 				return nil, nil, err
 			}
 			return domains, cloudflare.NewClient(cloudflare.WithAPIToken(getString(cmd, "api-token"))), nil
+		},
+		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
+			return cloudflare.NewClient(cloudflare.WithAPIToken(cfg.Auth["api_token"])), nil
 		},
 	},
 	{
@@ -81,6 +93,9 @@ var providerDefs = []providerDef{
 			}
 			return domains, alicloud.NewClient(getString(cmd, "access-key-id"), getString(cmd, "access-key-secret")), nil
 		},
+		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
+			return alicloud.NewClient(cfg.Auth["access_key_id"], cfg.Auth["access_key_secret"]), nil
+		},
 	},
 	{
 		name: "godaddy", short: "GoDaddy DNS — 需 --api-key 和 --api-secret",
@@ -94,6 +109,9 @@ var providerDefs = []providerDef{
 				return nil, nil, err
 			}
 			return domains, godaddy.NewClient(getString(cmd, "api-key"), getString(cmd, "api-secret")), nil
+		},
+		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
+			return godaddy.NewClient(cfg.Auth["api_key"], cfg.Auth["api_secret"]), nil
 		},
 	},
 	{
@@ -109,6 +127,9 @@ var providerDefs = []providerDef{
 			}
 			return domains, huaweicloud.NewClient(getString(cmd, "access-key"), getString(cmd, "secret-key")), nil
 		},
+		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
+			return huaweicloud.NewClient(cfg.Auth["access_key"], cfg.Auth["secret_key"]), nil
+		},
 	},
 	{
 		name: "duckdns", short: "DuckDNS (free DDNS) — 需 --token",
@@ -121,6 +142,9 @@ var providerDefs = []providerDef{
 				return nil, nil, err
 			}
 			return domains, duckdns.NewClient(getString(cmd, "token")), nil
+		},
+		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
+			return duckdns.NewClient(cfg.Auth["token"]), nil
 		},
 	},
 	{
@@ -136,6 +160,9 @@ var providerDefs = []providerDef{
 			}
 			return domains, noip.NewClient(getString(cmd, "username"), getString(cmd, "password")), nil
 		},
+		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
+			return noip.NewClient(cfg.Auth["username"], cfg.Auth["password"]), nil
+		},
 	},
 	{
 		name: "he", short: "Hurricane Electric DNS (free DNS hosting) — 需 --password",
@@ -149,6 +176,9 @@ var providerDefs = []providerDef{
 			}
 			return domains, he.NewClient(getString(cmd, "password")), nil
 		},
+		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
+			return he.NewClient(cfg.Auth["password"]), nil
+		},
 	},
 	{
 		name: "dynv6", short: "Dynv6 (free IPv6 DDNS) — 需 --token",
@@ -161,6 +191,9 @@ var providerDefs = []providerDef{
 				return nil, nil, err
 			}
 			return domains, dynv6.NewClient(getString(cmd, "token")), nil
+		},
+		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
+			return dynv6.NewClient(cfg.Auth["token"]), nil
 		},
 	},
 	{
@@ -176,6 +209,9 @@ var providerDefs = []providerDef{
 			}
 			return domains, porkbun.NewClient(getString(cmd, "api-key"), getString(cmd, "api-secret")), nil
 		},
+		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
+			return porkbun.NewClient(cfg.Auth["api_key"], cfg.Auth["api_secret"]), nil
+		},
 	},
 	{
 		name: "digitalocean", short: "DigitalOcean DNS API — 需 --token",
@@ -188,6 +224,9 @@ var providerDefs = []providerDef{
 				return nil, nil, err
 			}
 			return domains, digitalocean.NewClient(getString(cmd, "token")), nil
+		},
+		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
+			return digitalocean.NewClient(cfg.Auth["token"]), nil
 		},
 	},
 	{
@@ -203,6 +242,9 @@ var providerDefs = []providerDef{
 			}
 			return domains, baiducloud.NewClient(getString(cmd, "access-key"), getString(cmd, "secret-key")), nil
 		},
+		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
+			return baiducloud.NewClient(cfg.Auth["access_key"], cfg.Auth["secret_key"]), nil
+		},
 	},
 	{
 		name: "dnspod", short: "DNSPod (legacy API) — 需 --login-token",
@@ -216,13 +258,16 @@ var providerDefs = []providerDef{
 			}
 			return domains, dnspod.NewClient(getString(cmd, "login-token")), nil
 		},
+		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
+			return dnspod.NewClient(cfg.Auth["login_token"]), nil
+		},
 	},
 }
 
 // registerProviders 注册所有 DNS 运营商子命令到 runCmd。
 func registerProviders() {
-	for i := range providerDefs {
-		p := &providerDefs[i]
+	for i := range providerFactories {
+		p := &providerFactories[i]
 		cmd := &cobra.Command{
 			Use:   p.name,
 			Short: p.short,
@@ -278,15 +323,15 @@ type providerCmdHandler func(cmd *cobra.Command, domains []*ddns.Domain, p ddns.
 
 // registerProviderSubCommands 为 list/clean 等命令注册 provider 子命令。
 //
-// 复用 providerDefs 中的 auth 参数定义和 run 函数，避免为每个命令重复定义
+// 复用 providerFactories 中的 auth 参数定义和 run 函数，避免为每个命令重复定义
 // 13 个 provider 的认证参数。参数:
 //   - parent: 父命令（listCmd / cleanCmd）
 //   - commandName: 命令名称（"list" / "clean"），用于生成帮助文本
 //   - extraFlags: 注册额外 flag 的回调，可为 nil
 //   - handler: 业务逻辑回调，接收 cobra 命令、域名配置和 DNS 服务商实例
 func registerProviderSubCommands(parent *cobra.Command, commandName string, extraFlags func(cmd *cobra.Command), handler providerCmdHandler) {
-	for i := range providerDefs {
-		pd := &providerDefs[i]
+	for i := range providerFactories {
+		pd := &providerFactories[i]
 		cmd := &cobra.Command{
 			Use:   pd.name,
 			Short: fmt.Sprintf("%s DNS records for %s", commandName, pd.name),
@@ -370,17 +415,26 @@ func requireFlags(cmd *cobra.Command, flags []providerFlag) error {
 // 配置文件模式：从 ~/.ddns6/config.yaml 创建 provider
 // ============================================================
 
-// startServiceFromConfig 根据配置文件启动 DDNS 服务。
-func startServiceFromConfig(cfg *config.Config, cmd *cobra.Command) error {
-	// 从配置创建域名列表
-	domains := buildDomains(cfg.Domain, cfg.Subdomains, cfg.GetTTL())
+// runWithConfig 从配置文件加载配置，构造域名列表和 Provider，然后交给 handler 执行。
+//
+// commandName 用于生成错误提示中的子命令名称（如 "run"、"list"、"clean"）。
+func runWithConfig(cmd *cobra.Command, commandName string, handler func(cmd *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("cannot load config: %w\n\nUse 'ddns6 init' to create a config file, or specify a provider: ddns6 %s <provider> --help", err, commandName)
+	}
 
-	// 从配置创建 DNS 服务商
+	domains := buildDomains(cfg.Domain, cfg.Subdomains, cfg.GetTTL())
 	p, err := createProviderFromConfig(cfg)
 	if err != nil {
 		return err
 	}
 
+	return handler(cmd, cfg, domains, p)
+}
+
+// runServiceFromConfigHandler 是 runWithConfig 的 handler，将配置和命令行参数合并后启动 DDNS 服务。
+func runServiceFromConfigHandler(cmd *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error {
 	// 合并配置与命令行参数（命令行参数优先）
 	interval := cfg.GetInterval()
 	if cmd != nil && cmd.Flags().Changed("interval") {
@@ -399,70 +453,16 @@ func startServiceFromConfig(cfg *config.Config, cmd *cobra.Command) error {
 	return ddns.RunService(domains, p, interval, ddns.DefaultIPv6Fetchers, iface)
 }
 
-// ProviderFactory 根据配置创建 DNS 服务商的函数类型。
-type ProviderFactory func(cfg *config.Config) (ddns.DNSProvider, error)
-
-// providerFactories 所有支持的 DNS 运营商工厂函数。
-// 新增运营商时在此注册即可。
-var providerFactories = map[string]ProviderFactory{
-	"tencent": func(cfg *config.Config) (ddns.DNSProvider, error) {
-		return tencent.NewDNSPod(cfg.Auth["secret_id"], cfg.Auth["secret_key"]), nil
-	},
-	"cloudflare": func(cfg *config.Config) (ddns.DNSProvider, error) {
-		return cloudflare.NewClient(cloudflare.WithAPIToken(cfg.Auth["api_token"])), nil
-	},
-	"alicloud": func(cfg *config.Config) (ddns.DNSProvider, error) {
-		return alicloud.NewClient(cfg.Auth["access_key_id"], cfg.Auth["access_key_secret"]), nil
-	},
-	"godaddy": func(cfg *config.Config) (ddns.DNSProvider, error) {
-		return godaddy.NewClient(cfg.Auth["api_key"], cfg.Auth["api_secret"]), nil
-	},
-	"huaweicloud": func(cfg *config.Config) (ddns.DNSProvider, error) {
-		return huaweicloud.NewClient(cfg.Auth["access_key"], cfg.Auth["secret_key"]), nil
-	},
-	"duckdns": func(cfg *config.Config) (ddns.DNSProvider, error) {
-		return duckdns.NewClient(cfg.Auth["token"]), nil
-	},
-	"noip": func(cfg *config.Config) (ddns.DNSProvider, error) {
-		return noip.NewClient(cfg.Auth["username"], cfg.Auth["password"]), nil
-	},
-	"he": func(cfg *config.Config) (ddns.DNSProvider, error) {
-		return he.NewClient(cfg.Auth["password"]), nil
-	},
-	"dynv6": func(cfg *config.Config) (ddns.DNSProvider, error) {
-		return dynv6.NewClient(cfg.Auth["token"]), nil
-	},
-	"porkbun": func(cfg *config.Config) (ddns.DNSProvider, error) {
-		return porkbun.NewClient(cfg.Auth["api_key"], cfg.Auth["api_secret"]), nil
-	},
-	"digitalocean": func(cfg *config.Config) (ddns.DNSProvider, error) {
-		return digitalocean.NewClient(cfg.Auth["token"]), nil
-	},
-	"baiducloud": func(cfg *config.Config) (ddns.DNSProvider, error) {
-		return baiducloud.NewClient(cfg.Auth["access_key"], cfg.Auth["secret_key"]), nil
-	},
-	"dnspod": func(cfg *config.Config) (ddns.DNSProvider, error) {
-		return dnspod.NewClient(cfg.Auth["login_token"]), nil
-	},
-}
-
-// providerNames 所有支持的运营商名称列表（用于错误提示）。
-var providerNames = func() []string {
-	names := make([]string, 0, len(providerFactories))
-	for name := range providerFactories {
-		names = append(names, name)
-	}
-	return names
-}()
-
 // createProviderFromConfig 根据配置的 provider 类型和 auth 字段创建对应的 DNS 服务商。
 func createProviderFromConfig(cfg *config.Config) (ddns.DNSProvider, error) {
-	factory, ok := providerFactories[cfg.Provider]
-	if !ok {
-		return nil, fmt.Errorf("unsupported provider: %s (supported providers: %s)", cfg.Provider, strings.Join(providerNames, ", "))
+	for _, p := range providerFactories {
+		if p.name == cfg.Provider {
+			return p.fromConfig(cfg)
+		}
 	}
-	return factory(cfg)
+	return nil, fmt.Errorf("unsupported provider: %s", cfg.Provider)
 }
+
 
 // ============================================================
 // 辅助函数

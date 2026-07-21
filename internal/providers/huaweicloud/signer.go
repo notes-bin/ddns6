@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
+	"github.com/notes-bin/ddns6/internal/crypto"
 	"fmt"
 	"io"
 	"net/http"
@@ -169,12 +170,10 @@ func signStringToSign(stringToSign string, signingKey []byte) (string, error) {
 
 // hexEncodeSHA256Hash 计算 SHA256 并返回十六进制字符串
 func hexEncodeSHA256Hash(body []byte) (string, error) {
-	hash := sha256.New()
 	if body == nil {
 		body = []byte("")
 	}
-	_, err := hash.Write(body)
-	return fmt.Sprintf("%x", hash.Sum(nil)), err
+	return crypto.SHA256Hex(body), nil
 }
 
 // authHeaderValue 生成 Authorization 头的值
