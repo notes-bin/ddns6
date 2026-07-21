@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"text/template"
 	"time"
 
@@ -74,6 +75,16 @@ func Load() (*Config, error) {
 			return nil, fmt.Errorf("config file not found at %s (use 'ddns6 init' to create one)", path)
 		}
 		return nil, fmt.Errorf("cannot read config file %s: %w", path, err)
+	}
+
+	// 检查配置文件权限（仅 Unix），非 owner-only 时发出警告
+	if runtime.GOOS != "windows" {
+		if fi, err := os.Stat(path); err == nil {
+			if fi.Mode().Perm()&0077 != 0 {
+				fmt.Fprintf(os.Stderr, "⚠️  Warning: config file %s has world/group-readable permissions (%03o), consider 'chmod 600'\n",
+					path, fi.Mode().Perm())
+			}
+		}
 	}
 
 	var cfg Config

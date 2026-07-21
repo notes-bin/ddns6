@@ -6,20 +6,24 @@
 //	├── init      生成 ~/.ddns6/config.yaml 配置文件模板
 //	├── version   显示版本信息
 //	├── help      查看命令帮助（cobra 内置）
-//	└── run       运行 DDNS 服务
-//	    ├── tencent      腾讯云 DNSPod (API v3)
-//	    ├── cloudflare   Cloudflare DNS
-//	    ├── alicloud     阿里云 DNS
-//	    ├── godaddy      GoDaddy DNS
-//	    ├── huaweicloud  华为云 DNS
-//	    ├── duckdns      DuckDNS (免费 DDNS)
-//	    ├── noip         No-IP (经典 DDNS)
-//	    ├── he           Hurricane Electric (免费 DNS 托管)
-//	    ├── dynv6        Dynv6 (免费 IPv6 DDNS)
-//	    ├── porkbun      Porkbun DNS API
-//	    ├── digitalocean DigitalOcean DNS API
-//	    ├── baiducloud   百度云 DNS
-//	    └── dnspod       DNSPod (旧版 API)
+//	├── check     验证配置和 API 连通性
+//	├── completion 生成 Shell 自动补全脚本
+//	├── run       运行 DDNS 服务
+//	│   ├── tencent      腾讯云 DNSPod (API v3)
+//	│   ├── cloudflare   Cloudflare DNS
+//	│   ├── alicloud     阿里云 DNS
+//	│   ├── godaddy      GoDaddy DNS
+//	│   ├── huaweicloud  华为云 DNS
+//	│   ├── duckdns      DuckDNS (免费 DDNS)
+//	│   ├── noip         No-IP (经典 DDNS)
+//	│   ├── he           Hurricane Electric (免费 DNS 托管)
+//	│   ├── dynv6        Dynv6 (免费 IPv6 DDNS)
+//	│   ├── porkbun      Porkbun DNS API
+//	│   ├── digitalocean DigitalOcean DNS API
+//	│   ├── baiducloud   百度云 DNS
+//	│   └── dnspod       DNSPod (旧版 API)
+//	├── list     [provider] 列出 DNS 记录
+//	└── clean   [provider] 删除 DNS 记录
 //
 // 使用方式：
 //   - 临时运行: ddns6 run tencent --domain example.com --subdomain www --secret-id xxx --secret-key yyy
@@ -33,6 +37,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -102,10 +107,18 @@ var rootCmd = &cobra.Command{
 			return
 		}
 
-		logFile, err := os.OpenFile("ddns6.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		if err != nil {
-			slog.Error("failed to create log file", "err", err, "module", "cmd")
-			os.Exit(1)
+		// 读取日志文件路径（支持空字符串仅输出到 stderr）
+		logFile := getString(cmd, "log-file")
+
+		var writers []io.Writer
+		writers = append(writers, os.Stderr)
+		if logFile != "" {
+			lf, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+			if err != nil {
+				slog.Error("failed to create log file", "err", err, "module", "cmd")
+				os.Exit(1)
+			}
+			writers = append(writers, lf)
 		}
 
 		opts := new(slog.HandlerOptions)
@@ -123,7 +136,7 @@ var rootCmd = &cobra.Command{
 				return a
 			}
 		}
-		slog.SetDefault(slog.New(slog.NewJSONHandler(io.MultiWriter(os.Stderr, logFile), opts)))
+		slog.SetDefault(slog.New(slog.NewJSONHandler(io.MultiWriter(writers...), opts)))
 	},
 	// Run 使根命令可运行，否则 cobra 跳过 PersistentPreRun，-V 无法响应。
 	// -V 在 PersistentPreRun 中被拦截并退出，这里仅负责无参时显示帮助。
@@ -237,7 +250,8 @@ var runCmd = &cobra.Command{
 
 配置优先级（从高到低）:
   1. 命令行参数（最高）
-  2. ~/.ddns6/config.yaml 配置文件
+  2. 环境变量 DDNS6_*（如 DDNS6_DOMAIN、DDNS6_SUBDOMAIN）
+  3. ~/.ddns6/config.yaml 配置文件
 
 支持的运营商:
   tencent      腾讯云 DNSPod (API v3)
@@ -266,6 +280,9 @@ var runCmd = &cobra.Command{
 
   # 调试模式
   ddns6 run --debug tencent --domain example.com --secret-id xxx --secret-key yyy
+
+  # 使用环境变量
+  DDNS6_DOMAIN=example.com DDNS6_SUBDOMAIN=www ddns6 run tencent --secret-id xxx --secret-key yyy
 
   # 使用配置文件
   ddns6 init
@@ -308,13 +325,15 @@ var persistentFlags = []struct {
 	flagType     string
 	defaultValue interface{}
 	usage        string
+	envName      string // 对应的环境变量名（空表示不支持）
 }{
-	{"debug", "bool", false, "启用调试日志（含源码位置）"},
-	{"interval", "duration", 5 * time.Minute, "非 Linux 平台的轮询间隔（默认 5m，如 --interval 10m）"},
-	{"domain", "string", "", "要更新的域名（如 example.com）"},
-	{"subdomain", "stringArray", []string{"@"}, "子域名名称，可多次指定（默认 @，如 --subdomain www --subdomain @）"},
-	{"ttl", "int", 600, "DNS 记录 TTL，单位秒（默认 600）"},
-	{"interface", "string", "", "监听的网络接口（仅 Linux Netlink 模式，如 --interface ppp0）"},
+	{"debug", "bool", false, "启用调试日志（含源码位置）", "DDNS6_DEBUG"},
+	{"interval", "duration", 5 * time.Minute, "非 Linux 平台的轮询间隔（默认 5m，如 --interval 10m）", "DDNS6_INTERVAL"},
+	{"domain", "string", "", "要更新的域名（如 example.com）", "DDNS6_DOMAIN"},
+	{"subdomain", "stringArray", []string{"@"}, "子域名名称，可多次指定（默认 @，如 --subdomain www --subdomain @）", "DDNS6_SUBDOMAIN"},
+	{"ttl", "int", 600, "DNS 记录 TTL，单位秒（默认 600）", "DDNS6_TTL"},
+	{"interface", "string", "", "监听的网络接口（仅 Linux Netlink 模式，如 --interface ppp0）", "DDNS6_INTERFACE"},
+	{"log-file", "string", "ddns6.log", "日志文件路径，设为空字符串仅输出到 stderr", "DDNS6_LOG_FILE"},
 }
 
 // initRootCmd 初始化根命令，注册所有 flag 和子命令。
@@ -322,8 +341,8 @@ func initRootCmd() {
 	rootCmd.SetUsageTemplate(usageTemplate)
 	rootCmd.SetHelpTemplate(usageTemplate)
 
-	// 覆盖 cobra 内置命令和参数的中文显示
-	rootCmd.CompletionOptions.HiddenDefaultCmd = true
+	// 取消隐藏 completion 命令，允许用户生成自动补全脚本
+	rootCmd.CompletionOptions.HiddenDefaultCmd = false
 	// 自定义 help flag 中文描述
 	f := rootCmd.PersistentFlags().Lookup("help")
 	if f != nil {
@@ -353,8 +372,49 @@ func initRootCmd() {
 			rootCmd.PersistentFlags().Int(f.name, f.defaultValue.(int), f.usage)
 		case "interface":
 			rootCmd.PersistentFlags().String(f.name, f.defaultValue.(string), f.usage)
+		case "log-file":
+			rootCmd.PersistentFlags().String(f.name, f.defaultValue.(string), f.usage)
 		}
 	}
+
+	// 用环境变量覆盖默认值，实现 DDNS6_* 环境变量支持
+	applyEnvOverrides()
+
+	// 为 completion 命令添加中文帮助文本
+	rootCmd.AddCommand(&cobra.Command{
+		Use:   "completion [bash|zsh|fish|powershell]",
+		Short: "生成 Shell 自动补全脚本",
+		Long: `生成 Shell 自动补全脚本。
+
+将输出添加到对应的 Shell 配置文件中即可启用自动补全：
+
+  # Bash
+  ddns6 completion bash > /etc/bash_completion.d/ddns6
+
+  # Zsh
+  ddns6 completion zsh > "${fpath[1]}/_ddns6"
+
+  # Fish
+  ddns6 completion fish > ~/.config/fish/completions/ddns6.fish
+
+  # PowerShell
+  ddns6 completion powershell > ddns6.ps1`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			switch args[0] {
+			case "bash":
+				return cmd.Root().GenBashCompletion(os.Stdout)
+			case "zsh":
+				return cmd.Root().GenZshCompletion(os.Stdout)
+			case "fish":
+				return cmd.Root().GenFishCompletion(os.Stdout, true)
+			case "powershell":
+				return cmd.Root().GenPowerShellCompletionWithDesc(os.Stdout)
+			default:
+				return fmt.Errorf("unsupported shell: %s (supported: bash, zsh, fish, powershell)", args[0])
+			}
+		},
+	})
 
 	// 注册子命令
 	// init 子命令的本地参数（预填值到配置文件）
@@ -381,11 +441,46 @@ func initRootCmd() {
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(cleanCmd)
+	rootCmd.AddCommand(checkCmd)
 
 	// 数据驱动注册所有运营商命令
 	registerProviders()
 	registerListCommands()
 	registerCleanCommands()
+}
+
+// applyEnvOverrides 检查 DDNS6_* 环境变量并覆盖持久化 flag 的默认值。
+// 当对应 flag 未被用户在命令行显式设置时生效。
+func applyEnvOverrides() {
+	for _, f := range persistentFlags {
+		if f.envName == "" {
+			continue
+		}
+		val, ok := os.LookupEnv(f.envName)
+		if !ok {
+			continue
+		}
+		// 检查 flag 是否已被用户通过命令行设置
+		flag := rootCmd.PersistentFlags().Lookup(f.name)
+		if flag == nil || flag.Changed {
+			continue
+		}
+		// 根据类型覆盖默认值
+		switch f.flagType {
+		case "string", "duration", "stringArray":
+			rootCmd.PersistentFlags().Set(f.name, val)
+		case "int":
+			if _, err := strconv.Atoi(val); err == nil {
+				rootCmd.PersistentFlags().Set(f.name, val)
+			}
+		case "bool":
+			if val == "true" || val == "1" {
+				rootCmd.PersistentFlags().Set(f.name, "true")
+			} else if val == "false" || val == "0" {
+				rootCmd.PersistentFlags().Set(f.name, "false")
+			}
+		}
+	}
 }
 
 // Execute 是 CLI 入口，由 main.go 调用。

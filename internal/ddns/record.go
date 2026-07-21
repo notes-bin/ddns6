@@ -118,7 +118,7 @@ func syncDNSRecord(ctx context.Context, d *Domain, p syncDNSProvider, addr net.I
 
 		// IP 不同 → 修改记录
 		err = p.ModifyRecord(ctx, RecordInfo{
-			ID: r.ID, Name: fqdn, Type: d.Type, Value: ipv6Str, TTL: d.TTL,
+			ID: r.ID, Name: fqdn, Zone: d.Domain, Type: d.Type, Value: ipv6Str, TTL: d.TTL,
 		})
 		if err != nil {
 			slog.Error("failed to modify record", "module", "ddns",
@@ -139,7 +139,7 @@ func syncDNSRecord(ctx context.Context, d *Domain, p syncDNSProvider, addr net.I
 			"fqdn", fqdn, "ipv6", ipv6Str)
 
 		err = p.AddRecord(ctx, RecordInfo{
-			Name: fqdn, Type: d.Type, Value: ipv6Str, TTL: d.TTL,
+			Name: fqdn, Zone: d.Domain, Type: d.Type, Value: ipv6Str, TTL: d.TTL,
 		})
 		if err != nil {
 			slog.Error("failed to add record", "module", "ddns",

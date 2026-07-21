@@ -98,6 +98,9 @@ func handleList(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider) 
 // runListWithConfig 从 ~/.ddns6/config.yaml 加载配置并执行 list。
 func runListWithConfig(cmd *cobra.Command) error {
 	return runWithConfig(cmd, "list", func(cmd *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error {
+		if restrictedProviders[cfg.Provider] {
+			return fmt.Errorf("%s does not support 'list' via API — %s only provides update endpoints, use its web panel to manage records", cfg.Provider, cfg.Provider)
+		}
 		return handleList(cmd, domains, p)
 	})
 }

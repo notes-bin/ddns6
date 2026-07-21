@@ -92,7 +92,7 @@ type recordResponse struct {
 
 // AddRecord 添加域名解析记录
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
-	domain, subDomain := splitDomain(record.Name)
+	domain, subDomain := splitDomain(record.Name, record.Zone)
 
 	params := url.Values{}
 	params.Set("login_token", c.loginToken)
@@ -121,7 +121,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 
 // ModifyRecord 修改域名解析记录
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
-	domain, subDomain := splitDomain(record.Name)
+	domain, subDomain := splitDomain(record.Name, record.Zone)
 
 	params := url.Values{}
 	params.Set("login_token", c.loginToken)
@@ -151,7 +151,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 
 // DeleteRecord 删除域名解析记录
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
-	domain, _ := splitDomain(record.Name)
+	domain, _ := splitDomain(record.Name, record.Zone)
 
 	params := url.Values{}
 	params.Set("login_token", c.loginToken)
@@ -176,7 +176,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 
 // GetRecords 查询域名解析记录
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	domain, subDomain := splitDomain(fulldomain)
+	domain, subDomain := splitDomain(fulldomain, "")
 
 	params := url.Values{}
 	params.Set("login_token", c.loginToken)
@@ -258,6 +258,7 @@ func (c *Client) post(ctx context.Context, reqURL string, params url.Values, res
 }
 
 // splitDomain 分割完整域名为根域名和子域名
-func splitDomain(fulldomain string) (string, string) {
-	return domainutil.SplitDomain(fulldomain)
+// rootDomain 为已知根域名（来自 --domain），为空时回退到从 Name 推导
+func splitDomain(fulldomain, rootDomain string) (string, string) {
+	return domainutil.SplitDomain(fulldomain, rootDomain)
 }

@@ -16,9 +16,13 @@ import (
 // 作为 DNSProvider 接口中所有 CRUD 方法的统一数据载体，在服务编排层（sync.go）和
 // 运营商实现层（providers/ 下各子包）之间传递数据。各运营商内部有各自的 API 结构体，
 // 在接口方法边界处与 RecordInfo 相互转换。
+//
+// Zone 字段存储根域名（来自 --domain 参数），供 provider 的 SplitDomain 操作使用。
+// 当 Zone 非空时，provider 应优先使用 Zone 而不是从 Name 中推导根域名。
 type RecordInfo struct {
 	ID    string
 	Name  string
+	Zone  string // 根域名（如 example.com），可选，为空时回退到从 Name 推导
 	Type  string
 	Value string
 	TTL   int

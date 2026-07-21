@@ -88,36 +88,35 @@ type baiduListResponse struct {
 
 // AddRecord 添加域名解析记录
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
-	_, subDomain, zoneName := splitDomain(record.Name)
+	rootDomain, subDomain := splitDomain(record.Name, record.Zone)
 
 	payload := map[string]any{
 		"domain":   subDomain,
 		"rdType":   record.Type,
 		"rdata":    record.Value,
 		"ttl":      record.TTL,
-		"zoneName": zoneName,
+		"zoneName": rootDomain,
 	}
 
 	url := c.baseURL + "/v1/domain/resolve/add"
-	slog.Debug("adding BaiduCloud DNS record", "module", "baiducloud", "zone", zoneName, "domain", subDomain, "type", record.Type)
+	slog.Debug("adding BaiduCloud DNS record", "module", "baiducloud", "zone", rootDomain, "domain", subDomain, "type", record.Type)
 
 	_, err := c.request(ctx, http.MethodPost, url, payload)
 	if err != nil {
 		return err
 	}
 
-	slog.Info("BaiduCloud DNS record added successfully", "module", "baiducloud", "zone", zoneName, "domain", subDomain, "ipv6", record.Value)
+	slog.Info("BaiduCloud DNS record added successfully", "module", "baiducloud", "zone", rootDomain, "domain", subDomain, "ipv6", record.Value)
 	return nil
 }
 
 // ModifyRecord 修改域名解析记录
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
-	_, subDomain, zoneName := splitDomain(record.Name)
+	rootDomain, subDomain := splitDomain(record.Name, record.Zone)
 
 	// 查询现有记录获取 View 字段（解析线路）
 	var recordView string
-	// 直接调用百度云列表 API 获取现有记录
-	listPayload := map[string]any{"domain": zoneName, "pageNum": 1, "pageSize": 1000}
+	listPayload := map[string]any{"domain": rootDomain, "pageNum": 1, "pageSize": 1000}
 	if raw, err := c.request(ctx, http.MethodPost, c.baseURL+"/v1/domain/resolve/list", listPayload); err == nil {
 		var listResp baiduListResponse
 		if json.Unmarshal(raw, &listResp) == nil {
@@ -136,34 +135,55 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 		"rdType":   record.Type,
 		"rdata":    record.Value,
 		"ttl":      record.TTL,
-		"zoneName": zoneName,
+		"zoneName": rootDomain,
 		"view":     recordView,
 	}
 
 	url := c.baseURL + "/v1/domain/resolve/edit"
-	slog.Debug("modifying BaiduCloud DNS record", "module", "baiducloud", "zone", zoneName, "record_id", record.ID)
+	slog.Debug("modifying BaiduCloud DNS record", "module", "baiducloud", "zone", rootDomain, "record_id", record.ID)
 
 	_, err := c.request(ctx, http.MethodPost, url, payload)
 	if err != nil {
 		return err
 	}
 
-	slog.Info("BaiduCloud DNS record modified successfully", "module", "baiducloud", "zone", zoneName, "record_id", record.ID, "ipv6", record.Value)
+	slog.Info("BaiduCloud DNS record modified successfully", "module", "baiducloud", "zone", rootDomain, "record_id", record.ID, "ipv6", record.Value)
 	return nil
 }
 
 // DeleteRecord 删除域名解析记录
-// 百度云 DNS API 未直接提供删除记录的接口，暂不支持
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
-	slog.Warn("BaiduCloud does not support deleting records via API, skipping",
-		"module", "baiducloud",
-		"domain", record.Name, "record_id", record.ID)
+	rootDomain, _ := splitDomain(record.Name, record.Zone)
+
+	// 优先尝试 POST 风格的删除接口（与 add/edit/list 风格一致）
+	payload := map[string]any{
+		"recordId": record.ID,
+		"zoneName": rootDomain,
+	}
+
+	url := c.baseURL + "/v1/domain/resolve/delete"
+	slog.Debug("deleting BaiduCloud DNS record", "module", "baiducloud", "zone", rootDomain, "record_id", record.ID)
+
+	_, err := c.request(ctx, http.MethodPost, url, payload)
+	if err != nil {
+		slog.Warn("BaiduCloud delete via POST failed, trying alternative endpoint",
+			"module", "baiducloud", "error", err)
+
+		// 若 POST 风格删除接口不可用，尝试 RESTful 风格
+		altURL := fmt.Sprintf("%s/v1/dns/zone/%s/record/%s", c.baseURL, rootDomain, record.ID)
+		_, err2 := c.request(ctx, http.MethodDelete, altURL, nil)
+		if err2 != nil {
+			return fmt.Errorf("baiducloud delete record failed: primary: %w, fallback: %w", err, err2)
+		}
+	}
+
+	slog.Info("BaiduCloud DNS record deleted successfully", "module", "baiducloud", "zone", rootDomain, "record_id", record.ID)
 	return nil
 }
 
 // GetRecords 查询域名解析记录
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	_, subDomain, zoneName := splitDomain(fulldomain)
+	zoneName, subDomain := splitDomain(fulldomain, "")
 
 	payload := map[string]any{
 		"domain":   zoneName,
@@ -189,13 +209,18 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		if r.RDType != recordType {
 			continue
 		}
-		// 按子域名过滤
-		if r.Domain != subDomain && subDomain != "@" {
+		// 按子域名过滤：subDomain != "@" 时才需要匹配子域名标签
+		if subDomain != "@" && r.Domain != subDomain {
 			continue
+		}
+		// 构建完整记录名（含根域名），与其它 provider 行为一致
+		recordName := zoneName
+		if r.Domain != "@" && r.Domain != "" {
+			recordName = r.Domain + "." + zoneName
 		}
 		result = append(result, ddns.RecordInfo{
 			ID:    r.RecordID,
-			Name:  r.Domain,
+			Name:  recordName,
 			Type:  recordType,
 			Value: r.RData,
 			TTL:   r.TTL,
@@ -220,10 +245,11 @@ func (c *Client) request(ctx context.Context, method, url string, payload any) (
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
+	// 设置 Content-Type 必须在 signRequest 之前，因为签名需要包含此 header
+	req.Header.Set("Content-Type", "application/json")
+
 	// 生成 BCE 签名
 	c.signRequest(req, bodyBytes)
-
-	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.Do(req)
 	if err != nil {
@@ -244,8 +270,7 @@ func (c *Client) request(ctx context.Context, method, url string, payload any) (
 }
 
 // signRequest 为请求添加 BCE 认证签名
-
-// signRequest 为请求添加 BCE 认证签名
+//
 // 遵循百度云 BCE 签名规范：https://cloud.baidu.com/doc/Reference/s/Njwvz1wot
 // 与 ddns-go 的 BaiduSigner 实现对对齐，不包含 body hash
 func (c *Client) signRequest(req *http.Request, body []byte) {
@@ -255,13 +280,17 @@ func (c *Client) signRequest(req *http.Request, body []byte) {
 	// BCE v1 签名前缀
 	authStringPrefix := fmt.Sprintf("bce-auth-v1/%s/%s/%s", c.accessKey, timestamp, expirationSeconds)
 
-	// CanonicalURI（全局路径）
+	// CanonicalURI（请求路径）
 	canonicalURI := req.URL.Path
 
-	// CanonicalHeaders 和 SignedHeaders 硬编码为 host
-	// 百度云 DNS API 只有一个端点 bcd.baidubce.com，所有操作都是 POST
-	signedHeaders := "host"
-	canonicalHeaders := "host:bcd.baidubce.com"
+	// CanonicalHeaders：包含 host 和 x-bce-date
+	req.Header.Set("x-bce-date", timestamp)
+	signedHeaders := "host;x-bce-date"
+	canonicalHost := req.URL.Host
+	if canonicalHost == "" {
+		canonicalHost = defaultBaseURL[8:] // 去掉 https://
+	}
+	canonicalHeaders := fmt.Sprintf("host:%s\nx-bce-date:%s", canonicalHost, timestamp)
 	canonicalQuery := ""
 
 	// 构建 CanonicalRequest（不包含 body hash）
@@ -280,11 +309,8 @@ func (c *Client) signRequest(req *http.Request, body []byte) {
 	req.Header.Set("Authorization", authorization)
 }
 
-// splitDomain 分割完整域名为子域名、根域名和 zone 名称
-func splitDomain(fulldomain string) (string, string, string) {
-	root, sub := domainutil.SplitDomain(fulldomain)
-	return root, sub, root // zoneName 即根域名
+// splitDomain 分割完整域名为根域名和子域名
+// rootDomain 为已知根域名（来自 --domain），为空时回退到从 Name 推导
+func splitDomain(fulldomain, rootDomain string) (string, string) {
+	return domainutil.SplitDomain(fulldomain, rootDomain)
 }
-
-// record.TypeToInt DNS 记录类型转百度云 RDType 数字
-

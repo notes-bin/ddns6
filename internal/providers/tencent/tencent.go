@@ -125,8 +125,13 @@ func NewDNSPod(secretId, secretKey string, options ...Option) *DNSPod {
 
 // WithAPIUrl 设置自定义 API 地址
 func WithAPIUrl(url string) Option {
+	return WithBaseURL(url)
+}
+
+// WithBaseURL 设置自定义 API 地址（与其他 provider 命名一致）
+func WithBaseURL(url string) Option {
 	return func(ds *DNSPod) {
-		ds.apiURL = url
+		ds.apiURL = strings.TrimSuffix(url, "/")
 	}
 }
 
@@ -148,7 +153,7 @@ func (ds *DNSPod) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 
 	domain, subDomain, err := ds.getRootDomain(ctx, record.Name)
 	if err != nil {
-		return fmt.Errorf("failed to get root domain: %v", err)
+		return fmt.Errorf("failed to get root domain: %w", err)
 	}
 
 	dnsRecord := DNSRecord{
@@ -236,7 +241,7 @@ func (ds *DNSPod) ModifyRecord(ctx context.Context, record ddns.RecordInfo) erro
 
 	domain, subDomain, err := ds.getRootDomain(ctx, record.Name)
 	if err != nil {
-		return fmt.Errorf("failed to get root domain: %v", err)
+		return fmt.Errorf("failed to get root domain: %w", err)
 	}
 
 	recordId, err := strconv.Atoi(record.ID)
@@ -272,7 +277,7 @@ func (ds *DNSPod) DeleteRecord(ctx context.Context, record ddns.RecordInfo) erro
 
 	domain, _, err := ds.getRootDomain(ctx, record.Name)
 	if err != nil {
-		return fmt.Errorf("failed to get root domain: %v", err)
+		return fmt.Errorf("failed to get root domain: %w", err)
 	}
 
 	recordId, err := strconv.Atoi(record.ID)
@@ -295,7 +300,7 @@ func (ds *DNSPod) DeleteRecord(ctx context.Context, record ddns.RecordInfo) erro
 func (ds *DNSPod) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	domain, subDomain, err := ds.getRootDomain(ctx, fulldomain)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get root domain: %v", err)
+		return nil, fmt.Errorf("failed to get root domain: %w", err)
 	}
 	records, err := ds.describeRecords(ctx, domain, subDomain)
 	if err != nil {
@@ -329,7 +334,7 @@ func (ds *DNSPod) GetRecords(ctx context.Context, fulldomain, recordType string)
 func (ds *DNSPod) GetDomainRecord(ctx context.Context, fulldomain, recordId string) (*DNSRecord, error) {
 	domain, _, err := ds.getRootDomain(ctx, fulldomain)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get root domain: %v", err)
+		return nil, fmt.Errorf("failed to get root domain: %w", err)
 	}
 
 	recordID, err := strconv.Atoi(recordId)
@@ -471,7 +476,7 @@ func (ds *DNSPod) makeRequest(ctx context.Context, action string, payload any, r
 	// 序列化请求体
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("failed to marshal payload: %v", err)
+		return fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
 	// 生成签名
@@ -480,7 +485,7 @@ func (ds *DNSPod) makeRequest(ctx context.Context, action string, payload any, r
 	// 创建请求
 	req, err := http.NewRequestWithContext(ctx, "POST", ds.apiURL, bytes.NewBuffer(payloadBytes))
 	if err != nil {
-		return fmt.Errorf("failed to create request: %v", err)
+		return fmt.Errorf("failed to create request: %w", err)
 	}
 
 	// 设置请求头
@@ -495,14 +500,14 @@ func (ds *DNSPod) makeRequest(ctx context.Context, action string, payload any, r
 	resp, err := ds.Do(req)
 	if err != nil {
 		slog.Error("Tencent API request failed", "module", "tencent", "action", action, "err", err)
-		return fmt.Errorf("API request failed: %v", err)
+		return fmt.Errorf("API request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// 读取完整响应体（提前读取，后续直接使用 bodyBytes 避免重复 ReadAll）
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("failed to read response body: %v", err)
+		return fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	slog.Debug("Tencent API response", "module", "tencent", "action", action, "status", resp.StatusCode)
@@ -520,7 +525,7 @@ func (ds *DNSPod) makeRequest(ctx context.Context, action string, payload any, r
 		Response json.RawMessage `json:"Response"`
 	}
 	if err := json.Unmarshal(bodyBytes, &apiResponse); err != nil {
-		return fmt.Errorf("failed to decode response: %v", err)
+		return fmt.Errorf("failed to decode response: %w", err)
 	}
 
 	// 处理 Response 为 null 的情况
@@ -546,7 +551,7 @@ func (ds *DNSPod) makeRequest(ctx context.Context, action string, payload any, r
 	// 解析结果到传入的 result 指针
 	if result != nil {
 		if err := json.Unmarshal(apiResponse.Response, result); err != nil {
-			return fmt.Errorf("failed to decode response: %v", err)
+			return fmt.Errorf("failed to decode response: %w", err)
 		}
 	}
 

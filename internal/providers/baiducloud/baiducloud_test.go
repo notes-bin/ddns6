@@ -105,8 +105,17 @@ func TestClient_ModifyRecord(t *testing.T) {
 	}
 }
 
-func TestClient_DeleteRecord_Noop(t *testing.T) {
-	client := NewClient("test-key", "test-secret")
+func TestClient_DeleteRecord(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, "/v1/domain/resolve/delete") {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+
+	client := NewClient("test-key", "test-secret", WithBaseURL(server.URL))
 	err := client.DeleteRecord(context.Background(), ddns.RecordInfo{Name: "www.example.com", ID: "rec1"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

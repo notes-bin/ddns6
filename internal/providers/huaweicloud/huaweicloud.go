@@ -87,7 +87,7 @@ type recordSetPayload struct {
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	zoneID, err := c.getZoneID(ctx, record.Name)
 	if err != nil {
-		return fmt.Errorf("failed to get zone ID: %v", err)
+		return fmt.Errorf("failed to get zone ID: %w", err)
 	}
 
 	payload := recordSetPayload{
@@ -114,7 +114,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
 	zoneID, err := c.getZoneID(ctx, record.Name)
 	if err != nil {
-		return fmt.Errorf("failed to get zone ID: %v", err)
+		return fmt.Errorf("failed to get zone ID: %w", err)
 	}
 
 	payload := map[string]any{
@@ -140,7 +140,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
 	zoneID, err := c.getZoneID(ctx, record.Name)
 	if err != nil {
-		return fmt.Errorf("failed to get zone ID: %v", err)
+		return fmt.Errorf("failed to get zone ID: %w", err)
 	}
 
 	url := c.baseURL + "/v2.1/zones/" + zoneID + "/recordsets/" + record.ID
@@ -159,7 +159,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	zoneID, err := c.getZoneID(ctx, fulldomain)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get zone ID: %v", err)
+		return nil, fmt.Errorf("failed to get zone ID: %w", err)
 	}
 
 	// 查询租户下指定 zone 的记录集列表
