@@ -1,3 +1,9 @@
+// Package cloudflare 实现 Cloudflare DNS API 服务
+//
+// 认证方式：API Token（需具有 DNS:Edit 权限）
+// 必填参数：--api-token
+//
+// 使用 RESTful JSON API，支持 Zone ID 自动发现。
 package cloudflare
 
 import (

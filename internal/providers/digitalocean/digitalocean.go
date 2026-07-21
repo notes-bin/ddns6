@@ -1,5 +1,9 @@
 // Package digitalocean 实现 DigitalOcean DNS API 服务
-// DigitalOcean 提供 RESTful JSON API 管理 DNS 记录，使用 Bearer Token 认证
+//
+// 认证方式：Personal Access Token（需具有 write 权限）
+// 必填参数：--token
+//
+// 使用 RESTful JSON API 管理 DNS 记录，Bearer Token 认证。
 package digitalocean
 
 import (

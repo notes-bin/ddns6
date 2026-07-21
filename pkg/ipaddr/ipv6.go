@@ -1,5 +1,14 @@
 // Package ipaddr 提供本机 IPv6 地址获取功能。
 //
+// 使用示例：
+//
+//	// 使用默认获取器（3 个 HTTP + 4 个 DNS 源）
+//	ip, err := ipaddr.GetIPv6Addr(ipaddr.DefaultFetchers...)
+//
+//	// 自定义获取器
+//	fetcher := ipaddr.NewHttpIPv6Fetcher("https://6.ipw.cn")
+//	ip, err := ipaddr.GetIPv6Addr(fetcher)
+//
 // 获取策略（每次调用时随机排序后并发竞速）：
 //  1. 随机打乱所有 fetcher 的顺序
 //  2. 所有 fetcher 并发执行
