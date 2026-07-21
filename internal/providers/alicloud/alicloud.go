@@ -131,8 +131,13 @@ func (c *AliDNSClient) GetRecords(ctx context.Context, fulldomain, recordType st
 	params := map[string]string{
 		"Action":      "DescribeDomainRecords",
 		"DomainName":  domain,
-		"RRKeyWord":   subDomain,
 		"TypeKeyWord": recordType,
+	}
+	// 有明确的子域名时才传 RRKeyWord 过滤
+	// subDomain 为 "@" 表示根域名（getRootDomain 的兜底返回值），
+	// 此时不传 RRKeyWord 可获取该域名下所有记录
+	if subDomain != "@" {
+		params["RRKeyWord"] = subDomain
 	}
 
 	resp, err := c.makeV1Request(ctx, params)
@@ -153,7 +158,8 @@ func (c *AliDNSClient) GetRecords(ctx context.Context, fulldomain, recordType st
 	records := make([]ddns.RecordInfo, 0, len(result.DomainRecords.Record))
 	for _, r := range result.DomainRecords.Record {
 		// 客户端精确匹配 RR（API 的 RRKeyWord 是模糊匹配）
-		if subDomain != "" && r.RR != subDomain {
+		// subDomain 为 "@" 时跳过此过滤以展示所有记录
+		if subDomain != "@" && subDomain != "" && r.RR != subDomain {
 			continue
 		}
 		records = append(records, ddns.RecordInfo{

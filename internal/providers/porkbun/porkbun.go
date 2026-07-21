@@ -154,8 +154,12 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	domain, subDomain := splitDomain(fulldomain)
 
-	// Porkbun 的 retrieveByNameType 会按传入的记录类型和名称过滤
-	url := fmt.Sprintf("%s/retrieveByNameType/%s/%s/%s", c.baseURL, domain, recordType, subDomain)
+	// subDomain 为 "@" 时使用 retrieveByType（按域名+类型）
+	// 否则使用 retrieveByNameType（按域名+类型+名称精确匹配）
+	url := fmt.Sprintf("%s/retrieveByType/%s/%s", c.baseURL, domain, recordType)
+	if subDomain != "@" {
+		url = fmt.Sprintf("%s/retrieveByNameType/%s/%s/%s", c.baseURL, domain, recordType, subDomain)
+	}
 	slog.Debug("querying Porkbun DNS records", "module", "porkbun", "domain", domain, "name", subDomain, "type", recordType)
 
 	var resp apiResponse

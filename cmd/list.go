@@ -107,7 +107,7 @@ func handleList(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider) 
 	}
 
 	// 输出
-	filterInfo := buildFilterInfo(domains, filterBySubdomain)
+	filterInfo := buildFilterInfo(domains)
 	heading := fmt.Sprintf("Listing %s for %s", recordTypeDesc(recordType), filterInfo)
 	if filterBySubdomain {
 		heading += " (filtered by subdomain)"
@@ -149,7 +149,7 @@ func recordTypeDesc(t string) string {
 }
 
 // buildFilterInfo 构建过滤条件描述文本。
-func buildFilterInfo(domains []*ddns.Domain, filterBySubdomain bool) string {
+func buildFilterInfo(domains []*ddns.Domain) string {
 	// 收集所有唯一的 fullDomain
 	seen := make(map[string]bool)
 	var parts []string
