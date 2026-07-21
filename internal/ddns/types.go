@@ -24,18 +24,39 @@ type RecordInfo struct {
 	TTL   int
 }
 
-// DNSProvider DNS 服务商完整接口
-//
-// 提供 DNS 记录的增删改查操作。消费者（sync.go）通过此接口与具体运营商解耦。
-type DNSProvider interface {
-	// AddRecord 添加一条 DNS 记录
-	AddRecord(ctx context.Context, record RecordInfo) error
-	// ModifyRecord 修改一条 DNS 记录
-	ModifyRecord(ctx context.Context, record RecordInfo) error
-	// DeleteRecord 删除一条 DNS 记录
-	DeleteRecord(ctx context.Context, record RecordInfo) error
+// DNSRecordGetter 提供 DNS 记录查询能力
+type DNSRecordGetter interface {
 	// GetRecords 查询 DNS 记录列表，按 domain 和 recordType 过滤
 	GetRecords(ctx context.Context, domain, recordType string) ([]RecordInfo, error)
+}
+
+// DNSRecordAdder 提供 DNS 记录新增能力
+type DNSRecordAdder interface {
+	// AddRecord 添加一条 DNS 记录
+	AddRecord(ctx context.Context, record RecordInfo) error
+}
+
+// DNSRecordModifier 提供 DNS 记录修改能力
+type DNSRecordModifier interface {
+	// ModifyRecord 修改一条 DNS 记录
+	ModifyRecord(ctx context.Context, record RecordInfo) error
+}
+
+// DNSRecordDeleter 提供 DNS 记录删除能力
+type DNSRecordDeleter interface {
+	// DeleteRecord 删除一条 DNS 记录
+	DeleteRecord(ctx context.Context, record RecordInfo) error
+}
+
+// DNSProvider DNS 服务商完整接口
+//
+// 组合所有子接口，提供 DNS 记录的增删改查操作。
+// 消费者可根据需要依赖具体的子接口，而非完整的 DNSProvider。
+type DNSProvider interface {
+	DNSRecordGetter
+	DNSRecordAdder
+	DNSRecordModifier
+	DNSRecordDeleter
 }
 
 // Domain 表示一个域名及其相关配置
