@@ -115,6 +115,16 @@ func SyncRecord(ctx context.Context, d *Domain, ipv6 net.IP, p DNSProvider) erro
 	return syncDNSRecord(ctx, d, p, ipv6)
 }
 
+// syncDNSProvider 是 DNS 记录同步所需的操作子集。
+//
+// syncDNSRecord 只需要查询、新增和修改能力，无需删除能力。
+// 通过缩小接口依赖，使测试和后续扩展更加灵活。
+type syncDNSProvider interface {
+	DNSRecordGetter
+	DNSRecordAdder
+	DNSRecordModifier
+}
+
 // syncDNSRecord 执行实际的 DNS 记录同步。
 //
 // 工作流程：
@@ -124,7 +134,7 @@ func SyncRecord(ctx context.Context, d *Domain, ipv6 net.IP, p DNSProvider) erro
 //  4. 目标子域名下无 AAAA 记录则新增
 //
 // 同一个子域名下存在多个 AAAA 记录时全部处理（continue 而非 return）。
-func syncDNSRecord(ctx context.Context, d *Domain, p DNSProvider, addr net.IP) error {
+func syncDNSRecord(ctx context.Context, d *Domain, p syncDNSProvider, addr net.IP) error {
 	fqdn := d.FullDomain()
 	ipv6Str := addr.String()
 
