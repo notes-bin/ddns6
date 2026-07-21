@@ -268,6 +268,71 @@ func registerProviders() {
 	}
 }
 
+// providerCmdHandler 是 list/clean provider 子命令的业务处理函数类型。
+//
+// 参数:
+//   - cmd: cobra 命令实例（可从中读取额外 flag）
+//   - domains: 从 --domain/--subdomain 解析的域名配置列表
+//   - p: DNS 服务商实例
+type providerCmdHandler func(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider) error
+
+// registerProviderSubCommands 为 list/clean 等命令注册 provider 子命令。
+//
+// 复用 providerDefs 中的 auth 参数定义和 run 函数，避免为每个命令重复定义
+// 13 个 provider 的认证参数。参数:
+//   - parent: 父命令（listCmd / cleanCmd）
+//   - commandName: 命令名称（"list" / "clean"），用于生成帮助文本
+//   - extraFlags: 注册额外 flag 的回调，可为 nil
+//   - handler: 业务逻辑回调，接收 cobra 命令、域名配置和 DNS 服务商实例
+func registerProviderSubCommands(parent *cobra.Command, commandName string, extraFlags func(cmd *cobra.Command), handler providerCmdHandler) {
+	for i := range providerDefs {
+		pd := &providerDefs[i]
+		cmd := &cobra.Command{
+			Use:   pd.name,
+			Short: fmt.Sprintf("%s DNS records for %s", commandName, pd.name),
+			Long: fmt.Sprintf(`%s DNS records using %s provider.
+
+使用方式:
+  ddns6 %s %s [flags]
+
+必填参数:
+%s
+全局参数:
+  --domain string       根域名（必填，如 example.com）
+  --subdomain string    子域名，可多次指定（默认 "@"）
+  --type string         DNS 记录类型（默认 "AAAA"）
+  --debug               开启调试日志
+
+示例:
+  ddns6 %s %s --domain example.com --subdomain www %s`,
+				commandName, pd.name,
+				commandName, pd.name,
+				formatProviderFlags(pd.flags),
+				commandName, pd.name, formatSampleFlags(pd.flags),
+			),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				if err := requireFlags(cmd, pd.flags); err != nil {
+					return err
+				}
+				domains, provider, err := pd.run(cmd)
+				if err != nil {
+					return err
+				}
+				return handler(cmd, domains, provider)
+			},
+		}
+		// 注册认证参数
+		for _, f := range pd.flags {
+			cmd.Flags().String(f.name, "", f.usage)
+		}
+		// 注册额外参数
+		if extraFlags != nil {
+			extraFlags(cmd)
+		}
+		parent.AddCommand(cmd)
+	}
+}
+
 // formatProviderFlags 返回运营商的必填参数格式文本
 func formatProviderFlags(flags []providerFlag) string {
 	var b strings.Builder

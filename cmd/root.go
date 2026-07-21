@@ -390,9 +390,13 @@ func initRootCmd() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(runCmd)
+	rootCmd.AddCommand(listCmd)
+	rootCmd.AddCommand(cleanCmd)
 
 	// 数据驱动注册所有运营商命令
 	registerProviders()
+	registerListCommands()
+	registerCleanCommands()
 }
 
 // Execute 是 CLI 入口，由 main.go 调用。
