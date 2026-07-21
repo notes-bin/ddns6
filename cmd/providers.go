@@ -36,13 +36,21 @@ type providerFlag struct {
 // run 用于 CLI 模式（从命令行参数创建），fromConfig 用于配置文件模式。
 // 新增运营商只需在此列表中追加一个条目。
 type providerFactory struct {
-	name       string
-	short      string
-	flags      []providerFlag
+	name         string
+	short        string
+	flags        []providerFlag
+	noListClean  bool // true 表示此 provider 不支持 list/clean（如 duckdns、he、noip）
 	// run 从命令行参数创建域名列表和 DNSProvider
 	run func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error)
 	// fromConfig 从配置文件创建 DNSProvider
 	fromConfig func(cfg *config.Config) (ddns.DNSProvider, error)
+}
+
+// restrictedProviders 返回不支持 list/clean 的 provider 名称集合
+var restrictedProviders = map[string]bool{
+	"duckdns": true,
+	"he":      true,
+	"noip":    true,
 }
 
 // providerFactories 所有支持的 DNS 运营商
@@ -85,16 +93,25 @@ var providerFactories = []providerFactory{
 		flags: []providerFlag{
 			{"access-key-id", "Alibaba Cloud Access Key ID (必填，从 RAM 用户获取)"},
 			{"access-key-secret", "Alibaba Cloud Access Key Secret (必填)"},
+			{"sign-version", "签名版本：v1（默认，HMAC-SHA1）或 v3（ACS3-HMAC-SHA256）"},
 		},
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
 			if err != nil {
 				return nil, nil, err
 			}
-			return domains, alicloud.NewClient(getString(cmd, "access-key-id"), getString(cmd, "access-key-secret")), nil
+			opts := []alicloud.Options{}
+			if sv := getString(cmd, "sign-version"); sv != "" {
+				opts = append(opts, alicloud.WithSignVersion(sv))
+			}
+			return domains, alicloud.NewClient(getString(cmd, "access-key-id"), getString(cmd, "access-key-secret"), opts...), nil
 		},
 		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
-			return alicloud.NewClient(cfg.Auth["access_key_id"], cfg.Auth["access_key_secret"]), nil
+			opts := []alicloud.Options{}
+			if sv, ok := cfg.Auth["sign_version"]; ok && sv != "" {
+				opts = append(opts, alicloud.WithSignVersion(sv))
+			}
+			return alicloud.NewClient(cfg.Auth["access_key_id"], cfg.Auth["access_key_secret"], opts...), nil
 		},
 	},
 	{
@@ -136,6 +153,7 @@ var providerFactories = []providerFactory{
 		flags: []providerFlag{
 			{"token", "DuckDNS API Token (必填)"},
 		},
+		noListClean: true,
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
 			if err != nil {
@@ -153,6 +171,7 @@ var providerFactories = []providerFactory{
 			{"username", "No-IP Username (必填)"},
 			{"password", "No-IP Password (必填)"},
 		},
+		noListClean: true,
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
 			if err != nil {
@@ -169,6 +188,7 @@ var providerFactories = []providerFactory{
 		flags: []providerFlag{
 			{"password", "HE DNS DDNS Key (必填，从 dns.he.net 获取)"},
 		},
+		noListClean: true,
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
 			if err != nil {
@@ -332,6 +352,13 @@ type providerCmdHandler func(cmd *cobra.Command, domains []*ddns.Domain, p ddns.
 func registerProviderSubCommands(parent *cobra.Command, commandName string, extraFlags func(cmd *cobra.Command), handler providerCmdHandler) {
 	for i := range providerFactories {
 		pd := &providerFactories[i]
+
+		// 受限 API provider 注册 list/clean 时给出明确提示
+		if pd.noListClean {
+			registerRestrictedCommand(parent, commandName, pd)
+			continue
+		}
+
 		cmd := &cobra.Command{
 			Use:   pd.name,
 			Short: fmt.Sprintf("%s DNS records for %s", commandName, pd.name),
@@ -376,6 +403,18 @@ func registerProviderSubCommands(parent *cobra.Command, commandName string, extr
 		}
 		parent.AddCommand(cmd)
 	}
+}
+
+// registerRestrictedCommand 为受限 API provider 注册 list/clean 提示命令。
+func registerRestrictedCommand(parent *cobra.Command, commandName string, pd *providerFactory) {
+	cmd := &cobra.Command{
+		Use:   pd.name,
+		Short: fmt.Sprintf("%s — %s API 不记录/管理", pd.name, pd.short),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fmt.Errorf("%s does not support '%s' via API — %s only provides update endpoints, use its web panel to manage records", pd.name, commandName, pd.name)
+		},
+	}
+	parent.AddCommand(cmd)
 }
 
 // formatProviderFlags 返回运营商的必填参数格式文本

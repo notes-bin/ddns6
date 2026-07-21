@@ -71,7 +71,7 @@ type DomainRecord struct {
 
 // AddRecord 添加域名解析记录
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
-	domain, subDomain := domainutil.SplitDomain(record.Name)
+	domain, subDomain := domainutil.SplitDomain(record.Name, record.Zone)
 
 	dnsRecord := DomainRecord{
 		Type: record.Type,
@@ -102,7 +102,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 
 // ModifyRecord 修改域名解析记录
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
-	domain, _ := domainutil.SplitDomain(record.Name)
+	domain, _ := domainutil.SplitDomain(record.Name, record.Zone)
 
 	dnsRecord := DomainRecord{
 		Type: record.Type,
@@ -129,7 +129,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 
 // DeleteRecord 删除域名解析记录
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
-	domain, _ := domainutil.SplitDomain(record.Name)
+	domain, _ := domainutil.SplitDomain(record.Name, record.Zone)
 
 	url := fmt.Sprintf("%s/domains/%s/records/%s", c.baseURL, domain, record.ID)
 	slog.Debug("deleting DigitalOcean DNS record", "module", "digitalocean", "domain", domain, "record_id", record.ID)
@@ -145,7 +145,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 
 // GetRecords 查询域名解析记录
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	domain, _ := domainutil.SplitDomain(fulldomain)
+	domain, _ := domainutil.SplitDomain(fulldomain, "")
 
 	url := fmt.Sprintf("%s/domains/%s/records?per_page=200", c.baseURL, domain)
 	slog.Debug("querying DigitalOcean DNS records", "module", "digitalocean", "domain", domain, "type", recordType)

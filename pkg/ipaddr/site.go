@@ -12,41 +12,45 @@ import (
 )
 
 // HttpIPv6Fetcher 从 HTTP 端点获取 IPv6 地址
-type HttpIPv6Fetcher string
+type HttpIPv6Fetcher struct {
+	url    string
+	client *http.Client
+}
 
 // NewHttpIPv6Fetcher 创建新的 HttpIPv6Fetcher
 func NewHttpIPv6Fetcher(url string) *HttpIPv6Fetcher {
-	return (*HttpIPv6Fetcher)(&url)
+	return &HttpIPv6Fetcher{
+		url:    url,
+		client: &http.Client{Timeout: 5 * time.Second},
+	}
 }
 
 // String 返回 HttpIPv6Fetcher 的字符串表示
 func (h *HttpIPv6Fetcher) String() string {
-	return string(*h)
+	return h.url
 }
 
 // Fetch 实现 Fetcher 接口
 func (h *HttpIPv6Fetcher) Fetch(ctx context.Context) (net.IP, error) {
 	// 创建 HTTP 请求
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, string(*h), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, h.url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request for %s: %w", *h, err)
+		return nil, fmt.Errorf("failed to create request for %s: %w", h.url, err)
 	}
 
-	slog.Debug("fetching IPv6 via HTTP", "module", "ipaddr", "url", h.String())
+	slog.Debug("fetching IPv6 via HTTP", "module", "ipaddr", "url", h.url)
 
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-	}
+	client := h.client
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get %s: %w", *h, err)
+		return nil, fmt.Errorf("failed to get %s: %w", h.url, err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body from %s: %w", *h, err)
+		return nil, fmt.Errorf("failed to read response body from %s: %w", h.url, err)
 	}
 
 	// 清理响应内容
@@ -72,5 +76,5 @@ func (h *HttpIPv6Fetcher) Fetch(ctx context.Context) (net.IP, error) {
 		"response", respStr,
 	)
 
-	return nil, fmt.Errorf("no valid IPv6 address found from %s", *h)
+	return nil, fmt.Errorf("no valid IPv6 address found from %s", h.url)
 }

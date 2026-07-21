@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
@@ -20,6 +21,7 @@ type GoDaddyClient struct {
 	APISecret  string
 	BaseURL    string
 	HTTPClient *http.Client
+	mu         sync.Mutex // 保护 deleteRecordsByValue 的并发安全
 }
 
 type Options func(*GoDaddyClient)
@@ -66,12 +68,12 @@ type DNSRecord struct {
 func (c *GoDaddyClient) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	subDomain, domain, err := c.getRootDomain(ctx, record.Name)
 	if err != nil {
-		return fmt.Errorf("failed to get root domain: %v", err)
+		return fmt.Errorf("failed to get root domain: %w", err)
 	}
 
 	existingRecords, err := c.getRecords(ctx, domain, subDomain, record.Type)
 	if err != nil {
-		return fmt.Errorf("failed to get existing records: %v", err)
+		return fmt.Errorf("failed to get existing records: %w", err)
 	}
 
 	for _, r := range existingRecords {
@@ -95,12 +97,12 @@ func (c *GoDaddyClient) AddRecord(ctx context.Context, record ddns.RecordInfo) e
 func (c *GoDaddyClient) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
 	subDomain, domain, err := c.getRootDomain(ctx, record.Name)
 	if err != nil {
-		return fmt.Errorf("failed to get root domain: %v", err)
+		return fmt.Errorf("failed to get root domain: %w", err)
 	}
 
 	existingRecords, err := c.getRecords(ctx, domain, subDomain, record.Type)
 	if err != nil {
-		return fmt.Errorf("failed to get existing records: %v", err)
+		return fmt.Errorf("failed to get existing records: %w", err)
 	}
 
 	// record.ID is used as the old value to match for GoDaddy (no record ID concept)
@@ -125,7 +127,7 @@ func (c *GoDaddyClient) ModifyRecord(ctx context.Context, record ddns.RecordInfo
 func (c *GoDaddyClient) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
 	subDomain, domain, err := c.getRootDomain(ctx, record.Name)
 	if err != nil {
-		return fmt.Errorf("failed to get root domain: %v", err)
+		return fmt.Errorf("failed to get root domain: %w", err)
 	}
 
 	// 按值匹配删除 AAAA 记录
@@ -134,9 +136,12 @@ func (c *GoDaddyClient) DeleteRecord(ctx context.Context, record ddns.RecordInfo
 
 // deleteRecordsByValue 根据值删除特定类型的记录
 func (c *GoDaddyClient) deleteRecordsByValue(ctx context.Context, domain, subDomain, rtype, value string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	existingRecords, err := c.getRecords(ctx, domain, subDomain, rtype)
 	if err != nil {
-		return fmt.Errorf("failed to get existing records: %v", err)
+		return fmt.Errorf("failed to get existing records: %w", err)
 	}
 
 	var newRecords []DNSRecord
@@ -164,7 +169,7 @@ func (c *GoDaddyClient) deleteRecordsByValue(ctx context.Context, domain, subDom
 func (c *GoDaddyClient) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	subDomain, domain, err := c.getRootDomain(ctx, fulldomain)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get root domain: %v", err)
+		return nil, fmt.Errorf("failed to get root domain: %w", err)
 	}
 
 	records, err := c.getRecords(ctx, domain, subDomain, recordType)

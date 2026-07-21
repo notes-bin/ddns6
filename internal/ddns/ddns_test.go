@@ -2,6 +2,7 @@ package ddns
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"testing"
 )
@@ -168,4 +169,254 @@ func (m *mockProvider) ModifyRecord(_ context.Context, _ RecordInfo) error {
 
 func (m *mockProvider) DeleteRecord(_ context.Context, _ RecordInfo) error {
 	return nil
+}
+
+// ============================================================
+// syncDNSRecord 测试
+// ============================================================
+
+func TestSyncDNSRecord_NoRecord_AddNew(t *testing.T) {
+	ctx := context.Background()
+	d := &Domain{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}
+	m := &mockProvider{records: []RecordInfo{}}
+	addr := net.ParseIP("2001:db8::1")
+
+	err := syncDNSRecord(ctx, d, m, addr)
+	if err != nil {
+		t.Fatalf("syncDNSRecord 不应返回错误: %v", err)
+	}
+
+	// 验证缓存已更新
+	if d.Addr == nil || d.Addr.String() != "2001:db8::1" {
+		t.Errorf("Addr 应更新为 2001:db8::1, 得到 %v", d.Addr)
+	}
+}
+
+func TestSyncDNSRecord_IPMatch_Skip(t *testing.T) {
+	ctx := context.Background()
+	d := &Domain{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}
+	addr := net.ParseIP("2001:db8::1")
+	m := &mockProvider{
+		records: []RecordInfo{
+			{ID: "1", Name: "www.example.com", Zone: "example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600},
+		},
+	}
+
+	err := syncDNSRecord(ctx, d, m, addr)
+	if err != nil {
+		t.Fatalf("syncDNSRecord 不应返回错误: %v", err)
+	}
+
+	// 验证缓存已更新（IP 不变时也应更新缓存）
+	if d.Addr == nil || d.Addr.String() != "2001:db8::1" {
+		t.Errorf("Addr 应更新为 2001:db8::1, 得到 %v", d.Addr)
+	}
+}
+
+func TestSyncDNSRecord_IPChanged_Modify(t *testing.T) {
+	ctx := context.Background()
+	d := &Domain{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}
+	addr := net.ParseIP("2001:db8::2")
+	m := &mockProvider{
+		records: []RecordInfo{
+			{ID: "1", Name: "www.example.com", Zone: "example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600},
+		},
+	}
+
+	err := syncDNSRecord(ctx, d, m, addr)
+	if err != nil {
+		t.Fatalf("syncDNSRecord 不应返回错误: %v", err)
+	}
+
+	if d.Addr == nil || d.Addr.String() != "2001:db8::2" {
+		t.Errorf("Addr 应更新为 2001:db8::2, 得到 %v", d.Addr)
+	}
+}
+
+func TestSyncDNSRecord_GetRecordsError(t *testing.T) {
+	ctx := context.Background()
+	d := &Domain{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}
+	m := &mockProvider{getErr: fmt.Errorf("api failure")}
+	addr := net.ParseIP("2001:db8::1")
+
+	err := syncDNSRecord(ctx, d, m, addr)
+	if err == nil {
+		t.Fatal("GetRecords 失败时 syncDNSRecord 应返回错误")
+	}
+}
+
+func TestSyncDNSRecord_ModifyRecordError(t *testing.T) {
+	ctx := context.Background()
+	d := &Domain{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}
+	addr := net.ParseIP("2001:db8::2")
+	m := &mockProvider{
+		records: []RecordInfo{
+			{ID: "1", Name: "www.example.com", Zone: "example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600},
+		},
+		modErr: fmt.Errorf("modify failed"),
+	}
+
+	err := syncDNSRecord(ctx, d, m, addr)
+	if err == nil {
+		t.Fatal("ModifyRecord 失败时 syncDNSRecord 应返回错误")
+	}
+}
+
+func TestSyncDNSRecord_AddRecordError(t *testing.T) {
+	ctx := context.Background()
+	d := &Domain{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}
+	m := &mockProvider{addErr: fmt.Errorf("add failed")}
+	addr := net.ParseIP("2001:db8::1")
+
+	err := syncDNSRecord(ctx, d, m, addr)
+	if err == nil {
+		t.Fatal("AddRecord 失败时 syncDNSRecord 应返回错误")
+	}
+}
+
+func TestSyncDNSRecord_MultipleRecords_AllProcessed(t *testing.T) {
+	ctx := context.Background()
+	d := &Domain{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}
+	addr := net.ParseIP("2001:db8::3")
+	m := &mockProvider{
+		records: []RecordInfo{
+			{ID: "1", Name: "www.example.com", Zone: "example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600},
+			{ID: "2", Name: "www.example.com", Zone: "example.com", Type: "AAAA", Value: "2001:db8::2", TTL: 600},
+		},
+	}
+
+	err := syncDNSRecord(ctx, d, m, addr)
+	if err != nil {
+		t.Fatalf("syncDNSRecord 不应返回错误: %v", err)
+	}
+
+	if d.Addr == nil || d.Addr.String() != "2001:db8::3" {
+		t.Errorf("Addr 应更新为 2001:db8::3, 得到 %v", d.Addr)
+	}
+}
+
+func TestSyncDNSRecord_WrongType_Skipped(t *testing.T) {
+	ctx := context.Background()
+	d := &Domain{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}
+	addr := net.ParseIP("2001:db8::1")
+	m := &mockProvider{
+		records: []RecordInfo{
+			// 非 AAAA 类型记录应被跳过
+			{ID: "1", Name: "www.example.com", Zone: "example.com", Type: "A", Value: "192.168.1.1", TTL: 600},
+		},
+	}
+
+	err := syncDNSRecord(ctx, d, m, addr)
+	if err != nil {
+		t.Fatalf("syncDNSRecord 不应返回错误: %v", err)
+	}
+
+	// 无匹配记录时应触发 Add
+	if d.Addr == nil || d.Addr.String() != "2001:db8::1" {
+		t.Errorf("Addr 应更新为 2001:db8::1, 得到 %v", d.Addr)
+	}
+}
+
+func TestSyncDNSRecord_WrongSubDomain_Skipped(t *testing.T) {
+	ctx := context.Background()
+	d := &Domain{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}
+	addr := net.ParseIP("2001:db8::1")
+	m := &mockProvider{
+		records: []RecordInfo{
+			// 非 www 子域名的记录应被跳过
+			{ID: "1", Name: "api.example.com", Zone: "example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600},
+		},
+	}
+
+	err := syncDNSRecord(ctx, d, m, addr)
+	if err != nil {
+		t.Fatalf("syncDNSRecord 不应返回错误: %v", err)
+	}
+
+	if d.Addr == nil || d.Addr.String() != "2001:db8::1" {
+		t.Errorf("Addr 应更新为 2001:db8::1, 得到 %v", d.Addr)
+	}
+}
+
+// ============================================================
+// SyncRecord 测试
+// ============================================================
+
+func TestSyncRecord_AddrUnchanged_Skip(t *testing.T) {
+	ctx := context.Background()
+	addr := net.ParseIP("2001:db8::1")
+	d := &Domain{
+		Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600,
+	}
+	d.SetAddr(addr) // 缓存已是最新
+
+	m := &mockProvider{records: []RecordInfo{}}
+
+	err := SyncRecord(ctx, d, addr, m)
+	if err != nil {
+		t.Fatalf("SyncRecord 不应返回错误: %v", err)
+	}
+	// 地址未变化时应跳过 API 调用
+}
+
+func TestSyncRecord_AddrChanged_Update(t *testing.T) {
+	ctx := context.Background()
+	oldAddr := net.ParseIP("2001:db8::1")
+	newAddr := net.ParseIP("2001:db8::2")
+	d := &Domain{
+		Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600,
+	}
+	d.SetAddr(oldAddr)
+
+	m := &mockProvider{
+		records: []RecordInfo{
+			{ID: "1", Name: "www.example.com", Zone: "example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600},
+		},
+	}
+
+	err := SyncRecord(ctx, d, newAddr, m)
+	if err != nil {
+		t.Fatalf("SyncRecord 不应返回错误: %v", err)
+	}
+
+	// 地址变化应更新
+	if d.Addr.String() != "2001:db8::2" {
+		t.Errorf("Addr 应更新为 2001:db8::2, 得到 %v", d.Addr)
+	}
+}
+
+func TestSyncRecord_NilCachedAddr_Update(t *testing.T) {
+	ctx := context.Background()
+	addr := net.ParseIP("2001:db8::1")
+	d := &Domain{
+		Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600,
+	}
+	// Addr 为 nil — 首次运行
+
+	m := &mockProvider{
+		records: []RecordInfo{
+			{ID: "1", Name: "www.example.com", Zone: "example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600},
+		},
+	}
+
+	err := SyncRecord(ctx, d, addr, m)
+	if err != nil {
+		t.Fatalf("SyncRecord 不应返回错误: %v", err)
+	}
+}
+
+func TestSyncRecord_CtxCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // 立即取消
+
+	addr := net.ParseIP("2001:db8::1")
+	d := &Domain{
+		Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600,
+	}
+	m := &mockProvider{}
+
+	err := SyncRecord(ctx, d, addr, m)
+	if err == nil {
+		t.Fatal("上下文取消时 SyncRecord 应返回错误")
+	}
 }

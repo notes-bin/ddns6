@@ -25,6 +25,7 @@ type AliDNSClient struct {
 	AccessKeySecret string
 	BaseURL         string
 	HTTPClient      *http.Client
+	SignVersion     string // 签名版本："v1"（默认，HMAC-SHA1）或 "v3"（ACS3-HMAC-SHA256）
 }
 
 type Options func(*AliDNSClient)
@@ -36,6 +37,7 @@ func NewClient(accessKeyId, accessKeySecret string, options ...Options) *AliDNSC
 		AccessKeySecret: accessKeySecret,
 		BaseURL:         "https://alidns.aliyuncs.com/",
 		HTTPClient:      &http.Client{Timeout: 30 * time.Second},
+		SignVersion:     "v1",
 	}
 
 	for _, option := range options {
@@ -59,6 +61,13 @@ func WithHTTPClient(httpClient *http.Client) Options {
 	}
 }
 
+// WithSignVersion 设置签名版本："v1"（默认，HMAC-SHA1）或 "v3"（ACS3-HMAC-SHA256）
+func WithSignVersion(version string) Options {
+	return func(c *AliDNSClient) {
+		c.SignVersion = version
+	}
+}
+
 // DNSRecord  an Alibaba Cloud DNS record
 type DNSRecord struct {
 	RecordId string `json:"RecordId"`
@@ -73,7 +82,7 @@ type DNSRecord struct {
 func (c *AliDNSClient) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	domain, subDomain, err := c.getRootDomain(ctx, record.Name)
 	if err != nil {
-		return fmt.Errorf("failed to get root domain: %v", err)
+		return fmt.Errorf("failed to get root domain: %w", err)
 	}
 
 	params := map[string]string{
@@ -86,7 +95,7 @@ func (c *AliDNSClient) AddRecord(ctx context.Context, record ddns.RecordInfo) er
 		"RecordLine": "default",
 	}
 
-	_, err = c.makeV1Request(ctx, params)
+	_, err = c.makeRequest(ctx, params)
 	return err
 }
 
@@ -94,7 +103,7 @@ func (c *AliDNSClient) AddRecord(ctx context.Context, record ddns.RecordInfo) er
 func (c *AliDNSClient) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
 	_, subDomain, err := c.getRootDomain(ctx, record.Name)
 	if err != nil {
-		return fmt.Errorf("failed to get root domain: %v", err)
+		return fmt.Errorf("failed to get root domain: %w", err)
 	}
 
 	params := map[string]string{
@@ -106,7 +115,7 @@ func (c *AliDNSClient) ModifyRecord(ctx context.Context, record ddns.RecordInfo)
 		"TTL":      fmt.Sprintf("%d", record.TTL),
 	}
 
-	_, err = c.makeV1Request(ctx, params)
+	_, err = c.makeRequest(ctx, params)
 	return err
 }
 
@@ -117,7 +126,7 @@ func (c *AliDNSClient) DeleteRecord(ctx context.Context, record ddns.RecordInfo)
 		"RecordId": record.ID,
 	}
 
-	_, err := c.makeV1Request(ctx, params)
+	_, err := c.makeRequest(ctx, params)
 	return err
 }
 
@@ -125,7 +134,7 @@ func (c *AliDNSClient) DeleteRecord(ctx context.Context, record ddns.RecordInfo)
 func (c *AliDNSClient) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	domain, subDomain, err := c.getRootDomain(ctx, fulldomain)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get root domain: %v", err)
+		return nil, fmt.Errorf("failed to get root domain: %w", err)
 	}
 
 	params := map[string]string{
@@ -140,7 +149,7 @@ func (c *AliDNSClient) GetRecords(ctx context.Context, fulldomain, recordType st
 		params["RRKeyWord"] = subDomain
 	}
 
-	resp, err := c.makeV1Request(ctx, params)
+	resp, err := c.makeRequest(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +189,7 @@ func (c *AliDNSClient) GetDomainRecord(ctx context.Context, fulldomain, recordID
 		"RecordId": recordID,
 	}
 
-	resp, err := c.makeV1Request(ctx, params)
+	resp, err := c.makeRequest(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +214,7 @@ func (c *AliDNSClient) getRootDomain(ctx context.Context, domain string) (string
 			"DomainName": h,
 		}
 
-		resp, err := c.makeV1Request(ctx, params)
+		resp, err := c.makeRequest(ctx, params)
 		if err != nil {
 			continue
 		}
@@ -231,6 +240,14 @@ func (c *AliDNSClient) getRootDomain(ctx context.Context, domain string) (string
 
 	// 兜底：完整域名即为根域名，使用 @ 表示记录主机名
 	return domain, "@", nil
+}
+
+// makeRequest 根据 SignVersion 选择签名方式发起认证请求。
+func (c *AliDNSClient) makeRequest(ctx context.Context, params map[string]string) ([]byte, error) {
+	if c.SignVersion == "v3" {
+		return c.makeV3Request(ctx, params)
+	}
+	return c.makeV1Request(ctx, params)
 }
 
 // makeV1Request 使用 V1 签名（HMAC-SHA1）发起认证请求。

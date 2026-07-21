@@ -10,6 +10,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	urlpkg "net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -78,7 +79,7 @@ type apiResponse struct {
 
 // AddRecord 添加域名解析记录
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
-	domain, subDomain := splitDomain(record.Name)
+	domain, subDomain := splitDomain(record.Name, record.Zone)
 
 	dnsRecord := DNSRecord{
 		Name:    subDomain,
@@ -87,7 +88,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		TTL:     strconv.Itoa(record.TTL),
 	}
 
-	url := fmt.Sprintf("%s/create/%s", c.baseURL, domain)
+	url := fmt.Sprintf("%s/create/%s", c.baseURL, urlpkg.PathEscape(domain))
 	slog.Debug("adding Porkbun DNS record", "module", "porkbun", "domain", domain, "name", subDomain, "type", record.Type)
 
 	var resp apiResponse
@@ -106,14 +107,14 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 // ModifyRecord 修改域名解析记录
 // Porkbun 使用 editByNameType 接口按名称和类型修改记录
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
-	domain, subDomain := splitDomain(record.Name)
+	domain, subDomain := splitDomain(record.Name, record.Zone)
 
 	dnsRecord := DNSRecord{
 		Content: record.Value,
 		TTL:     strconv.Itoa(record.TTL),
 	}
 
-	url := fmt.Sprintf("%s/editByNameType/%s/%s/%s", c.baseURL, domain, record.Type, subDomain)
+	url := fmt.Sprintf("%s/editByNameType/%s/%s/%s", c.baseURL, urlpkg.PathEscape(domain), record.Type, urlpkg.PathEscape(subDomain))
 	slog.Debug("modifying Porkbun DNS record", "module", "porkbun", "domain", domain, "name", subDomain, "type", record.Type)
 
 	var resp apiResponse
@@ -132,9 +133,9 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 // DeleteRecord 删除域名解析记录
 // Porkbun 使用 deleteByNameType 接口
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
-	domain, subDomain := splitDomain(record.Name)
+	domain, subDomain := splitDomain(record.Name, record.Zone)
 
-	url := fmt.Sprintf("%s/deleteByNameType/%s/%s/%s", c.baseURL, domain, "AAAA", subDomain)
+	url := fmt.Sprintf("%s/deleteByNameType/%s/%s/%s", c.baseURL, urlpkg.PathEscape(domain), "AAAA", urlpkg.PathEscape(subDomain))
 	slog.Debug("deleting Porkbun DNS record", "module", "porkbun", "domain", domain, "name", subDomain)
 
 	var resp apiResponse
@@ -152,13 +153,13 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 
 // GetRecords 查询域名解析记录
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	domain, subDomain := splitDomain(fulldomain)
+	domain, subDomain := splitDomain(fulldomain, "")
 
 	// subDomain 为 "@" 时使用 retrieveByType（按域名+类型）
 	// 否则使用 retrieveByNameType（按域名+类型+名称精确匹配）
-	url := fmt.Sprintf("%s/retrieveByType/%s/%s", c.baseURL, domain, recordType)
+	url := fmt.Sprintf("%s/retrieveByType/%s/%s", c.baseURL, urlpkg.PathEscape(domain), recordType)
 	if subDomain != "@" {
-		url = fmt.Sprintf("%s/retrieveByNameType/%s/%s/%s", c.baseURL, domain, recordType, subDomain)
+		url = fmt.Sprintf("%s/retrieveByNameType/%s/%s/%s", c.baseURL, urlpkg.PathEscape(domain), recordType, urlpkg.PathEscape(subDomain))
 	}
 	slog.Debug("querying Porkbun DNS records", "module", "porkbun", "domain", domain, "name", subDomain, "type", recordType)
 
@@ -234,8 +235,9 @@ func (c *Client) post(ctx context.Context, url string, record *DNSRecord, result
 }
 
 // splitDomain 将完整域名分割为根域名和子域名
-func splitDomain(fulldomain string) (string, string) {
-	return domainutil.SplitDomain(fulldomain)
+// rootDomain 为已知根域名（来自 --domain），为空时回退到从 Name 推导
+func splitDomain(fulldomain, rootDomain string) (string, string) {
+	return domainutil.SplitDomain(fulldomain, rootDomain)
 }
 
 // parseTTL 将 Porkbun 的字符串 TTL 转换为 int，解析失败返回默认值

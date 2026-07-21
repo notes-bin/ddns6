@@ -113,12 +113,12 @@ type ErrorDetails struct {
 func (c *CloudflareClient) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	zoneID, err := c.getZoneID(ctx, record.Name)
 	if err != nil {
-		return fmt.Errorf("failed to get zone ID: %v", err)
+		return fmt.Errorf("failed to get zone ID: %w", err)
 	}
 
 	records, err := c.getRecords(ctx, zoneID, record.Name, record.Type, record.Value)
 	if err != nil {
-		return fmt.Errorf("failed to check existing records: %v", err)
+		return fmt.Errorf("failed to check existing records: %w", err)
 	}
 
 	if len(records) > 0 {
@@ -140,12 +140,12 @@ func (c *CloudflareClient) AddRecord(ctx context.Context, record ddns.RecordInfo
 func (c *CloudflareClient) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
 	zoneID, err := c.getZoneID(ctx, record.Name)
 	if err != nil {
-		return fmt.Errorf("failed to get zone ID: %v", err)
+		return fmt.Errorf("failed to get zone ID: %w", err)
 	}
 
 	cfRecord, err := c.getRecordByID(ctx, zoneID, record.ID)
 	if err != nil {
-		return fmt.Errorf("failed to get record: %v", err)
+		return fmt.Errorf("failed to get record: %w", err)
 	}
 
 	cfRecord.Content = record.Value
@@ -159,7 +159,7 @@ func (c *CloudflareClient) ModifyRecord(ctx context.Context, record ddns.RecordI
 func (c *CloudflareClient) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
 	zoneID, err := c.getZoneID(ctx, record.Name)
 	if err != nil {
-		return fmt.Errorf("failed to get zone ID: %v", err)
+		return fmt.Errorf("failed to get zone ID: %w", err)
 	}
 
 	return c.deleteDNSRecord(ctx, zoneID, record.ID)
@@ -169,7 +169,7 @@ func (c *CloudflareClient) DeleteRecord(ctx context.Context, record ddns.RecordI
 func (c *CloudflareClient) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	zoneID, err := c.getZoneID(ctx, fulldomain)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get zone ID: %v", err)
+		return nil, fmt.Errorf("failed to get zone ID: %w", err)
 	}
 
 	records, err := c.getRecords(ctx, zoneID, fulldomain, recordType, "")
@@ -194,7 +194,7 @@ func (c *CloudflareClient) GetRecords(ctx context.Context, fulldomain, recordTyp
 func (c *CloudflareClient) GetDomainRecord(ctx context.Context, fulldomain, recordID string) (*DNSRecord, error) {
 	zoneID, err := c.getZoneID(ctx, fulldomain)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get zone ID: %v", err)
+		return nil, fmt.Errorf("failed to get zone ID: %w", err)
 	}
 
 	return c.getRecordByID(ctx, zoneID, recordID)
