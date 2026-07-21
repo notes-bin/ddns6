@@ -285,7 +285,7 @@ func (c *AliDNSClient) makeV1Request(ctx context.Context, params map[string]stri
 	slog.Debug("Alibaba Cloud API response", "module", "alicloud", "action", action, "status", resp.StatusCode)
 
 	if resp.StatusCode != http.StatusOK {
-		slog.Error("Alibaba Cloud API returned error status",
+		slog.Debug("Alibaba Cloud API returned non-200 status",
 			"module", "alicloud",
 			"action", action, "status", resp.StatusCode)
 		return nil, fmt.Errorf("API request failed with status %d", resp.StatusCode)
@@ -375,7 +375,7 @@ func (c *AliDNSClient) makeV3Request(ctx context.Context, params map[string]stri
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		slog.Error("Alibaba Cloud API V3 returned error status",
+		slog.Debug("Alibaba Cloud API V3 returned non-200 status",
 			"module", "alicloud",
 			"action", action, "status", resp.StatusCode, "body", truncateString(string(body), 200))
 		return nil, fmt.Errorf("API request failed with status %d", resp.StatusCode)
