@@ -174,9 +174,14 @@ func (c *GoDaddyClient) GetRecords(ctx context.Context, fulldomain, recordType s
 
 	result := make([]ddns.RecordInfo, len(records))
 	for i, r := range records {
+		// 构建完整记录名（含根域名），确保后续 DeleteRecord 能正确提取根域名
+		recordName := domain
+		if r.Name != "@" && r.Name != "" {
+			recordName = r.Name + "." + domain
+		}
 		result[i] = ddns.RecordInfo{
 			ID:    r.Data, // GoDaddy 无 ID 概念，用值作为标识
-			Name:  r.Name,
+			Name:  recordName,
 			Type:  r.Type,
 			Value: r.Data,
 			TTL:   r.TTL,

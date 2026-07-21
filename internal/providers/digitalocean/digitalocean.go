@@ -167,9 +167,15 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		if recordType != "" && r.Type != recordType {
 			continue
 		}
+
+		// 构建完整记录名（含根域名），确保后续 DeleteRecord 能正确提取根域名
+		recordName := domain
+		if r.Name != "@" && r.Name != "" {
+			recordName = r.Name + "." + domain
+		}
 		result = append(result, ddns.RecordInfo{
 			ID:    fmt.Sprintf("%d", r.ID),
-			Name:  r.Name,
+			Name:  recordName,
 			Type:  r.Type,
 			Value: r.Data,
 			TTL:   r.TTL,

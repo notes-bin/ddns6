@@ -307,9 +307,16 @@ func (ds *DNSPod) GetRecords(ctx context.Context, fulldomain, recordType string)
 		if recordType != "" && r.RecordType != recordType {
 			continue
 		}
+
+		// 构建完整记录名（含根域名），而非仅 API 返回的标签。
+		// 这样 DeleteRecord 等后续操作能正确提取根域名。
+		recordName := domain
+		if r.SubDomain != "@" && r.SubDomain != "" {
+			recordName = r.SubDomain + "." + domain
+		}
 		result = append(result, ddns.RecordInfo{
 			ID:    strconv.Itoa(r.RecordId),
-			Name:  r.SubDomain,
+			Name:  recordName,
 			Type:  r.RecordType,
 			Value: r.Value,
 			TTL:   r.TTL,
