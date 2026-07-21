@@ -2,6 +2,23 @@
 //
 // 本包定义了 DDNS 核心类型：RecordInfo（通用 DNS 记录）、DNSProvider（服务商接口）、
 // Domain（域名配置），以及服务编排的入口 RunService。
+//
+// 使用示例（作为库调用）：
+//
+//	// 1. 创建域名配置
+//	domains := []*ddns.Domain{
+//	    {Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600},
+//	    {Domain: "example.com", SubDomain: "@", Type: "AAAA", TTL: 600},
+//	}
+//
+//	// 2. 创建 Provider（以 tencent 为例）
+//	p := tencent.NewDNSPod("your-secret-id", "your-secret-key")
+//
+//	// 3. 启动服务
+//	err := ddns.RunService(domains, p, 5*time.Minute, ddns.DefaultIPv6Fetchers, "")
+//
+// 新增 DNS 运营商需实现 DNSProvider 接口（4 个方法），然后在
+// cmd/providers.go 的 providerFactories 列表中注册。
 package ddns
 
 import (

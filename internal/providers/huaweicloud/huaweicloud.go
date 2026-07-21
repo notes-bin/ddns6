@@ -1,6 +1,9 @@
 // Package huaweicloud 实现华为云 DNS API 服务
 //
-// 华为云 DNS 使用 SDK-HMAC-SHA256 签名认证，基于 AWS SigV4 变体
+// 认证方式：Access Key + Secret Key（从 IAM 用户获取）
+// 必填参数：--access-key, --secret-key
+//
+// 使用 SDK-HMAC-SHA256 签名认证，基于 AWS SigV4 变体
 // API 文档：https://support.huaweicloud.com/api-dns/dns_api_64001.html
 package huaweicloud
 

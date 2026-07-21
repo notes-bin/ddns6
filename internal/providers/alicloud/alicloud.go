@@ -1,3 +1,11 @@
+// Package alicloud 实现阿里云 DNS API 服务
+//
+// 认证方式：AccessKey ID + AccessKey Secret（从 RAM 用户获取）
+// 必填参数：--access-key-id, --access-key-secret
+// 可选参数：--sign-version（v1 默认可选，v3 可选）
+//
+// 支持 V1（HMAC-SHA1）和 V3（ACS3-HMAC-SHA256）两种签名版本，
+// 默认为 V1，通过 --sign-version v3 切换。
 package alicloud
 
 import (
