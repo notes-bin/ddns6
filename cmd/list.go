@@ -66,14 +66,9 @@ func handleList(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider) 
 		return fmt.Errorf("invalid --type flag: %w", err)
 	}
 
-	// 获取 --subdomain 过滤列表
-	subdomains, err := cmd.Flags().GetStringArray("subdomain")
-	if err != nil {
-		return fmt.Errorf("invalid --subdomain flag: %w", err)
-	}
-	if len(subdomains) == 0 {
-		subdomains = []string{"@"}
-	}
+	// 用户显式指定了 --subdomain 时才按子域名过滤
+	// 未指定时展示该域名下所有匹配 --type 的记录
+	filterBySubdomain := cmd.Flags().Changed("subdomain")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -95,7 +90,7 @@ func handleList(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider) 
 
 		// 按子域名过滤 + 去重
 		for _, r := range records {
-			if !recordNameMatches(r.Name, fqdn, d.SubDomain) {
+			if filterBySubdomain && !recordNameMatches(r.Name, fqdn, d.SubDomain) {
 				continue
 			}
 			if recordType != "" && r.Type != recordType {
@@ -112,8 +107,12 @@ func handleList(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider) 
 	}
 
 	// 输出
-	filterInfo := buildFilterInfo(domains, recordType)
-	fmt.Printf("Listing %s for %s:\n\n", recordTypeDesc(recordType), filterInfo)
+	filterInfo := buildFilterInfo(domains, filterBySubdomain)
+	heading := fmt.Sprintf("Listing %s for %s", recordTypeDesc(recordType), filterInfo)
+	if filterBySubdomain {
+		heading += " (filtered by subdomain)"
+	}
+	fmt.Println(heading + ":\n")
 
 	if len(allRecords) == 0 {
 		fmt.Println("No records found.")
@@ -150,7 +149,7 @@ func recordTypeDesc(t string) string {
 }
 
 // buildFilterInfo 构建过滤条件描述文本。
-func buildFilterInfo(domains []*ddns.Domain, _ string) string {
+func buildFilterInfo(domains []*ddns.Domain, filterBySubdomain bool) string {
 	// 收集所有唯一的 fullDomain
 	seen := make(map[string]bool)
 	var parts []string
