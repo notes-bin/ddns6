@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -86,59 +87,13 @@ func handleClean(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider)
 		return fmt.Errorf("invalid --yes flag: %w", err)
 	}
 
-	subdomains, err := cmd.Flags().GetStringArray("subdomain")
-	if err != nil {
-		return fmt.Errorf("invalid --subdomain flag: %w", err)
-	}
-	if len(subdomains) == 0 {
-		subdomains = []string{"@"}
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	// 按根域名分组，每个根域名只查一次 API
-	rootGroups := make(map[string][]*ddns.Domain)
-	for _, d := range domains {
-		rootGroups[d.Domain] = append(rootGroups[d.Domain], d)
-	}
-
 	// 收集要删除的记录
-	var toDelete []ddns.RecordInfo
-	seen := make(map[string]bool)
-
-	for rootDomain, group := range rootGroups {
-		slog.Debug("fetching records for cleanup",
-			"module", "cmd", "root_domain", rootDomain, "type", recordType,
-			"subdomain_count", len(group))
-
-		records, err := p.GetRecords(ctx, rootDomain, recordType)
-		if err != nil {
-			return fmt.Errorf("failed to query records for %s: %w", rootDomain, err)
-		}
-
-		for _, r := range records {
-			// 匹配任意一个指定子域名即视为待删除记录
-			matched := false
-			for _, d := range group {
-				if recordNameMatches(r.Name, d.FullDomain(), d.SubDomain) {
-					matched = true
-					break
-				}
-			}
-			if !matched {
-				continue
-			}
-			if recordType != "" && r.Type != recordType {
-				continue
-			}
-			key := r.ID + "|" + r.Name + "|" + r.Type + "|" + r.Value
-			if seen[key] {
-				continue
-			}
-			seen[key] = true
-			toDelete = append(toDelete, r)
-		}
+	toDelete, err := ddns.CollectMatchingRecords(ctx, p, domains, recordType, true)
+	if err != nil {
+		return fmt.Errorf("failed to query records: %w", err)
 	}
 
 	// 无记录可删除
@@ -169,22 +124,38 @@ func handleClean(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider)
 		}
 	}
 
-	// 执行删除
+	// 执行删除（限流 5 并发）
+	sem := make(chan struct{}, 5)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
 	var failed int
-	for _, r := range toDelete {
-		slog.Info("deleting DNS record",
-			"module", "cmd", "record_id", r.ID, "name", r.Name,
-			"type", r.Type, "value", r.Value)
 
-		if err := p.DeleteRecord(ctx, r); err != nil {
-			slog.Error("failed to delete record",
-				"module", "cmd", "record_id", r.ID, "name", r.Name, "err", err)
-			fmt.Fprintf(os.Stderr, "Error deleting %s (ID: %s): %v\n", r.Name, r.ID, err)
-			failed++
-			continue
-		}
-		fmt.Printf("Deleted: %s %s -> %s\n", r.Name, r.Type, r.Value)
+	for _, r := range toDelete {
+		wg.Add(1)
+		sem <- struct{}{} // 获取信号量，满 5 时阻塞
+
+		go func(rec ddns.RecordInfo) {
+			defer wg.Done()
+			defer func() { <-sem }() // 释放信号量
+
+			slog.Info("deleting DNS record",
+				"module", "cmd", "record_id", rec.ID, "name", rec.Name,
+				"type", rec.Type, "value", rec.Value)
+
+			if err := p.DeleteRecord(ctx, rec); err != nil {
+				slog.Error("failed to delete record",
+					"module", "cmd", "record_id", rec.ID, "name", rec.Name, "err", err)
+				fmt.Fprintf(os.Stderr, "Error deleting %s (ID: %s): %v\n", rec.Name, rec.ID, err)
+				mu.Lock()
+				failed++
+				mu.Unlock()
+				return
+			}
+			fmt.Printf("Deleted: %s %s -> %s\n", rec.Name, rec.Type, rec.Value)
+		}(r)
 	}
+
+	wg.Wait()
 
 	// 汇总
 	success := len(toDelete) - failed
@@ -202,16 +173,7 @@ func handleClean(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider)
 
 // runCleanWithConfig 从 ~/.ddns6/config.yaml 加载配置并执行 clean。
 func runCleanWithConfig(cmd *cobra.Command) error {
-	cfg, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("cannot load config: %w\n\nUse 'ddns6 init' to create a config file, or specify a provider: ddns6 clean <provider> --help", err)
-	}
-
-	domains := buildDomains(cfg.Domain, cfg.Subdomains, cfg.GetTTL())
-	p, err := createProviderFromConfig(cfg)
-	if err != nil {
-		return err
-	}
-
-	return handleClean(cmd, domains, p)
+	return runWithConfig(cmd, "clean", func(cmd *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error {
+		return handleClean(cmd, domains, p)
+	})
 }

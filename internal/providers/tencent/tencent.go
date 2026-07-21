@@ -4,9 +4,6 @@ package tencent
 import (
 	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/notes-bin/ddns6/internal/crypto"
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
@@ -567,47 +565,21 @@ func (ds *DNSPod) generateSignatureV3(service, action, payload string, timestamp
 	canonicalQuery := ""
 	canonicalHeaders := fmt.Sprintf("content-type:application/json; charset=utf-8\nhost:%s\nx-tc-action:%s\n", domain, strings.ToLower(action))
 	signedHeaders := "content-type;host;x-tc-action"
-	hashedPayload := sha256Hex(payload)
+	hashedPayload := crypto.SHA256Hex([]byte(payload))
 	canonicalRequest := fmt.Sprintf("POST\n%s\n%s\n%s\n%s\n%s", canonicalURI, canonicalQuery, canonicalHeaders, signedHeaders, hashedPayload)
 
 	// 构造待签名字符串
 	credentialScope := fmt.Sprintf("%s/%s/tc3_request", date, service)
-	hashedRequest := sha256Hex(canonicalRequest)
+	hashedRequest := crypto.SHA256Hex([]byte(canonicalRequest))
 	stringToSign := fmt.Sprintf("%s\n%d\n%s\n%s", algorithm, timestamp, credentialScope, hashedRequest)
 
 	// 计算签名 — 密钥链全部使用原始字节，仅在最后一步 HexEncode
-	secretDate := hmacSha256("TC3"+ds.secretKey, date)
-	secretService := hmacSha256Bytes(secretDate, service)
-	secretSigning := hmacSha256Bytes(secretService, "tc3_request")
-	signature := hex.EncodeToString(hmacSha256Bytes(secretSigning, stringToSign))
+	secretDate := crypto.HMACSHA256([]byte("TC3"+ds.secretKey), []byte(date))
+	secretService := crypto.HMACSHA256(secretDate, []byte(service))
+	secretSigning := crypto.HMACSHA256(secretService, []byte("tc3_request"))
+	signature := crypto.HMACSHA256Hex(secretSigning, []byte(stringToSign))
 
 	return fmt.Sprintf("%s Credential=%s/%s, SignedHeaders=%s, Signature=%s",
 		algorithm, ds.secretId, credentialScope, signedHeaders, signature)
 }
 
-// sha256Hex 计算SHA256哈希值并返回十六进制字符串
-func sha256Hex(data string) string {
-	hash := sha256.Sum256([]byte(data))
-	return hex.EncodeToString(hash[:])
-}
-
-// hmacSha256 计算HMAC-SHA256哈希值
-func hmacSha256(key, data string) []byte {
-	mac := hmac.New(sha256.New, []byte(key))
-	mac.Write([]byte(data))
-	return mac.Sum(nil)
-}
-
-// hmacSha256Hex 计算HMAC-SHA256哈希值并返回十六进制字符串
-func hmacSha256Hex(key, data string) string {
-	mac := hmac.New(sha256.New, []byte(key))
-	mac.Write([]byte(data))
-	return hex.EncodeToString(mac.Sum(nil))
-}
-
-// hmacSha256Bytes 计算HMAC-SHA256哈希值（密钥为原始字节）
-func hmacSha256Bytes(key []byte, data string) []byte {
-	mac := hmac.New(sha256.New, key)
-	mac.Write([]byte(data))
-	return mac.Sum(nil)
-}

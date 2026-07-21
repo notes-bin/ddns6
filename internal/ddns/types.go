@@ -24,6 +24,11 @@ type RecordInfo struct {
 	TTL   int
 }
 
+// Key 返回用于去重的唯一键。
+func (r RecordInfo) Key() string {
+	return r.ID + "|" + r.Name + "|" + r.Type + "|" + r.Value
+}
+
 // DNSRecordGetter 提供 DNS 记录查询能力
 type DNSRecordGetter interface {
 	// GetRecords 查询 DNS 记录列表，按 domain 和 recordType 过滤
@@ -76,29 +81,22 @@ const DefaultTTL = 600
 
 // String 返回 Domain 的字符串表示
 func (d *Domain) String() string {
-	fullDomain := d.Domain
-	if d.SubDomain != "" && d.SubDomain != "@" {
-		fullDomain = fmt.Sprintf("%s.%s", d.SubDomain, d.Domain)
-	}
-	return fmt.Sprintf("fullDomain: %s, type: %s, addr: %s", fullDomain, d.Type, d.Addr)
+	return fmt.Sprintf("fullDomain: %s, type: %s, addr: %s", d.FullDomain(), d.Type, d.Addr)
 }
 
-// fullDomain 返回完整的子域名（含主域名）
-func (d *Domain) fullDomain() string {
+// FullDomain 返回完整的子域名（含主域名）。
+func (d *Domain) FullDomain() string {
 	if d.SubDomain == "" || d.SubDomain == "@" {
 		return d.Domain
 	}
 	return fmt.Sprintf("%s.%s", d.SubDomain, d.Domain)
 }
 
-// Lock 锁定 Domain，供外部包保护并发访问
+// Lock 锁定 Domain，供外部包保护并发访问。
 func (d *Domain) Lock() { d.mu.Lock() }
 
-// Unlock 解锁 Domain
+// Unlock 解锁 Domain。
 func (d *Domain) Unlock() { d.mu.Unlock() }
-
-// FullDomain 返回完整的子域名（含主域名）
-func (d *Domain) FullDomain() string { return d.fullDomain() }
 
 // SetAddr 更新缓存的 IPv6 地址（拷贝防止别名）
 func (d *Domain) SetAddr(addr net.IP) {

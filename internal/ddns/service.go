@@ -15,6 +15,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -78,11 +79,24 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 	}
 	slog.Info("initial IPv6 address obtained", "module", "ddns", "ipv6", ip.String())
 
+	// 并发同步所有子域名，任一失败则终止并返回第一个错误
+	var wg sync.WaitGroup
+	errCh := make(chan error, len(domains))
 	for _, d := range domains {
-		if err := SyncRecord(ctx, d, ip, p); err != nil {
-			// 首次同步失败作为错误返回，确保用户能及时发现配置问题
-			return fmt.Errorf("initial sync failed for %s/%s: %w",
-				d.Domain, d.SubDomain, err)
+		wg.Add(1)
+		go func(domain *Domain) {
+			defer wg.Done()
+			if err := SyncRecord(ctx, domain, ip, p); err != nil {
+				errCh <- fmt.Errorf("initial sync failed for %s/%s: %w",
+					domain.Domain, domain.SubDomain, err)
+			}
+		}(d)
+	}
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		if err != nil {
+			return err
 		}
 	}
 
@@ -119,13 +133,20 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 				slog.Error("failed to get IPv6 address on trigger", "module", "ddns", "err", err)
 				continue
 			}
+			// 并发同步所有子域名，各域名独立出错仅记日志
+			var wg sync.WaitGroup
 			for _, d := range domains {
-				if err := SyncRecord(ctx, d, ip, p); err != nil {
-					slog.Error("sync failed on trigger",
-						"module", "ddns",
-						"domain", d.Domain, "subdomain", d.SubDomain, "err", err)
-				}
+				wg.Add(1)
+				go func(domain *Domain) {
+					defer wg.Done()
+					if err := SyncRecord(ctx, domain, ip, p); err != nil {
+						slog.Error("sync failed on trigger",
+							"module", "ddns",
+							"domain", domain.Domain, "subdomain", domain.SubDomain, "err", err)
+					}
+				}(d)
 			}
+			wg.Wait()
 
 		case <-sigCh:
 			// 收到退出信号，开始优雅关闭
@@ -134,7 +155,10 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 
 			// 给正在执行的同步操作最多 5 秒的完成时间
 			// 5 秒后无论是否完成都强制退出
-			time.Sleep(5 * time.Second)
+			select {
+				case <-time.After(5 * time.Second):
+				case <-ctx.Done():
+				}
 
 			slog.Info("ddns6 stopped", "module", "ddns")
 			return nil

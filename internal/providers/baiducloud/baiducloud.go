@@ -5,9 +5,6 @@ package baiducloud
 import (
 	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/notes-bin/ddns6/internal/crypto"
 	"github.com/notes-bin/ddns6/internal/ddns"
 	"github.com/notes-bin/ddns6/pkg/domainutil"
 )
@@ -271,11 +269,11 @@ func (c *Client) signRequest(req *http.Request, body []byte) {
 		req.Method, canonicalURI, canonicalQuery, canonicalHeaders, signedHeaders)
 
 	// 构建 StringToSign
-	stringToSign := fmt.Sprintf("%s\n%s", authStringPrefix, sha256Hex([]byte(canonicalRequest)))
+	stringToSign := fmt.Sprintf("%s\n%s", authStringPrefix, crypto.SHA256Hex([]byte(canonicalRequest)))
 
 	// 计算签名
-	signingKey := hmacSha256([]byte(c.secretKey), authStringPrefix)
-	signature := hex.EncodeToString(hmacSha256(signingKey, stringToSign))
+	signingKey := crypto.HMACSHA256([]byte(c.secretKey), []byte(authStringPrefix))
+	signature := crypto.HMACSHA256Hex(signingKey, []byte(stringToSign))
 
 	// 设置认证头
 	authorization := fmt.Sprintf("%s/%s/%s", authStringPrefix, signedHeaders, signature)
@@ -290,15 +288,3 @@ func splitDomain(fulldomain string) (string, string, string) {
 
 // record.TypeToInt DNS 记录类型转百度云 RDType 数字
 
-// sha256Hex 计算 SHA256 哈希并返回十六进制字符串
-func sha256Hex(data []byte) string {
-	hash := sha256.Sum256(data)
-	return hex.EncodeToString(hash[:])
-}
-
-// hmacSha256 计算 HMAC-SHA256
-func hmacSha256(key []byte, data string) []byte {
-	mac := hmac.New(sha256.New, key)
-	mac.Write([]byte(data))
-	return mac.Sum(nil)
-}

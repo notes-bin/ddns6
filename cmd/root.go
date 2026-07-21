@@ -195,7 +195,7 @@ var initCmd = &cobra.Command{
 
 			// 查找该 provider 的 flags 定义，收集非空的认证值
 			auth := make(map[string]string)
-			for _, p := range providerDefs {
+			for _, p := range providerFactories {
 				if p.name == provider {
 					for _, f := range p.flags {
 						if v := getString(cmd, f.name); v != "" {
@@ -278,7 +278,7 @@ var runCmd = &cobra.Command{
 			cmd.Help()
 			return nil
 		}
-		if err := runWithConfig(cmd); err != nil {
+		if err := runWithConfig(cmd, "run", runServiceFromConfigHandler); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
 			os.Exit(1)
 		}
@@ -286,17 +286,6 @@ var runCmd = &cobra.Command{
 	},
 }
 
-// runWithConfig 从 ~/.ddns6/config.yaml 加载配置并启动 DDNS 服务。
-//
-// 仅当 ddns6 run 未指定 provider 子命令时调用。
-func runWithConfig(cmd *cobra.Command) error {
-	cfg, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("cannot load config: %w\n\nUse 'ddns6 init' to create a config file, or specify a provider: ddns6 run <provider> --help", err)
-	}
-
-	return startServiceFromConfig(cfg, cmd)
-}
 
 // versionCmd 显示版本信息。
 var versionCmd = &cobra.Command{
@@ -378,7 +367,7 @@ func initRootCmd() {
 	// 注册所有 provider 的认证参数到 init 命令（如 --secret-id、--api-token）
 	// 使用 map 去重，确保同一 flag 名只注册一次
 	seenInitFlag := make(map[string]bool)
-	for _, p := range providerDefs {
+	for _, p := range providerFactories {
 		for _, f := range p.flags {
 			if !seenInitFlag[f.name] {
 				seenInitFlag[f.name] = true
