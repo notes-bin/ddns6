@@ -187,7 +187,11 @@ func (c *GoDaddyClient) GetRecords(ctx context.Context, fulldomain, recordType s
 
 // getRecords 获取指定类型的记录
 func (c *GoDaddyClient) getRecords(ctx context.Context, domain, subDomain, rtype string) ([]DNSRecord, error) {
-	url := fmt.Sprintf("%s/domains/%s/records/%s/%s", c.BaseURL, domain, rtype, subDomain)
+	// subDomain 为 "@" 时表示根域名，不传入 name 路径段以获取该域名下所有记录
+	url := fmt.Sprintf("%s/domains/%s/records/%s", c.BaseURL, domain, rtype)
+	if subDomain != "@" {
+		url += "/" + subDomain
+	}
 	var records []DNSRecord
 	err := c.makeRequest(ctx, "GET", url, nil, &records)
 	return records, err

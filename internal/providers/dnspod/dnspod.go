@@ -182,7 +182,10 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	params.Set("login_token", c.loginToken)
 	params.Set("format", "json")
 	params.Set("domain", domain)
-	params.Set("sub_domain", subDomain)
+	// subDomain 为 "@" 时不传 sub_domain，获取该域名下所有记录
+	if subDomain != "@" {
+		params.Set("sub_domain", subDomain)
+	}
 	if recordType != "" {
 		params.Set("record_type", recordType)
 	}
