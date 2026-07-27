@@ -27,14 +27,14 @@ func (d *DnsFetcher) Fetch(ctx context.Context) (net.IP, error) {
 	var dialer net.Dialer
 	conn, err := dialer.DialContext(ctx, "udp6", fmt.Sprintf("[%s]:53", *d))
 	if err != nil {
-		return nil, fmt.Errorf("failed to dial DNS server %s: %w", *d, err)
+		return nil, fmt.Errorf("dial DNS server failed: %w", err)
 	}
 	defer conn.Close()
 
 	// 获取本地地址
 	localAddr, ok := conn.LocalAddr().(*net.UDPAddr)
 	if !ok {
-		return nil, fmt.Errorf("unexpected local address type for server %s", *d)
+		return nil, fmt.Errorf("unexpected local address type from dial")
 	}
 	if localAddr.IP.To16() != nil && localAddr.IP.To4() == nil {
 		slog.Info("got local IPv6 address via DNS",
@@ -49,5 +49,5 @@ func (d *DnsFetcher) Fetch(ctx context.Context) (net.IP, error) {
 		"dns_server", d.String(),
 		"local_addr", localAddr.IP.String())
 
-	return nil, fmt.Errorf("no valid IPv6 address found from server %s", *d)
+	return nil, fmt.Errorf("no valid IPv6 address obtained from dial")
 }

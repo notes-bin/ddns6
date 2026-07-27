@@ -16,7 +16,6 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-
 const (
 	defaultBaseURL = "https://dynv6.com"
 )

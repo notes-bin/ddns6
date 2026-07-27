@@ -33,10 +33,10 @@ type CloudflareClient struct {
 	HTTPClient *http.Client
 }
 
-type Options func(*CloudflareClient)
+type Option func(*CloudflareClient)
 
 // NewClient 创建 Cloudflare DNS 客户端
-func NewClient(options ...Options) *CloudflareClient {
+func NewClient(options ...Option) *CloudflareClient {
 	client := &CloudflareClient{
 		BaseURL:    "https://api.cloudflare.com/client/v4",
 		HTTPClient: &http.Client{Timeout: 30 * time.Second},
@@ -50,7 +50,7 @@ func NewClient(options ...Options) *CloudflareClient {
 }
 
 // WithAPIKey sets the API key and email (legacy auth)
-func WithAPIKey(apiKey, email string) Options {
+func WithAPIKey(apiKey, email string) Option {
 	return func(c *CloudflareClient) {
 		c.APIKey = apiKey
 		c.Email = email
@@ -58,35 +58,35 @@ func WithAPIKey(apiKey, email string) Options {
 }
 
 // WithAPIToken sets the API token (new auth)
-func WithAPIToken(apiToken string) Options {
+func WithAPIToken(apiToken string) Option {
 	return func(c *CloudflareClient) {
 		c.APIToken = apiToken
 	}
 }
 
 // WithAccountID 设置账户 ID
-func WithAccountID(accountID string) Options {
+func WithAccountID(accountID string) Option {
 	return func(c *CloudflareClient) {
 		c.AccountID = accountID
 	}
 }
 
 // WithZoneID 设置区域 ID
-func WithZoneID(zoneID string) Options {
+func WithZoneID(zoneID string) Option {
 	return func(c *CloudflareClient) {
 		c.ZoneID = zoneID
 	}
 }
 
 // WithBaseURL sets the base URL for API requests
-func WithBaseURL(baseURL string) Options {
+func WithBaseURL(baseURL string) Option {
 	return func(c *CloudflareClient) {
 		c.BaseURL = strings.TrimSuffix(baseURL, "/")
 	}
 }
 
 // WithHTTPClient 设置自定义 HTTP 客户端
-func WithHTTPClient(httpClient *http.Client) Options {
+func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *CloudflareClient) {
 		c.HTTPClient = httpClient
 	}
@@ -214,9 +214,10 @@ type resultInfo struct {
 	TotalCount int `json:"total_count"`
 }
 
-// getRecords 获取指定类型的记录
-func (c *CloudflareClient) getRecords(ctx context.Context, zoneID, name, rtype, content string) ([]DNSRecord, error) {
+// listDNSRecords 分页获取指定类型和名称的 DNS 记录（公共分页逻辑）。
+func (c *CloudflareClient) listDNSRecords(ctx context.Context, zoneID, name, rtype, content string) ([]DNSRecord, *resultInfo, error) {
 	var allRecords []DNSRecord
+	var lastInfo *resultInfo
 	page := 1
 
 	for {
@@ -232,9 +233,10 @@ func (c *CloudflareClient) getRecords(ctx context.Context, zoneID, name, rtype, 
 
 		records, info, err := c.listRequest(ctx, reqURL)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		allRecords = append(allRecords, records...)
+		lastInfo = info
 
 		if info == nil || page >= info.TotalPages {
 			break
@@ -242,7 +244,13 @@ func (c *CloudflareClient) getRecords(ctx context.Context, zoneID, name, rtype, 
 		page++
 	}
 
-	return allRecords, nil
+	return allRecords, lastInfo, nil
+}
+
+// getRecords 获取指定类型的 DNS 记录。
+func (c *CloudflareClient) getRecords(ctx context.Context, zoneID, name, rtype, content string) ([]DNSRecord, error) {
+	records, _, err := c.listDNSRecords(ctx, zoneID, name, rtype, content)
+	return records, err
 }
 
 // listRequest performs a GET request and returns records with pagination info
@@ -396,35 +404,10 @@ func (c *CloudflareClient) getZoneDetails(ctx context.Context, zoneID string) (m
 	return result, err
 }
 
-// getTxtRecords retrieves TXT records matching the name and optionally content
+// getTxtRecords retrieves TXT records matching the name and optionally content.
 func (c *CloudflareClient) getTxtRecords(ctx context.Context, zoneID, name, content string) ([]DNSRecord, error) {
-	var allRecords []DNSRecord
-	page := 1
-
-	for {
-		query := url.Values{}
-		query.Set("type", "TXT")
-		query.Set("name", name)
-		query.Set("per_page", "100")
-		query.Set("page", strconv.Itoa(page))
-		if content != "" {
-			query.Set("content", content)
-		}
-		reqURL := fmt.Sprintf("%s/zones/%s/dns_records?%s", c.BaseURL, zoneID, query.Encode())
-
-		records, info, err := c.listRequest(ctx, reqURL)
-		if err != nil {
-			return nil, err
-		}
-		allRecords = append(allRecords, records...)
-
-		if info == nil || page >= info.TotalPages {
-			break
-		}
-		page++
-	}
-
-	return allRecords, nil
+	records, _, err := c.listDNSRecords(ctx, zoneID, name, "TXT", content)
+	return records, err
 }
 
 // createDNSRecord creates a new DNS record

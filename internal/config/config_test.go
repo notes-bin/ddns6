@@ -212,7 +212,10 @@ func TestLoad_ConfigDirPermissions(t *testing.T) {
 
 func TestGetInterval_Default(t *testing.T) {
 	c := &Config{}
-	d := c.GetInterval()
+	d, err := c.GetInterval()
+	if err != nil {
+		t.Fatalf("GetInterval() 不应返回错误: %v", err)
+	}
 	if d != 5*60*1000000000 {
 		t.Errorf("GetInterval() 默认应为 5m, 得到 %v", d)
 	}
@@ -220,7 +223,10 @@ func TestGetInterval_Default(t *testing.T) {
 
 func TestGetInterval_Empty(t *testing.T) {
 	c := &Config{Interval: ""}
-	d := c.GetInterval()
+	d, err := c.GetInterval()
+	if err != nil {
+		t.Fatalf("GetInterval() 不应返回错误: %v", err)
+	}
 	if d != 5*60*1000000000 {
 		t.Errorf("GetInterval() 默认为空时应返回 5m, 得到 %v", d)
 	}
@@ -228,7 +234,10 @@ func TestGetInterval_Empty(t *testing.T) {
 
 func TestGetInterval_Custom(t *testing.T) {
 	c := &Config{Interval: "10m"}
-	d := c.GetInterval()
+	d, err := c.GetInterval()
+	if err != nil {
+		t.Fatalf("GetInterval() 不应返回错误: %v", err)
+	}
 	if d != 10*60*1000000000 {
 		t.Errorf("GetInterval() 应为 10m, 得到 %v", d)
 	}
@@ -236,7 +245,10 @@ func TestGetInterval_Custom(t *testing.T) {
 
 func TestGetInterval_Invalid(t *testing.T) {
 	c := &Config{Interval: "invalid"}
-	d := c.GetInterval()
+	d, err := c.GetInterval()
+	if err == nil {
+		t.Error("GetInterval() 无效格式时应返回错误")
+	}
 	if d != 5*60*1000000000 {
 		t.Errorf("GetInterval() 无效格式时应回退到 5m, 得到 %v", d)
 	}

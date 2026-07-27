@@ -27,7 +27,7 @@
 //
 // 使用方式：
 //   - 临时运行: ddns6 run tencent --domain example.com --subdomain www --secret-id xxx --secret-key yyy
-//   - 长期运行: ddns6 init tencent --domain example.com --secret-id xxx --secret-key yyy → ddns6 run
+//   - 长期运行: ddns6 init tencent --domain example.com --secret-id xxx --secret-key yyy -> ddns6 run
 //   - 查看帮助: ddns6 run tencent --help
 package cmd
 
@@ -74,7 +74,7 @@ var rootCmd = &cobra.Command{
 	Short:         "IPv6 动态域名解析（DDNS）工具",
 	SilenceErrors: true, // 未知命令等错误由 Execute 统一处理，不打印双重日志
 	SilenceUsage:  true, // 不重复打印用法提示，由 Execute 自行决定
-	Long: `DDNS6 — 动态域名解析工具，自动将本机 IPv6 地址更新到 DNS 记录。
+	Long: `DDNS6 - 动态域名解析工具，自动将本机 IPv6 地址更新到 DNS 记录。
 
 自动检测本地 IPv6 地址变化，实时更新到 DNS 服务商的 AAAA 记录。
 
@@ -88,7 +88,7 @@ var rootCmd = &cobra.Command{
 
 快速开始:
   1. 临时测试:  ddns6 run tencent --domain example.com --subdomain www --secret-id xxx --secret-key yyy
-  2. 配置文件:  ddns6 init tencent --domain example.com --secret-id xxx --secret-key yyy → ddns6 run
+  2. 配置文件:  ddns6 init tencent --domain example.com --secret-id xxx --secret-key yyy -> ddns6 run
   3. 查看详情:  ddns6 run --help`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// -V / --version 参数显示版本信息后立即退出（在任何命令或日志初始化之前）
@@ -290,7 +290,7 @@ var runCmd = &cobra.Command{
   ddns6 run`,
 	// 不指定 provider 子命令时走配置文件模式
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// ddns6 run help — 用户意图是查帮助，显示帮助内容
+		// ddns6 run help - 用户意图是查帮助，显示帮助内容
 		if len(args) > 0 && args[0] == "help" {
 			cmd.Help()
 			return nil
@@ -302,7 +302,6 @@ var runCmd = &cobra.Command{
 		return nil
 	},
 }
-
 
 // versionCmd 显示版本信息。
 var versionCmd = &cobra.Command{

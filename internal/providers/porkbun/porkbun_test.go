@@ -107,4 +107,3 @@ func TestClient_ApiError(t *testing.T) {
 		t.Fatal("expected error, got nil")
 	}
 }
-

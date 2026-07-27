@@ -2,8 +2,8 @@
 //
 // 核心流程：
 //
-//	Linux: Netlink 监听地址变化 → debounce 10s → 获取 IPv6 → 同步 DNS 记录
-//	其他:   cron 定时轮询 → 获取 IPv6 → 同步 DNS 记录
+//	Linux: Netlink 监听地址变化 -> debounce 10s -> 获取 IPv6 -> 同步 DNS 记录
+//	其他:   cron 定时轮询 -> 获取 IPv6 -> 同步 DNS 记录
 //
 // 同步策略：
 //  1. 查询目标子域名的所有 AAAA 记录
@@ -22,7 +22,7 @@ import (
 // SyncRecord 同步 DNS 记录与当前 IPv6 地址一致。
 //
 // 先检查地址是否变化，若无变化则跳过更新。变化则调用 syncDNSRecord 执行同步。
-// 使用 d.Lock()/d.Unlock() 保护 Domain 的并发访问。
+// 使用 d.lock()/d.unlock() 保护 Domain 的并发访问。
 //
 // 参数:
 //   - ctx: 上下文，取消时中止操作
@@ -30,8 +30,8 @@ import (
 //   - ipv6: 当前本机 IPv6 地址
 //   - p: DNS 服务商实现
 func SyncRecord(ctx context.Context, d *Domain, ipv6 net.IP, p DNSProvider) error {
-	d.Lock()
-	defer d.Unlock()
+	d.lock()
+	defer d.unlock()
 
 	// 检查 context 是否已取消
 	select {
@@ -51,16 +51,6 @@ func SyncRecord(ctx context.Context, d *Domain, ipv6 net.IP, p DNSProvider) erro
 	return syncDNSRecord(ctx, d, p, ipv6)
 }
 
-// syncDNSProvider 是 DNS 记录同步所需的操作子集。
-//
-// syncDNSRecord 只需要查询、新增和修改能力，无需删除能力。
-// 通过缩小接口依赖，使测试和后续扩展更加灵活。
-type syncDNSProvider interface {
-	DNSRecordGetter
-	DNSRecordAdder
-	DNSRecordModifier
-}
-
 // syncDNSRecord 执行实际的 DNS 记录同步。
 //
 // 工作流程：
@@ -70,7 +60,7 @@ type syncDNSProvider interface {
 //  4. 目标子域名下无 AAAA 记录则新增
 //
 // 同一个子域名下存在多个 AAAA 记录时全部处理（continue 而非 return）。
-func syncDNSRecord(ctx context.Context, d *Domain, p syncDNSProvider, addr net.IP) error {
+func syncDNSRecord(ctx context.Context, d *Domain, p DNSProvider, addr net.IP) error {
 	fqdn := d.FullDomain()
 	ipv6Str := addr.String()
 
@@ -108,15 +98,15 @@ func syncDNSRecord(ctx context.Context, d *Domain, p syncDNSProvider, addr net.I
 			"record_id", r.ID, "record_type", r.Type)
 
 		// IP 相同则更新缓存后跳过（多个 AAAA 记录时继续处理下一条）
-		if ipv6Equal(r.Value, ipv6Str) {
-			d.SetAddr(addr)
+		if ipv6Equal(addr, r.Value) {
+			copyAddrToDomain(d, addr)
 			slog.Debug("IPv6 record already matches, no update needed", "module", "ddns",
 				"domain", d.Domain, "subdomain", d.SubDomain,
 				"record_id", r.ID)
 			continue
 		}
 
-		// IP 不同 → 修改记录
+		// IP 不同 -> 修改记录
 		err = p.ModifyRecord(ctx, RecordInfo{
 			ID: r.ID, Name: fqdn, Zone: d.Domain, Type: d.Type, Value: ipv6Str, TTL: d.TTL,
 		})
@@ -126,13 +116,13 @@ func syncDNSRecord(ctx context.Context, d *Domain, p syncDNSProvider, addr net.I
 				"ipv6", ipv6Str, "record_id", r.ID, "err", err)
 			return fmt.Errorf("failed to modify record: %w", err)
 		}
-		d.SetAddr(addr)
+		copyAddrToDomain(d, addr)
 		slog.Info("IPv6 address changed, record modified", "module", "ddns",
 			"domain", d.Domain, "subdomain", d.SubDomain,
 			"ipv6", ipv6Str, "record_id", r.ID)
 	}
 
-	// 目标子域名下无 AAAA 记录 → 新增
+	// 目标子域名下无 AAAA 记录 -> 新增
 	if !found {
 		slog.Debug("no AAAA record found, adding new record", "module", "ddns",
 			"domain", d.Domain, "subdomain", d.SubDomain,
@@ -147,10 +137,16 @@ func syncDNSRecord(ctx context.Context, d *Domain, p syncDNSProvider, addr net.I
 				"ipv6", ipv6Str, "err", err)
 			return fmt.Errorf("failed to add record: %w", err)
 		}
-		d.SetAddr(addr)
+		copyAddrToDomain(d, addr)
 		slog.Info("IPv6 address changed, record added", "module", "ddns",
 			"domain", d.Domain, "subdomain", d.SubDomain, "ipv6", ipv6Str)
 	}
 
 	return nil
+}
+
+// copyAddrToDomain 将 IP 地址拷贝到 Domain 的缓存字段（调用方必须持有 d 的锁）。
+func copyAddrToDomain(d *Domain, addr net.IP) {
+	d.Addr = make(net.IP, len(addr))
+	copy(d.Addr, addr)
 }

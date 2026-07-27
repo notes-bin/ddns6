@@ -98,7 +98,7 @@ func startTrigger(ctx context.Context, interval time.Duration, iface string) <-c
 					continue
 				}
 
-				// 符合条件的新 IPv6 地址 — 重置 debounce 计时器
+				// 符合条件的新 IPv6 地址 - 重置 debounce 计时器
 				if debounceTimer == nil {
 					debounceTimer = time.NewTimer(debounceDuration)
 					timerC = debounceTimer.C
@@ -120,7 +120,7 @@ func startTrigger(ctx context.Context, interval time.Duration, iface string) <-c
 				evtLog.Debug("IPv6 address change detected, debounce timer reset")
 
 			case <-timerC:
-				// Debounce 时间到，地址已稳定 — 触发同步
+				// Debounce 时间到，地址已稳定 - 触发同步
 				slog.Debug("debounce timer expired, triggering DNS sync",
 					"module", "ddns")
 				select {

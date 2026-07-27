@@ -36,10 +36,10 @@ type providerFlag struct {
 // run 用于 CLI 模式（从命令行参数创建），fromConfig 用于配置文件模式。
 // 新增运营商只需在此列表中追加一个条目。
 type providerFactory struct {
-	name         string
-	short        string
-	flags        []providerFlag
-	noListClean  bool // true 表示此 provider 不支持 list/clean（如 duckdns、he、noip）
+	name        string
+	short       string
+	flags       []providerFlag
+	noListClean bool // true 表示此 provider 不支持 list/clean（如 duckdns、he、noip）
 	// run 从命令行参数创建域名列表和 DNSProvider
 	run func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error)
 	// fromConfig 从配置文件创建 DNSProvider
@@ -56,7 +56,7 @@ var restrictedProviders = map[string]bool{
 // providerFactories 所有支持的 DNS 运营商
 var providerFactories = []providerFactory{
 	{
-		name: "tencent", short: "Tencent Cloud DNS (DNSPod API v3) — 需 --secret-id 和 --secret-key",
+		name: "tencent", short: "Tencent Cloud DNS (DNSPod API v3) - 需 --secret-id 和 --secret-key",
 		flags: []providerFlag{
 			{"secret-id", "Tencent Cloud SecretID (必填，从 https://console.cloud.tencent.com/cam 获取)"},
 			{"secret-key", "Tencent Cloud SecretKey (必填)"},
@@ -73,7 +73,7 @@ var providerFactories = []providerFactory{
 		},
 	},
 	{
-		name: "cloudflare", short: "Cloudflare DNS — 需 --api-token",
+		name: "cloudflare", short: "Cloudflare DNS - 需 --api-token",
 		flags: []providerFlag{
 			{"api-token", "Cloudflare API Token (必填，需具有 DNS:Edit 权限)"},
 		},
@@ -89,7 +89,7 @@ var providerFactories = []providerFactory{
 		},
 	},
 	{
-		name: "alicloud", short: "Alibaba Cloud DNS — 需 --access-key-id 和 --access-key-secret",
+		name: "alicloud", short: "Alibaba Cloud DNS - 需 --access-key-id 和 --access-key-secret",
 		flags: []providerFlag{
 			{"access-key-id", "Alibaba Cloud Access Key ID (必填，从 RAM 用户获取)"},
 			{"access-key-secret", "Alibaba Cloud Access Key Secret (必填)"},
@@ -100,14 +100,14 @@ var providerFactories = []providerFactory{
 			if err != nil {
 				return nil, nil, err
 			}
-			opts := []alicloud.Options{}
+			opts := []alicloud.Option{}
 			if sv := getString(cmd, "sign-version"); sv != "" {
 				opts = append(opts, alicloud.WithSignVersion(sv))
 			}
 			return domains, alicloud.NewClient(getString(cmd, "access-key-id"), getString(cmd, "access-key-secret"), opts...), nil
 		},
 		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
-			opts := []alicloud.Options{}
+			opts := []alicloud.Option{}
 			if sv, ok := cfg.Auth["sign_version"]; ok && sv != "" {
 				opts = append(opts, alicloud.WithSignVersion(sv))
 			}
@@ -115,7 +115,7 @@ var providerFactories = []providerFactory{
 		},
 	},
 	{
-		name: "godaddy", short: "GoDaddy DNS — 需 --api-key 和 --api-secret",
+		name: "godaddy", short: "GoDaddy DNS - 需 --api-key 和 --api-secret",
 		flags: []providerFlag{
 			{"api-key", "GoDaddy API Key (必填，从 GoDaddy Developer Portal 获取)"},
 			{"api-secret", "GoDaddy API Secret (必填)"},
@@ -132,7 +132,7 @@ var providerFactories = []providerFactory{
 		},
 	},
 	{
-		name: "huaweicloud", short: "Huawei Cloud DNS — 需 --access-key 和 --secret-key",
+		name: "huaweicloud", short: "Huawei Cloud DNS - 需 --access-key 和 --secret-key",
 		flags: []providerFlag{
 			{"access-key", "Huawei Cloud Access Key (必填，从 IAM 用户获取)"},
 			{"secret-key", "Huawei Cloud Secret Key (必填)"},
@@ -149,7 +149,7 @@ var providerFactories = []providerFactory{
 		},
 	},
 	{
-		name: "duckdns", short: "DuckDNS (free DDNS) — 需 --token",
+		name: "duckdns", short: "DuckDNS (free DDNS) - 需 --token",
 		flags: []providerFlag{
 			{"token", "DuckDNS API Token (必填)"},
 		},
@@ -166,7 +166,7 @@ var providerFactories = []providerFactory{
 		},
 	},
 	{
-		name: "noip", short: "No-IP (classic DDNS) — 需 --username 和 --password",
+		name: "noip", short: "No-IP (classic DDNS) - 需 --username 和 --password",
 		flags: []providerFlag{
 			{"username", "No-IP Username (必填)"},
 			{"password", "No-IP Password (必填)"},
@@ -184,7 +184,7 @@ var providerFactories = []providerFactory{
 		},
 	},
 	{
-		name: "he", short: "Hurricane Electric DNS (free DNS hosting) — 需 --password",
+		name: "he", short: "Hurricane Electric DNS (free DNS hosting) - 需 --password",
 		flags: []providerFlag{
 			{"password", "HE DNS DDNS Key (必填，从 dns.he.net 获取)"},
 		},
@@ -201,7 +201,7 @@ var providerFactories = []providerFactory{
 		},
 	},
 	{
-		name: "dynv6", short: "Dynv6 (free IPv6 DDNS) — 需 --token",
+		name: "dynv6", short: "Dynv6 (free IPv6 DDNS) - 需 --token",
 		flags: []providerFlag{
 			{"token", "Dynv6 API Token (必填)"},
 		},
@@ -217,7 +217,7 @@ var providerFactories = []providerFactory{
 		},
 	},
 	{
-		name: "porkbun", short: "Porkbun DNS API — 需 --api-key 和 --api-secret",
+		name: "porkbun", short: "Porkbun DNS API - 需 --api-key 和 --api-secret",
 		flags: []providerFlag{
 			{"api-key", "Porkbun API Key (必填)"},
 			{"api-secret", "Porkbun Secret API Key (必填)"},
@@ -234,7 +234,7 @@ var providerFactories = []providerFactory{
 		},
 	},
 	{
-		name: "digitalocean", short: "DigitalOcean DNS API — 需 --token",
+		name: "digitalocean", short: "DigitalOcean DNS API - 需 --token",
 		flags: []providerFlag{
 			{"token", "DigitalOcean API Token (必填，需具有 write 权限)"},
 		},
@@ -250,7 +250,7 @@ var providerFactories = []providerFactory{
 		},
 	},
 	{
-		name: "baiducloud", short: "Baidu Cloud DNS — 需 --access-key 和 --secret-key",
+		name: "baiducloud", short: "Baidu Cloud DNS - 需 --access-key 和 --secret-key",
 		flags: []providerFlag{
 			{"access-key", "Baidu Cloud Access Key (必填)"},
 			{"secret-key", "Baidu Cloud Secret Key (必填)"},
@@ -267,7 +267,7 @@ var providerFactories = []providerFactory{
 		},
 	},
 	{
-		name: "dnspod", short: "DNSPod (legacy API) — 需 --login-token",
+		name: "dnspod", short: "DNSPod (legacy API) - 需 --login-token",
 		flags: []providerFlag{
 			{"login-token", "DNSPod Login Token (必填，格式: ID,Token)"},
 		},
@@ -409,9 +409,9 @@ func registerProviderSubCommands(parent *cobra.Command, commandName string, extr
 func registerRestrictedCommand(parent *cobra.Command, commandName string, pd *providerFactory) {
 	cmd := &cobra.Command{
 		Use:   pd.name,
-		Short: fmt.Sprintf("%s — %s API 不记录/管理", pd.name, pd.short),
+		Short: fmt.Sprintf("%s - %s API 不记录/管理", pd.name, pd.short),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("%s does not support '%s' via API — %s only provides update endpoints, use its web panel to manage records", pd.name, commandName, pd.name)
+			return fmt.Errorf("%s does not support '%s' via API - %s only provides update endpoints, use its web panel to manage records", pd.name, commandName, pd.name)
 		},
 	}
 	parent.AddCommand(cmd)
@@ -475,7 +475,10 @@ func runWithConfig(cmd *cobra.Command, commandName string, handler func(cmd *cob
 // runServiceFromConfigHandler 是 runWithConfig 的 handler，将配置和命令行参数合并后启动 DDNS 服务。
 func runServiceFromConfigHandler(cmd *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error {
 	// 合并配置与命令行参数（命令行参数优先）
-	interval := cfg.GetInterval()
+	interval, err := cfg.GetInterval()
+	if err != nil {
+		return err
+	}
 	if cmd != nil && cmd.Flags().Changed("interval") {
 		if v, err := cmd.Flags().GetDuration("interval"); err == nil {
 			interval = v
@@ -501,7 +504,6 @@ func createProviderFromConfig(cfg *config.Config) (ddns.DNSProvider, error) {
 	}
 	return nil, fmt.Errorf("unsupported provider: %s", cfg.Provider)
 }
-
 
 // ============================================================
 // 辅助函数

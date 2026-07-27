@@ -24,8 +24,9 @@ import (
 )
 
 const (
-	service = "dnspod"
-	version = "2021-03-23"
+	service           = "dnspod"
+	version           = "2021-03-23"
+	defaultRecordLine = "默认" // 默认 DNS 解析线路
 )
 
 // DNSRecord 表示 Tencent Cloud DNS 记录
@@ -129,12 +130,7 @@ func NewDNSPod(secretId, secretKey string, options ...Option) *DNSPod {
 	return client
 }
 
-// WithAPIUrl 设置自定义 API 地址
-func WithAPIUrl(url string) Option {
-	return WithBaseURL(url)
-}
-
-// WithBaseURL 设置自定义 API 地址（与其他 provider 命名一致）
+// WithBaseURL 设置自定义 API 地址。
 func WithBaseURL(url string) Option {
 	return func(ds *DNSPod) {
 		ds.apiURL = strings.TrimSuffix(url, "/")
@@ -166,7 +162,7 @@ func (ds *DNSPod) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		Domain:     domain,
 		SubDomain:  subDomain,
 		RecordType: record.Type,
-		RecordLine: "默认",
+		RecordLine: defaultRecordLine,
 		Value:      record.Value,
 		TTL:        record.TTL,
 	}
@@ -255,12 +251,12 @@ func (ds *DNSPod) ModifyRecord(ctx context.Context, record ddns.RecordInfo) erro
 		return fmt.Errorf("invalid record ID %q: %v", record.ID, err)
 	}
 
-		payload := DNSRecord{
-			Domain:     domain,
-			SubDomain:  subDomain,
-			RecordId:   recordId,
-			RecordType: record.Type,
-		RecordLine: "默认",
+	payload := DNSRecord{
+		Domain:     domain,
+		SubDomain:  subDomain,
+		RecordId:   recordId,
+		RecordType: record.Type,
+		RecordLine: defaultRecordLine,
 		Value:      record.Value,
 		TTL:        record.TTL,
 	}
@@ -591,7 +587,7 @@ func (ds *DNSPod) generateSignatureV3(service, action, payload string, timestamp
 	hashedRequest := crypto.SHA256Hex([]byte(canonicalRequest))
 	stringToSign := fmt.Sprintf("%s\n%d\n%s\n%s", algorithm, timestamp, credentialScope, hashedRequest)
 
-	// 计算签名 — 密钥链全部使用原始字节，仅在最后一步 HexEncode
+	// 计算签名 - 密钥链全部使用原始字节，仅在最后一步 HexEncode
 	secretDate := crypto.HMACSHA256([]byte("TC3"+ds.secretKey), []byte(date))
 	secretService := crypto.HMACSHA256(secretDate, []byte(service))
 	secretSigning := crypto.HMACSHA256(secretService, []byte("tc3_request"))
@@ -600,4 +596,3 @@ func (ds *DNSPod) generateSignatureV3(service, action, payload string, timestamp
 	return fmt.Sprintf("%s Credential=%s/%s, SignedHeaders=%s, Signature=%s",
 		algorithm, ds.secretId, credentialScope, signedHeaders, signature)
 }
-

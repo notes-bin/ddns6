@@ -81,7 +81,7 @@ func Load() (*Config, error) {
 	if runtime.GOOS != "windows" {
 		if fi, err := os.Stat(path); err == nil {
 			if fi.Mode().Perm()&0077 != 0 {
-				fmt.Fprintf(os.Stderr, "⚠️  Warning: config file %s has world/group-readable permissions (%03o), consider 'chmod 600'\n",
+				fmt.Fprintf(os.Stderr, "Warning: config file %s has world/group-readable permissions (%03o), consider 'chmod 600'\n",
 					path, fi.Mode().Perm())
 			}
 		}
@@ -110,16 +110,16 @@ func Load() (*Config, error) {
 }
 
 // GetInterval 解析轮询间隔字符串为 time.Duration。
-// 如果未设置或解析失败，返回默认值 5 分钟。
-func (c *Config) GetInterval() time.Duration {
+// 如果未设置或解析失败，返回默认值 5 分钟并附带解析错误。
+func (c *Config) GetInterval() (time.Duration, error) {
 	if c.Interval == "" {
-		return 5 * time.Minute
+		return 5 * time.Minute, nil
 	}
 	d, err := time.ParseDuration(c.Interval)
 	if err != nil {
-		return 5 * time.Minute
+		return 5 * time.Minute, fmt.Errorf("invalid interval '%s': %w, using default 5m", c.Interval, err)
 	}
-	return d
+	return d, nil
 }
 
 // GetTTL 返回 TTL 值，未设置时返回默认值。

@@ -29,7 +29,7 @@ func TestAddRecord(t *testing.T) {
 	defer ts.Close()
 
 	// 创建客户端
-	client := tencent.NewDNSPod("testId", "testKey", tencent.WithAPIUrl(ts.URL))
+	client := tencent.NewDNSPod("testId", "testKey", tencent.WithBaseURL(ts.URL))
 
 	// 测试添加记录
 	err := client.AddRecord(ctx, ddns.RecordInfo{Name: "test.example.com", Type: "A", Value: "192.168.1.1", TTL: 600})
@@ -49,7 +49,7 @@ func TestModifyRecord(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := tencent.NewDNSPod("testId", "testKey", tencent.WithAPIUrl(ts.URL))
+	client := tencent.NewDNSPod("testId", "testKey", tencent.WithBaseURL(ts.URL))
 
 	err := client.ModifyRecord(ctx, ddns.RecordInfo{Name: "test.example.com", ID: "123456", Type: "A", Value: "192.168.1.2", TTL: 600})
 	if err != nil {
@@ -68,7 +68,7 @@ func TestDeleteRecord(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := tencent.NewDNSPod("testId", "Key", tencent.WithAPIUrl(ts.URL))
+	client := tencent.NewDNSPod("testId", "Key", tencent.WithBaseURL(ts.URL))
 
 	err := client.DeleteRecord(ctx, ddns.RecordInfo{Name: "test.example.com", ID: "123456"})
 	if err != nil {
@@ -87,7 +87,7 @@ func TestGetRecords(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := tencent.NewDNSPod("testId", "testKey", tencent.WithAPIUrl(ts.URL))
+	client := tencent.NewDNSPod("testId", "testKey", tencent.WithBaseURL(ts.URL))
 
 	records, err := client.GetRecords(ctx, "test.example.com", "A")
 	if err != nil {
@@ -110,7 +110,7 @@ func TestGetDomainRecord(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := tencent.NewDNSPod("testId", "testKey", tencent.WithAPIUrl(ts.URL))
+	client := tencent.NewDNSPod("testId", "testKey", tencent.WithBaseURL(ts.URL))
 
 	record, err := client.GetDomainRecord(ctx, "test.example.com", "123456")
 	if err != nil {

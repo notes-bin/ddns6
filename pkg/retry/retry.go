@@ -76,7 +76,7 @@ func Do(ctx context.Context, attempts int, baseDelay time.Duration, fn func(cont
 			return nil // 成功
 		}
 
-		// 非 RetryableError — 立即返回
+		// 非 RetryableError - 立即返回
 		var re *RetryableError
 		if !errors.As(err, &re) {
 			return err
@@ -89,12 +89,12 @@ func Do(ctx context.Context, attempts int, baseDelay time.Duration, fn func(cont
 			break
 		}
 
-		// 指数退避 + 随机 jitter
+		// 指数退避 + 全 jitter（范围 [0, delay)）
 		delay := baseDelay * (1 << i) // baseDelay * 2^i
-		halfDelay := delay / 2
-		// jitter 在 [0, halfDelay] 范围内
-		jitter := time.Duration(rand.Int63n(int64(halfDelay + 1)))
-		wait := halfDelay + jitter // halfDelay ~ 1.5*halfDelay
+		if delay <= 0 {
+			delay = 1 // 确保 delay > 0，防止 rand.Int63n 恐慌
+		}
+		wait := time.Duration(rand.Int63n(int64(delay)))
 
 		select {
 		case <-ctx.Done():
