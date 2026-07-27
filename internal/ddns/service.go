@@ -2,8 +2,8 @@
 //
 // 工作流程：
 //
-//	Linux: Netlink 事件监听 → debounce 10s → 获取 IPv6 → 同步 DNS 记录
-//	其他:  cron 定时轮询 → 获取 IPv6 → 同步 DNS 记录
+//	Linux: Netlink 事件监听 -> debounce 10s -> 获取 IPv6 -> 同步 DNS 记录
+//	其他:  cron 定时轮询 -> 获取 IPv6 -> 同步 DNS 记录
 //
 // RunService 是唯一的公开入口，接受域名列表、DNS 服务商等参数。
 // 同一个进程可以管理同一根域名下的多个子域名。
@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"os/signal"
 	"sync"
@@ -73,31 +74,15 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 	// 这样用户无需等待第一次 Netlink 事件或轮询周期。
 	// ============================================================
 	slog.Info("performing initial IPv6 address fetch", "module", "ddns")
-	ip, err := ipaddr.GetIPv6Addr(fetchers...)
+	ip, err := ipaddr.GetIPv6Addr(ctx, fetchers...)
 	if err != nil {
 		return fmt.Errorf("initial IPv6 fetch failed: %w", err)
 	}
 	slog.Info("initial IPv6 address obtained", "module", "ddns", "ipv6", ip.String())
 
 	// 并发同步所有子域名，任一失败则终止并返回第一个错误
-	var wg sync.WaitGroup
-	errCh := make(chan error, len(domains))
-	for _, d := range domains {
-		wg.Add(1)
-		go func(domain *Domain) {
-			defer wg.Done()
-			if err := SyncRecord(ctx, domain, ip, p); err != nil {
-				errCh <- fmt.Errorf("initial sync failed for %s/%s: %w",
-					domain.Domain, domain.SubDomain, err)
-			}
-		}(d)
-	}
-	wg.Wait()
-	close(errCh)
-	for err := range errCh {
-		if err != nil {
-			return err
-		}
+	if err := syncAllDomains(ctx, domains, ip, p, true); err != nil {
+		return err
 	}
 
 	// ============================================================
@@ -118,48 +103,45 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 		"module", "ddns",
 		"pid", os.Getpid(),
 		"domain_count", len(domains),
-		"mode", triggerMode())
+		"mode", platformTriggerMode())
 
 	// ============================================================
 	// 主事件循环
-	// 等待触发器事件或退出信号
+	// 等待触发器事件或退出信号。
+	// 同步操作通过 goroutine 解耦，确保 sigCh 始终可达。
 	// ============================================================
+	syncDoneCh := make(chan struct{}, 1)
+
 	for {
 		select {
 		case <-triggerCh:
-			// 触发器事件：重新获取 IPv6 地址并同步所有子域名
-			ip, err := ipaddr.GetIPv6Addr(fetchers...)
-			if err != nil {
-				slog.Error("failed to get IPv6 address on trigger", "module", "ddns", "err", err)
-				continue
-			}
-			// 并发同步所有子域名，各域名独立出错仅记日志
-			var wg sync.WaitGroup
-			for _, d := range domains {
-				wg.Add(1)
-				go func(domain *Domain) {
-					defer wg.Done()
-					if err := SyncRecord(ctx, domain, ip, p); err != nil {
-						slog.Error("sync failed on trigger",
-							"module", "ddns",
-							"domain", domain.Domain, "subdomain", domain.SubDomain, "err", err)
-					}
-				}(d)
-			}
-			wg.Wait()
+			// 触发器事件：异步获取 IPv6 并同步，不阻塞信号接收
+			go func() {
+				ip, err := ipaddr.GetIPv6Addr(ctx, fetchers...)
+				if err != nil {
+					slog.Error("failed to get IPv6 address on trigger", "module", "ddns", "err", err)
+					syncDoneCh <- struct{}{}
+					return
+				}
+				syncAllDomains(ctx, domains, ip, p, false)
+				syncDoneCh <- struct{}{}
+			}()
+
+		case <-syncDoneCh:
+			// 同步完成，继续等待下一个事件
 
 		case <-sigCh:
 			// 收到退出信号，开始优雅关闭
 			slog.Info("shutdown signal received, initiating graceful shutdown...", "module", "ddns")
 			cancel() // 取消正在进行的操作
 
-			// 给正在执行的同步操作最多 5 秒的完成时间
-			// 5 秒后无论是否完成都强制退出
+			// 等待最多 5 秒让进行中的同步操作完成
 			select {
-				case <-time.After(5 * time.Second):
-				case <-ctx.Done():
-				}
+			case <-time.After(5 * time.Second):
+				slog.Warn("graceful shutdown timed out", "module", "ddns")
+			}
 
+			signal.Stop(sigCh)
 			slog.Info("ddns6 stopped", "module", "ddns")
 			return nil
 
@@ -167,9 +149,38 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 	}
 }
 
-// triggerMode 返回当前平台使用的触发模式名称（仅用于日志）。
-func triggerMode() string {
-	return platformTriggerMode()
+// syncAllDomains 并发同步所有域名的 DNS 记录。
+//
+// failFast=true 时遇错立即返回第一个错误；failFast=false 时遇错只记日志继续处理剩余域名。
+func syncAllDomains(ctx context.Context, domains []*Domain, ip net.IP, p DNSProvider, failFast bool) error {
+	var wg sync.WaitGroup
+	errCh := make(chan error, len(domains))
+	for _, d := range domains {
+		wg.Add(1)
+		go func(domain *Domain) {
+			defer wg.Done()
+			if err := SyncRecord(ctx, domain, ip, p); err != nil {
+				if failFast {
+					errCh <- fmt.Errorf("sync failed for %s/%s: %w",
+						domain.Domain, domain.SubDomain, err)
+				} else {
+					slog.Error("sync failed on trigger",
+						"module", "ddns",
+						"domain", domain.Domain, "subdomain", domain.SubDomain, "err", err)
+				}
+			}
+		}(d)
+	}
+	wg.Wait()
+	close(errCh)
+	if failFast {
+		for err := range errCh {
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // pollingLoop 定时轮询，向 triggerCh 发送信号。

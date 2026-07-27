@@ -19,14 +19,20 @@ func hasAddressChanged(cached net.IP, newAddr net.IP) bool {
 	return changed
 }
 
-// ipv6Equal 归一化比较两个 IPv6 地址字符串是否相等
-func ipv6Equal(a, b string) bool {
-	ipA := net.ParseIP(a)
+// ipv6Equal 比较两个 IPv6 地址是否相等。
+//
+// 参数 a 为已解析的 IP 地址，b 为 IP 字符串。
+// 当两边都无法解析为有效 IP 时，回退到字符串比较。
+func ipv6Equal(a net.IP, b string) bool {
 	ipB := net.ParseIP(b)
-	if ipA == nil || ipB == nil {
-		return a == b // 解析失败回退到字符串比较
+	if ipB == nil {
+		// b 不是有效 IP，回退到 a 的字符串与 b 比较
+		return a.String() == b
 	}
-	return ipA.Equal(ipB)
+	if a == nil {
+		return false
+	}
+	return a.Equal(ipB)
 }
 
 // RecordNameMatches 判断 DNS 记录名是否匹配目标子域名。

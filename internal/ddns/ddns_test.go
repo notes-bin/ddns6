@@ -11,52 +11,29 @@ import (
 // RecordNameMatches 测试
 // ============================================================
 
-func TestRecordNameMatches_FullDomain(t *testing.T) {
-	// 完整域名匹配
-	if !RecordNameMatches("www.example.com", "www.example.com", "www") {
-		t.Error("should match full domain")
+func TestRecordNameMatches(t *testing.T) {
+	tests := []struct {
+		name      string
+		record    string
+		fqdn      string
+		subdomain string
+		want      bool
+	}{
+		{name: "完整域名匹配", record: "www.example.com", fqdn: "www.example.com", subdomain: "www", want: true},
+		{name: "带尾部点号的完整域名", record: "www.example.com.", fqdn: "www.example.com", subdomain: "www", want: true},
+		{name: "仅子域名标签", record: "www", fqdn: "www.example.com", subdomain: "www", want: true},
+		{name: "根域名 @ 标签", record: "@", fqdn: "example.com", subdomain: "@", want: true},
+		{name: "根域名空字符串", record: "", fqdn: "example.com", subdomain: "@", want: true},
+		{name: "不匹配", record: "api", fqdn: "www.example.com", subdomain: "www", want: false},
+		{name: "根域名带点号", record: "example.com.", fqdn: "example.com", subdomain: "@", want: true},
 	}
-}
-
-func TestRecordNameMatches_FullDomainWithDot(t *testing.T) {
-	// 带尾部点号的完整域名
-	if !RecordNameMatches("www.example.com.", "www.example.com", "www") {
-		t.Error("should match full domain with trailing dot")
-	}
-}
-
-func TestRecordNameMatches_SubDomainLabel(t *testing.T) {
-	// 仅子域名标签
-	if !RecordNameMatches("www", "www.example.com", "www") {
-		t.Error("should match subdomain label")
-	}
-}
-
-func TestRecordNameMatches_RootDomainAt(t *testing.T) {
-	// 根域名 @ 标签
-	if !RecordNameMatches("@", "example.com", "@") {
-		t.Error("should match @ for root domain")
-	}
-}
-
-func TestRecordNameMatches_RootDomainEmpty(t *testing.T) {
-	// 根域名空字符串
-	if !RecordNameMatches("", "example.com", "@") {
-		t.Error("should match empty string for root domain")
-	}
-}
-
-func TestRecordNameMatches_NoMatch(t *testing.T) {
-	// 不匹配
-	if RecordNameMatches("api", "www.example.com", "www") {
-		t.Error("should not match different subdomain")
-	}
-}
-
-func TestRecordNameMatches_RootDomainWithDifferentFQDN(t *testing.T) {
-	// 根域名带点号
-	if !RecordNameMatches("example.com.", "example.com", "@") {
-		t.Error("should match root domain with trailing dot")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := RecordNameMatches(tt.record, tt.fqdn, tt.subdomain)
+			if got != tt.want {
+				t.Errorf("RecordNameMatches(%q, %q, %q) = %v, want %v", tt.record, tt.fqdn, tt.subdomain, got, tt.want)
+			}
+		})
 	}
 }
 
@@ -64,35 +41,26 @@ func TestRecordNameMatches_RootDomainWithDifferentFQDN(t *testing.T) {
 // ipv6Equal 测试
 // ============================================================
 
-func TestIPv6Equal_Same(t *testing.T) {
-	if !ipv6Equal("::1", "::1") {
-		t.Error("same IPv6 should be equal")
+func TestIPv6Equal(t *testing.T) {
+	tests := []struct {
+		name string
+		a    net.IP
+		b    string
+		want bool
+	}{
+		{name: "相同地址", a: net.ParseIP("::1"), b: "::1", want: true},
+		{name: "不同格式相同地址", a: net.ParseIP("2001:db8::1"), b: "2001:0db8:0000:0000:0000:0000:0000:0001", want: true},
+		{name: "不同地址", a: net.ParseIP("::1"), b: "::2", want: false},
+		{name: "nil IP与无效字符串不匹配", a: nil, b: "invalid-ip", want: false},
+		{name: "不同无效地址", a: nil, b: "invalid-1", want: false},
 	}
-}
-
-func TestIPv6Equal_DifferentFormat(t *testing.T) {
-	// 不同格式的同一地址
-	if !ipv6Equal("2001:db8::1", "2001:0db8:0000:0000:0000:0000:0000:0001") {
-		t.Error("same IPv6 in different formats should be equal")
-	}
-}
-
-func TestIPv6Equal_Different(t *testing.T) {
-	if ipv6Equal("::1", "::2") {
-		t.Error("different IPv6 should not be equal")
-	}
-}
-
-func TestIPv6Equal_InvalidFallback(t *testing.T) {
-	// 无效地址回退到字符串比较
-	if !ipv6Equal("invalid-ip", "invalid-ip") {
-		t.Error("invalid IPs should fall back to string comparison")
-	}
-}
-
-func TestIPv6Equal_InvalidDifferent(t *testing.T) {
-	if ipv6Equal("invalid-1", "invalid-2") {
-		t.Error("different invalid IPs should not match")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ipv6Equal(tt.a, tt.b)
+			if got != tt.want {
+				t.Errorf("ipv6Equal(%v, %q) = %v, want %v", tt.a, tt.b, got, tt.want)
+			}
+		})
 	}
 }
 
@@ -101,7 +69,7 @@ func TestIPv6Equal_InvalidDifferent(t *testing.T) {
 // ============================================================
 
 func TestHasAddressChanged_NilCached(t *testing.T) {
-	// 缓存为空 → 视为变化
+	// 缓存为空 -> 视为变化
 	addr := net.ParseIP("::1")
 	if !hasAddressChanged(nil, addr) {
 		t.Error("nil cached address should be considered changed")
@@ -144,7 +112,7 @@ func TestRecordInfoKey_EmptyID(t *testing.T) {
 }
 
 // ============================================================
-// Mock DNSProvider — 供后续 syncDNSRecord 测试使用
+// Mock DNSProvider - 供后续 syncDNSRecord 测试使用
 // ============================================================
 
 // mockProvider 实现 DNSProvider 接口，用于测试。
@@ -348,7 +316,7 @@ func TestSyncRecord_AddrUnchanged_Skip(t *testing.T) {
 	d := &Domain{
 		Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600,
 	}
-	d.SetAddr(addr) // 缓存已是最新
+	d.CheckAndSetAddr(addr) // 缓存已是最新
 
 	m := &mockProvider{records: []RecordInfo{}}
 
@@ -366,7 +334,7 @@ func TestSyncRecord_AddrChanged_Update(t *testing.T) {
 	d := &Domain{
 		Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600,
 	}
-	d.SetAddr(oldAddr)
+	d.CheckAndSetAddr(oldAddr)
 
 	m := &mockProvider{
 		records: []RecordInfo{
@@ -391,7 +359,7 @@ func TestSyncRecord_NilCachedAddr_Update(t *testing.T) {
 	d := &Domain{
 		Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600,
 	}
-	// Addr 为 nil — 首次运行
+	// Addr 为 nil - 首次运行
 
 	m := &mockProvider{
 		records: []RecordInfo{

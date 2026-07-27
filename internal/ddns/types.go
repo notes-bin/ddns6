@@ -50,39 +50,19 @@ func (r RecordInfo) Key() string {
 	return r.ID + "|" + r.Name + "|" + r.Type + "|" + r.Value
 }
 
-// DNSRecordGetter 提供 DNS 记录查询能力
-type DNSRecordGetter interface {
+// DNSProvider DNS 服务商接口，提供 DNS 记录的增删改查操作。
+//
+// 新增 DNS 运营商需实现此接口的全部 4 个方法，然后
+// 在 cmd/providers.go 的 providerFactories 列表中注册。
+type DNSProvider interface {
 	// GetRecords 查询 DNS 记录列表，按 domain 和 recordType 过滤
 	GetRecords(ctx context.Context, domain, recordType string) ([]RecordInfo, error)
-}
-
-// DNSRecordAdder 提供 DNS 记录新增能力
-type DNSRecordAdder interface {
 	// AddRecord 添加一条 DNS 记录
 	AddRecord(ctx context.Context, record RecordInfo) error
-}
-
-// DNSRecordModifier 提供 DNS 记录修改能力
-type DNSRecordModifier interface {
 	// ModifyRecord 修改一条 DNS 记录
 	ModifyRecord(ctx context.Context, record RecordInfo) error
-}
-
-// DNSRecordDeleter 提供 DNS 记录删除能力
-type DNSRecordDeleter interface {
 	// DeleteRecord 删除一条 DNS 记录
 	DeleteRecord(ctx context.Context, record RecordInfo) error
-}
-
-// DNSProvider DNS 服务商完整接口
-//
-// 组合所有子接口，提供 DNS 记录的增删改查操作。
-// 消费者可根据需要依赖具体的子接口，而非完整的 DNSProvider。
-type DNSProvider interface {
-	DNSRecordGetter
-	DNSRecordAdder
-	DNSRecordModifier
-	DNSRecordDeleter
 }
 
 // Domain 表示一个域名及其相关配置
@@ -100,9 +80,12 @@ type Domain struct {
 // DefaultTTL DNS 记录默认 TTL（秒）
 const DefaultTTL = 600
 
-// String 返回 Domain 的字符串表示
+// String 返回 Domain 的字符串表示（线程安全）。
 func (d *Domain) String() string {
-	return fmt.Sprintf("fullDomain: %s, type: %s, addr: %s", d.FullDomain(), d.Type, d.Addr)
+	d.mu.Lock()
+	addr := d.Addr.String()
+	d.mu.Unlock()
+	return fmt.Sprintf("fullDomain: %s, type: %s, addr: %s", d.FullDomain(), d.Type, addr)
 }
 
 // FullDomain 返回完整的子域名（含主域名）。
@@ -113,14 +96,30 @@ func (d *Domain) FullDomain() string {
 	return fmt.Sprintf("%s.%s", d.SubDomain, d.Domain)
 }
 
-// Lock 锁定 Domain，供外部包保护并发访问。
-func (d *Domain) Lock() { d.mu.Lock() }
-
-// Unlock 解锁 Domain。
-func (d *Domain) Unlock() { d.mu.Unlock() }
-
-// SetAddr 更新缓存的 IPv6 地址（拷贝防止别名）
-func (d *Domain) SetAddr(addr net.IP) {
-	d.Addr = make(net.IP, len(addr))
-	copy(d.Addr, addr)
+// CheckAndSetAddr 检查并更新缓存的 IPv6 地址，返回地址是否发生变化（线程安全）。
+//
+// 若新地址与缓存地址相同则返回 false，否则更新缓存并返回 true。
+// 用于 SyncRecord 中判断是否需要触发 DNS 记录更新。
+func (d *Domain) CheckAndSetAddr(newAddr net.IP) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.Addr != nil && d.Addr.Equal(newAddr) {
+		return false
+	}
+	d.Addr = make(net.IP, len(newAddr))
+	copy(d.Addr, newAddr)
+	return true
 }
+
+// AddrString 返回缓存 IP 地址的字符串表示（线程安全）。
+func (d *Domain) AddrString() string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.Addr.String()
+}
+
+// lock 内部加锁（非导出），供 SyncRecord 等包内函数在需要跨方法持锁时使用。
+func (d *Domain) lock() { d.mu.Lock() }
+
+// unlock 内部解锁（非导出）。
+func (d *Domain) unlock() { d.mu.Unlock() }

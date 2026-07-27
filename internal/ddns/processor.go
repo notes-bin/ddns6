@@ -7,7 +7,7 @@ import (
 
 // CollectMatchingRecords 查询 DNS 记录并收集匹配的记录。
 //
-// 模板方法：按根域名分组 → 逐组查询 → 去重 → 匹配子域名 → 收集结果。
+// 模板方法：按根域名分组 -> 逐组查询 -> 去重 -> 匹配子域名 -> 收集结果。
 //
 // 参数:
 //   - p: DNS 记录查询器
@@ -17,7 +17,7 @@ import (
 //     为 false 时返回该根域名下所有指定类型的记录
 //
 // 去重规则：同一记录（ID+Name+Type+Value 相同）只保留第一条。
-func CollectMatchingRecords(ctx context.Context, p DNSRecordGetter, domains []*Domain, recordType string, filterBySubdomain bool) ([]RecordInfo, error) {
+func CollectMatchingRecords(ctx context.Context, p DNSProvider, domains []*Domain, recordType string, filterBySubdomain bool) ([]RecordInfo, error) {
 	// 按根域名分组，每个根域名只查一次 API
 	rootGroups := make(map[string][]*Domain)
 	for _, d := range domains {

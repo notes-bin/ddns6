@@ -18,6 +18,7 @@ package ipaddr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/rand"
@@ -30,12 +31,15 @@ type IPv6Fetcher interface {
 	Fetch(ctx context.Context) (net.IP, error)
 }
 
+// fetchTimeout IPv6 地址获取总超时时间。
+const fetchTimeout = 5 * time.Second
+
 // GetIPv6Addr 获取本机 IPv6 地址。
 //
 // 每次调用都会随机打乱 fetchers 顺序后并发执行，
 // 第一个成功返回的地址即作为结果。全部失败则返回错误。
-// 总超时时间为 5 秒。
-func GetIPv6Addr(fetchers ...IPv6Fetcher) (net.IP, error) {
+// 总超时时间为 5 秒，受父 context 控制。
+func GetIPv6Addr(ctx context.Context, fetchers ...IPv6Fetcher) (net.IP, error) {
 	if len(fetchers) == 0 {
 		return nil, fmt.Errorf("no fetcher provided")
 	}
@@ -49,8 +53,8 @@ func GetIPv6Addr(fetchers ...IPv6Fetcher) (net.IP, error) {
 
 	slog.Debug("attempting to fetch IPv6 address", "module", "ipaddr", "fetcher_count", len(fetchers))
 
-	// 总超时 5 秒
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// 总超时 5 秒，继承父 context 以支持优雅关闭
+	ctx, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
 
 	// 并发竞速：所有 fetcher 同时启动，第一个成功返回的即为结果
@@ -58,20 +62,29 @@ func GetIPv6Addr(fetchers ...IPv6Fetcher) (net.IP, error) {
 	errCh := make(chan error, len(shuffled))
 
 	for _, fn := range shuffled {
-		go func() {
-			slog.Debug("starting fetcher", "module", "ipaddr", "fetcher", fmt.Sprintf("%T", fn))
-			ip, err := fn.Fetch(ctx)
+		go func(fetcher IPv6Fetcher) {
+			slog.Debug("starting fetcher", "module", "ipaddr", "fetcher", fmt.Sprintf("%T", fetcher))
+			ip, err := fetcher.Fetch(ctx)
 			if err != nil {
-				slog.Warn("fetcher failed", "module", "ipaddr", "fetcher", fmt.Sprintf("%T", fn), "err", err)
+				// 区分错误类型：取消=竞速正常副作用，超时=可能网络问题，其他=真正故障
+				switch {
+				case errors.Is(err, context.Canceled):
+					slog.Debug("fetcher canceled", "module", "ipaddr", "fetcher", fmt.Sprintf("%T", fetcher))
+				case errors.Is(err, context.DeadlineExceeded):
+					slog.Info("fetcher timed out", "module", "ipaddr", "fetcher", fmt.Sprintf("%T", fetcher))
+				default:
+					slog.Warn("fetcher failed", "module", "ipaddr", "fetcher", fmt.Sprintf("%T", fetcher), "err", err)
+				}
 				errCh <- err
 				return
 			}
 			resultCh <- ip
-		}()
+		}(fn)
 	}
 
-	// 等待第一个成功结果或所有失败
+	// 等待第一个成功结果或所有失败，同时统计各类错误数量
 	var lastErr error
+	var canceledCount, timeoutCount, failedCount int
 	remaining := len(shuffled)
 	for remaining > 0 {
 		select {
@@ -79,16 +92,26 @@ func GetIPv6Addr(fetchers ...IPv6Fetcher) (net.IP, error) {
 			slog.Info("IPv6 address obtained successfully",
 				"module", "ipaddr",
 				"ipv6", ip.String(),
-				"remaining", remaining-1)
+				"canceled", canceledCount, "timed_out", timeoutCount, "failed", failedCount)
 			return ip, nil
 		case err := <-errCh:
 			lastErr = err
 			remaining--
+			switch {
+			case errors.Is(err, context.Canceled):
+				canceledCount++
+			case errors.Is(err, context.DeadlineExceeded):
+				timeoutCount++
+			default:
+				failedCount++
+			}
 		}
 	}
 
 	slog.Error("all IPv6 fetchers failed",
 		"module", "ipaddr",
-		"total", len(fetchers), "last_err", lastErr)
+		"total", len(fetchers),
+		"canceled", canceledCount, "timed_out", timeoutCount, "failed", failedCount,
+		"last_err", lastErr)
 	return nil, fmt.Errorf("all %d fetchers failed: %w", len(fetchers), lastErr)
 }

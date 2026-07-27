@@ -34,7 +34,7 @@ var listCmd = &cobra.Command{
   # 从配置文件读取
   ddns6 list`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// ddns6 list help — 显示帮助
+		// ddns6 list help - 显示帮助
 		if len(args) > 0 && args[0] == "help" {
 			cmd.Help()
 			return nil
@@ -99,7 +99,7 @@ func handleList(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider) 
 func runListWithConfig(cmd *cobra.Command) error {
 	return runWithConfig(cmd, "list", func(cmd *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error {
 		if restrictedProviders[cfg.Provider] {
-			return fmt.Errorf("%s does not support 'list' via API — %s only provides update endpoints, use its web panel to manage records", cfg.Provider, cfg.Provider)
+			return fmt.Errorf("%s does not support 'list' via API - %s only provides update endpoints, use its web panel to manage records", cfg.Provider, cfg.Provider)
 		}
 		return handleList(cmd, domains, p)
 	})

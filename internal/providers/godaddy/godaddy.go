@@ -30,10 +30,10 @@ type GoDaddyClient struct {
 	mu         sync.Mutex // 保护 deleteRecordsByValue 的并发安全
 }
 
-type Options func(*GoDaddyClient)
+type Option func(*GoDaddyClient)
 
 // NewClient 创建 GoDaddy DNS 客户端
-func NewClient(apiKey, apiSecret string, options ...Options) *GoDaddyClient {
+func NewClient(apiKey, apiSecret string, options ...Option) *GoDaddyClient {
 	client := &GoDaddyClient{
 		APIKey:     apiKey,
 		APISecret:  apiSecret,
@@ -49,14 +49,14 @@ func NewClient(apiKey, apiSecret string, options ...Options) *GoDaddyClient {
 }
 
 // WithBaseURL 设置自定义 API 地址（测试用）
-func WithBaseURL(baseURL string) Options {
+func WithBaseURL(baseURL string) Option {
 	return func(c *GoDaddyClient) {
 		c.BaseURL = baseURL
 	}
 }
 
 // WithHTTPClient 设置自定义 HTTP 客户端
-func WithHTTPClient(httpClient *http.Client) Options {
+func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *GoDaddyClient) {
 		c.HTTPClient = httpClient
 	}

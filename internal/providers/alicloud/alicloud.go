@@ -36,10 +36,10 @@ type AliDNSClient struct {
 	SignVersion     string // 签名版本："v1"（默认，HMAC-SHA1）或 "v3"（ACS3-HMAC-SHA256）
 }
 
-type Options func(*AliDNSClient)
+type Option func(*AliDNSClient)
 
 // NewClient 创建 AliDNSClient
-func NewClient(accessKeyId, accessKeySecret string, options ...Options) *AliDNSClient {
+func NewClient(accessKeyId, accessKeySecret string, options ...Option) *AliDNSClient {
 	client := &AliDNSClient{
 		AccessKeyId:     accessKeyId,
 		AccessKeySecret: accessKeySecret,
@@ -56,21 +56,21 @@ func NewClient(accessKeyId, accessKeySecret string, options ...Options) *AliDNSC
 }
 
 // WithBaseURL 设置自定义 API 地址（测试用）
-func WithBaseURL(baseURL string) Options {
+func WithBaseURL(baseURL string) Option {
 	return func(c *AliDNSClient) {
 		c.BaseURL = baseURL
 	}
 }
 
 // WithHTTPClient 设置自定义 HTTP 客户端
-func WithHTTPClient(httpClient *http.Client) Options {
+func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *AliDNSClient) {
 		c.HTTPClient = httpClient
 	}
 }
 
 // WithSignVersion 设置签名版本："v1"（默认，HMAC-SHA1）或 "v3"（ACS3-HMAC-SHA256）
-func WithSignVersion(version string) Options {
+func WithSignVersion(version string) Option {
 	return func(c *AliDNSClient) {
 		c.SignVersion = version
 	}

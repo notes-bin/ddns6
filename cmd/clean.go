@@ -44,7 +44,7 @@ var cleanCmd = &cobra.Command{
   # 从配置文件读取并自动删除
   ddns6 clean --yes`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// ddns6 clean help — 显示帮助
+		// ddns6 clean help - 显示帮助
 		if len(args) > 0 && args[0] == "help" {
 			cmd.Help()
 			return nil
@@ -175,7 +175,7 @@ func handleClean(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider)
 func runCleanWithConfig(cmd *cobra.Command) error {
 	return runWithConfig(cmd, "clean", func(cmd *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error {
 		if restrictedProviders[cfg.Provider] {
-			return fmt.Errorf("%s does not support 'clean' via API — %s only provides update endpoints, use its web panel to manage records", cfg.Provider, cfg.Provider)
+			return fmt.Errorf("%s does not support 'clean' via API - %s only provides update endpoints, use its web panel to manage records", cfg.Provider, cfg.Provider)
 		}
 		return handleClean(cmd, domains, p)
 	})

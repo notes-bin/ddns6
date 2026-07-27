@@ -26,7 +26,7 @@ const (
 type Client struct {
 	loginToken string
 	baseURL    string
-	*http.Client
+	httpClient *http.Client // 命名字段，避免暴露 http.Client 的公开方法
 }
 
 // Option 客户端配置选项函数
@@ -38,7 +38,7 @@ func NewClient(loginToken string, options ...Option) *Client {
 	c := &Client{
 		loginToken: loginToken,
 		baseURL:    defaultBaseURL,
-		Client:     &http.Client{Timeout: 10 * time.Second},
+		httpClient: &http.Client{Timeout: 10 * time.Second},
 	}
 	for _, opt := range options {
 		opt(c)
@@ -56,7 +56,7 @@ func WithBaseURL(baseURL string) Option {
 // WithHTTPClient 设置自定义 HTTP 客户端
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
-		c.Client = httpClient
+		c.httpClient = httpClient
 	}
 }
 
@@ -92,7 +92,7 @@ type recordResponse struct {
 
 // AddRecord 添加域名解析记录
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
-	domain, subDomain := splitDomain(record.Name, record.Zone)
+	domain, subDomain := domainutil.SplitDomain(record.Name, record.Zone)
 
 	params := url.Values{}
 	params.Set("login_token", c.loginToken)
@@ -121,7 +121,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 
 // ModifyRecord 修改域名解析记录
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
-	domain, subDomain := splitDomain(record.Name, record.Zone)
+	domain, subDomain := domainutil.SplitDomain(record.Name, record.Zone)
 
 	params := url.Values{}
 	params.Set("login_token", c.loginToken)
@@ -151,7 +151,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 
 // DeleteRecord 删除域名解析记录
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
-	domain, _ := splitDomain(record.Name, record.Zone)
+	domain, _ := domainutil.SplitDomain(record.Name, record.Zone)
 
 	params := url.Values{}
 	params.Set("login_token", c.loginToken)
@@ -176,7 +176,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 
 // GetRecords 查询域名解析记录
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	domain, subDomain := splitDomain(fulldomain, "")
+	domain, subDomain := domainutil.SplitDomain(fulldomain, "")
 
 	params := url.Values{}
 	params.Set("login_token", c.loginToken)
@@ -230,7 +230,7 @@ func (c *Client) post(ctx context.Context, reqURL string, params url.Values, res
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("User-Agent", "ddns6/1.0")
 
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("DNSPod API request failed: %w", err)
 	}
@@ -255,10 +255,4 @@ func (c *Client) post(ctx context.Context, reqURL string, params url.Values, res
 		return fmt.Errorf("failed to decode response: %w", err)
 	}
 	return nil
-}
-
-// splitDomain 分割完整域名为根域名和子域名
-// rootDomain 为已知根域名（来自 --domain），为空时回退到从 Name 推导
-func splitDomain(fulldomain, rootDomain string) (string, string) {
-	return domainutil.SplitDomain(fulldomain, rootDomain)
 }

@@ -121,4 +121,3 @@ func TestClient_DeleteRecord(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
