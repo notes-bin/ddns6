@@ -20,7 +20,7 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -282,7 +282,7 @@ func (c *AliDNSClient) makeV1Request(ctx context.Context, params map[string]stri
 	for k := range reqParams {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	// 构建查询字符串
 	var queryParts []string

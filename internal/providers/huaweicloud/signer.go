@@ -14,7 +14,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 )
@@ -93,11 +93,11 @@ func canonicalQueryString(r *http.Request) string {
 	for key := range query {
 		keys = append(keys, key)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	var a []string
 	for _, key := range keys {
 		k := url.QueryEscape(key)
-		sort.Strings(query[key])
+		slices.Sort(query[key])
 		for _, v := range query[key] {
 			kv := fmt.Sprintf("%s=%s", k, url.QueryEscape(v))
 			a = append(a, kv)
@@ -120,7 +120,7 @@ func canonicalHeaders(r *http.Request, signerHeaders []string) string {
 		if strings.EqualFold(key, headerHost) {
 			value = []string{r.Host}
 		}
-		sort.Strings(value)
+		slices.Sort(value)
 		for _, v := range value {
 			a = append(a, key+":"+strings.TrimSpace(v))
 		}
@@ -134,7 +134,7 @@ func signedHeaders(r *http.Request) []string {
 	for key := range r.Header {
 		a = append(a, strings.ToLower(key))
 	}
-	sort.Strings(a)
+	slices.Sort(a)
 	return a
 }
 
