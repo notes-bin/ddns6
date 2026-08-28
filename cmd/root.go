@@ -322,7 +322,7 @@ func printVersion() {
 var persistentFlags = []struct {
 	name         string
 	flagType     string
-	defaultValue interface{}
+	defaultValue any
 	usage        string
 	envName      string // 对应的环境变量名（空表示不支持）
 }{
