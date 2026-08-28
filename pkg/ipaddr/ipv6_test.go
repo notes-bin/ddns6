@@ -22,7 +22,7 @@ func TestDnsFetcher(t *testing.T) {
 		t.Errorf("Expected DnsFetcher string to be %s, got %s", dnsServer, fetcher.String())
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	// 尝试获取 IPv6 地址
@@ -57,7 +57,7 @@ func TestHttpIPv6Fetcher(t *testing.T) {
 		t.Errorf("Expected HttpIPv6Fetcher string to be %s, got %s", server.URL, fetcher.String())
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	// 测试正常情况
@@ -112,7 +112,7 @@ func TestGetIPv6Addr_RaceCancel(t *testing.T) {
 	fastFetcher := &slowFetcher{ip: fastIP, delay: 10 * time.Millisecond}
 	slowFetcher := &slowFetcher{ip: slowIP, delay: 5 * time.Second, canceled: &slowWasCanceled}
 
-	ip, err := ipaddr.GetIPv6Addr(context.Background(), fastFetcher, slowFetcher)
+	ip, err := ipaddr.GetIPv6Addr(t.Context(), fastFetcher, slowFetcher)
 	if err != nil {
 		t.Fatalf("竞速成功时不应返回错误: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestGetIPv6Addr_AllFail(t *testing.T) {
 		delay: 10 * time.Second, // 远超过总超时 5 秒
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
 	defer cancel()
 
 	// 直接调用 Fetch 而非 GetIPv6Addr，避免受 5 秒总超时影响
@@ -150,7 +150,7 @@ func TestGetIPv6Addr_AllFail(t *testing.T) {
 
 // TestGetIPv6Addr_NoFetchers 测试不提供 fetcher 时返回错误。
 func TestGetIPv6Addr_NoFetchers(t *testing.T) {
-	_, err := ipaddr.GetIPv6Addr(context.Background())
+	_, err := ipaddr.GetIPv6Addr(t.Context())
 	if err == nil {
 		t.Fatal("不提供 fetcher 时应返回错误")
 	}
@@ -161,7 +161,7 @@ func TestGetIPv6Addr_SingleFetcher(t *testing.T) {
 	testIP := net.ParseIP("2001:db8::1")
 	fetcher := &slowFetcher{ip: testIP, delay: 0}
 
-	ip, err := ipaddr.GetIPv6Addr(context.Background(), fetcher)
+	ip, err := ipaddr.GetIPv6Addr(t.Context(), fetcher)
 	if err != nil {
 		t.Fatalf("单个 fetcher 成功时不应返回错误: %v", err)
 	}

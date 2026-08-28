@@ -144,7 +144,7 @@ func (m *mockProvider) DeleteRecord(_ context.Context, _ RecordInfo) error {
 // ============================================================
 
 func TestSyncDNSRecord_NoRecord_AddNew(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	d := &Domain{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}
 	m := &mockProvider{records: []RecordInfo{}}
 	addr := net.ParseIP("2001:db8::1")
@@ -161,7 +161,7 @@ func TestSyncDNSRecord_NoRecord_AddNew(t *testing.T) {
 }
 
 func TestSyncDNSRecord_IPMatch_Skip(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	d := &Domain{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}
 	addr := net.ParseIP("2001:db8::1")
 	m := &mockProvider{
@@ -182,7 +182,7 @@ func TestSyncDNSRecord_IPMatch_Skip(t *testing.T) {
 }
 
 func TestSyncDNSRecord_IPChanged_Modify(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	d := &Domain{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}
 	addr := net.ParseIP("2001:db8::2")
 	m := &mockProvider{
@@ -202,7 +202,7 @@ func TestSyncDNSRecord_IPChanged_Modify(t *testing.T) {
 }
 
 func TestSyncDNSRecord_GetRecordsError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	d := &Domain{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}
 	m := &mockProvider{getErr: fmt.Errorf("api failure")}
 	addr := net.ParseIP("2001:db8::1")
@@ -214,7 +214,7 @@ func TestSyncDNSRecord_GetRecordsError(t *testing.T) {
 }
 
 func TestSyncDNSRecord_ModifyRecordError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	d := &Domain{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}
 	addr := net.ParseIP("2001:db8::2")
 	m := &mockProvider{
@@ -231,7 +231,7 @@ func TestSyncDNSRecord_ModifyRecordError(t *testing.T) {
 }
 
 func TestSyncDNSRecord_AddRecordError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	d := &Domain{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}
 	m := &mockProvider{addErr: fmt.Errorf("add failed")}
 	addr := net.ParseIP("2001:db8::1")
@@ -243,7 +243,7 @@ func TestSyncDNSRecord_AddRecordError(t *testing.T) {
 }
 
 func TestSyncDNSRecord_MultipleRecords_AllProcessed(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	d := &Domain{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}
 	addr := net.ParseIP("2001:db8::3")
 	m := &mockProvider{
@@ -264,7 +264,7 @@ func TestSyncDNSRecord_MultipleRecords_AllProcessed(t *testing.T) {
 }
 
 func TestSyncDNSRecord_WrongType_Skipped(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	d := &Domain{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}
 	addr := net.ParseIP("2001:db8::1")
 	m := &mockProvider{
@@ -286,7 +286,7 @@ func TestSyncDNSRecord_WrongType_Skipped(t *testing.T) {
 }
 
 func TestSyncDNSRecord_WrongSubDomain_Skipped(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	d := &Domain{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}
 	addr := net.ParseIP("2001:db8::1")
 	m := &mockProvider{
@@ -311,7 +311,7 @@ func TestSyncDNSRecord_WrongSubDomain_Skipped(t *testing.T) {
 // ============================================================
 
 func TestSyncRecord_AddrUnchanged_Skip(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	addr := net.ParseIP("2001:db8::1")
 	d := &Domain{
 		Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600,
@@ -328,7 +328,7 @@ func TestSyncRecord_AddrUnchanged_Skip(t *testing.T) {
 }
 
 func TestSyncRecord_AddrChanged_Update(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	oldAddr := net.ParseIP("2001:db8::1")
 	newAddr := net.ParseIP("2001:db8::2")
 	d := &Domain{
@@ -354,7 +354,7 @@ func TestSyncRecord_AddrChanged_Update(t *testing.T) {
 }
 
 func TestSyncRecord_NilCachedAddr_Update(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	addr := net.ParseIP("2001:db8::1")
 	d := &Domain{
 		Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600,
@@ -374,7 +374,7 @@ func TestSyncRecord_NilCachedAddr_Update(t *testing.T) {
 }
 
 func TestSyncRecord_CtxCancelled(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel() // 立即取消
 
 	addr := net.ParseIP("2001:db8::1")

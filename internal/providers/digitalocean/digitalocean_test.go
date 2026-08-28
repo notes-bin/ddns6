@@ -1,7 +1,6 @@
 package digitalocean
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -28,7 +27,7 @@ func TestClient_GetRecords(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("test-token", WithBaseURL(server.URL))
-	records, err := client.GetRecords(context.Background(), "www.example.com", "AAAA")
+	records, err := client.GetRecords(t.Context(), "www.example.com", "AAAA")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -54,7 +53,7 @@ func TestClient_AddRecord(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("test-token", WithBaseURL(server.URL))
-	err := client.AddRecord(context.Background(), ddns.RecordInfo{Name: "www.example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600})
+	err := client.AddRecord(t.Context(), ddns.RecordInfo{Name: "www.example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -74,7 +73,7 @@ func TestClient_ModifyRecord(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("test-token", WithBaseURL(server.URL))
-	err := client.ModifyRecord(context.Background(), ddns.RecordInfo{Name: "www.example.com", ID: "42", Type: "AAAA", Value: "2001:db8::2", TTL: 600})
+	err := client.ModifyRecord(t.Context(), ddns.RecordInfo{Name: "www.example.com", ID: "42", Type: "AAAA", Value: "2001:db8::2", TTL: 600})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -90,7 +89,7 @@ func TestClient_DeleteRecord(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("test-token", WithBaseURL(server.URL))
-	err := client.DeleteRecord(context.Background(), ddns.RecordInfo{Name: "www.example.com", ID: "42"})
+	err := client.DeleteRecord(t.Context(), ddns.RecordInfo{Name: "www.example.com", ID: "42"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -104,7 +103,7 @@ func TestClient_APIError(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("bad-token", WithBaseURL(server.URL))
-	_, err := client.GetRecords(context.Background(), "www.example.com", "AAAA")
+	_, err := client.GetRecords(t.Context(), "www.example.com", "AAAA")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}

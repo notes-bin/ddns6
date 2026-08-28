@@ -75,28 +75,28 @@ func TestRetryableError_Unwrap(t *testing.T) {
 // ============================================================
 
 func TestDo_FirstAttemptSucceeds(t *testing.T) {
-	var count int32
-	ctx := context.Background()
+	var count atomic.Int32
+	ctx := t.Context()
 
 	err := Do(ctx, 3, 10*time.Millisecond, func(ctx context.Context) error {
-		atomic.AddInt32(&count, 1)
+		count.Add(1)
 		return nil // 首次成功
 	})
 
 	if err != nil {
 		t.Errorf("首次成功时 Do 不应返回错误: %v", err)
 	}
-	if atomic.LoadInt32(&count) != 1 {
-		t.Errorf("fn 应只被调用 1 次, 实际 %d", atomic.LoadInt32(&count))
+	if count.Load() != 1 {
+		t.Errorf("fn 应只被调用 1 次, 实际 %d", count.Load())
 	}
 }
 
 func TestDo_SucceedsAfterRetries(t *testing.T) {
-	var count int32
-	ctx := context.Background()
+	var count atomic.Int32
+	ctx := t.Context()
 
 	err := Do(ctx, 3, 10*time.Millisecond, func(ctx context.Context) error {
-		n := atomic.AddInt32(&count, 1)
+		n := count.Add(1)
 		if n < 3 {
 			return Retryable(fmt.Errorf("attempt %d failed", n))
 		}
@@ -106,18 +106,18 @@ func TestDo_SucceedsAfterRetries(t *testing.T) {
 	if err != nil {
 		t.Errorf("重试成功后 Do 不应返回错误: %v", err)
 	}
-	if atomic.LoadInt32(&count) != 3 {
-		t.Errorf("fn 应被调用 3 次, 实际 %d", atomic.LoadInt32(&count))
+	if count.Load() != 3 {
+		t.Errorf("fn 应被调用 3 次, 实际 %d", count.Load())
 	}
 }
 
 func TestDo_AllAttemptsFail(t *testing.T) {
-	var count int32
-	ctx := context.Background()
+	var count atomic.Int32
+	ctx := t.Context()
 	expectedErr := fmt.Errorf("always fail")
 
 	err := Do(ctx, 3, 10*time.Millisecond, func(ctx context.Context) error {
-		atomic.AddInt32(&count, 1)
+		count.Add(1)
 		return Retryable(expectedErr)
 	})
 
@@ -127,35 +127,35 @@ func TestDo_AllAttemptsFail(t *testing.T) {
 	if !errors.Is(err, expectedErr) {
 		t.Errorf("应返回原始错误, 得到 %v", err)
 	}
-	if atomic.LoadInt32(&count) != 3 {
-		t.Errorf("fn 应被调用 3 次, 实际 %d", atomic.LoadInt32(&count))
+	if count.Load() != 3 {
+		t.Errorf("fn 应被调用 3 次, 实际 %d", count.Load())
 	}
 }
 
 func TestDo_NonRetryableError(t *testing.T) {
-	var count int32
-	ctx := context.Background()
+	var count atomic.Int32
+	ctx := t.Context()
 	expectedErr := fmt.Errorf("non-retryable error")
 
 	err := Do(ctx, 3, 10*time.Millisecond, func(ctx context.Context) error {
-		atomic.AddInt32(&count, 1)
+		count.Add(1)
 		return expectedErr // 非 RetryableError
 	})
 
 	if !errors.Is(err, expectedErr) {
 		t.Errorf("应返回原始非可重试错误, 得到 %v", err)
 	}
-	if atomic.LoadInt32(&count) != 1 {
-		t.Errorf("非可重试错误应只调用 1 次, 实际 %d", atomic.LoadInt32(&count))
+	if count.Load() != 1 {
+		t.Errorf("非可重试错误应只调用 1 次, 实际 %d", count.Load())
 	}
 }
 
 func TestDo_ZeroAttempts(t *testing.T) {
-	var count int32
-	ctx := context.Background()
+	var count atomic.Int32
+	ctx := t.Context()
 
 	err := Do(ctx, 0, 10*time.Millisecond, func(ctx context.Context) error {
-		atomic.AddInt32(&count, 1)
+		count.Add(1)
 		return Retryable(fmt.Errorf("fail"))
 	})
 
@@ -166,25 +166,25 @@ func TestDo_ZeroAttempts(t *testing.T) {
 }
 
 func TestDo_SingleAttempt(t *testing.T) {
-	var count int32
-	ctx := context.Background()
+	var count atomic.Int32
+	ctx := t.Context()
 	expectedErr := fmt.Errorf("fail")
 
 	err := Do(ctx, 1, 10*time.Millisecond, func(ctx context.Context) error {
-		atomic.AddInt32(&count, 1)
+		count.Add(1)
 		return Retryable(expectedErr)
 	})
 
 	if err == nil {
 		t.Fatal("单次尝试失败时应返回错误")
 	}
-	if atomic.LoadInt32(&count) != 1 {
-		t.Errorf("单次尝试应只调用 1 次, 实际 %d", atomic.LoadInt32(&count))
+	if count.Load() != 1 {
+		t.Errorf("单次尝试应只调用 1 次, 实际 %d", count.Load())
 	}
 }
 
 func TestDo_ContextCancelled(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel() // 立即取消
 
 	err := Do(ctx, 3, 10*time.Millisecond, func(ctx context.Context) error {
@@ -197,8 +197,8 @@ func TestDo_ContextCancelled(t *testing.T) {
 }
 
 func TestDo_ContextCancelledDuringBackoff(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	var count int32
+	ctx, cancel := context.WithCancel(t.Context())
+	var count atomic.Int32
 
 	go func() {
 		time.Sleep(50 * time.Millisecond)
@@ -206,7 +206,7 @@ func TestDo_ContextCancelledDuringBackoff(t *testing.T) {
 	}()
 
 	err := Do(ctx, 5, 100*time.Millisecond, func(ctx context.Context) error {
-		atomic.AddInt32(&count, 1)
+		count.Add(1)
 		return Retryable(fmt.Errorf("fail"))
 	})
 
@@ -216,19 +216,19 @@ func TestDo_ContextCancelledDuringBackoff(t *testing.T) {
 }
 
 func TestDo_NilErrorIsNotRetryable(t *testing.T) {
-	var count int32
-	ctx := context.Background()
+	var count atomic.Int32
+	ctx := t.Context()
 
 	err := Do(ctx, 3, 10*time.Millisecond, func(ctx context.Context) error {
-		atomic.AddInt32(&count, 1)
+		count.Add(1)
 		return nil
 	})
 
 	if err != nil {
 		t.Errorf("Do 应返回 nil, 得到 %v", err)
 	}
-	if atomic.LoadInt32(&count) != 1 {
-		t.Errorf("fn 应只被调用 1 次, 实际 %d", atomic.LoadInt32(&count))
+	if count.Load() != 1 {
+		t.Errorf("fn 应只被调用 1 次, 实际 %d", count.Load())
 	}
 }
 
@@ -237,11 +237,11 @@ func TestDo_NilErrorIsNotRetryable(t *testing.T) {
 // ============================================================
 
 func TestDo_SimulateHTTPRetry(t *testing.T) {
-	ctx := context.Background()
-	var count int32
+	ctx := t.Context()
+	var count atomic.Int32
 
 	err := Do(ctx, 3, 10*time.Millisecond, func(ctx context.Context) error {
-		n := atomic.AddInt32(&count, 1)
+		n := count.Add(1)
 		// 模拟 HTTP 调用：前 2 次 503，第 3 次 200
 		if n < 3 {
 			return Retryable(fmt.Errorf("HTTP 503 Service Unavailable"))
@@ -252,17 +252,17 @@ func TestDo_SimulateHTTPRetry(t *testing.T) {
 	if err != nil {
 		t.Errorf("重试成功后不应返回错误: %v", err)
 	}
-	if atomic.LoadInt32(&count) != 3 {
-		t.Errorf("应重试 2 次（共 3 次调用）, 实际 %d", atomic.LoadInt32(&count))
+	if count.Load() != 3 {
+		t.Errorf("应重试 2 次（共 3 次调用）, 实际 %d", count.Load())
 	}
 }
 
 func TestDo_SimulateHTTPClientError(t *testing.T) {
-	ctx := context.Background()
-	var count int32
+	ctx := t.Context()
+	var count atomic.Int32
 
 	err := Do(ctx, 3, 10*time.Millisecond, func(ctx context.Context) error {
-		atomic.AddInt32(&count, 1)
+		count.Add(1)
 		// 4xx 错误通常不可重试（除 429）
 		return fmt.Errorf("HTTP 400 Bad Request")
 	})
@@ -270,17 +270,17 @@ func TestDo_SimulateHTTPClientError(t *testing.T) {
 	if err == nil {
 		t.Fatal("4xx 错误应返回错误")
 	}
-	if atomic.LoadInt32(&count) != 1 {
-		t.Errorf("非可重试错误应只调用 1 次, 实际 %d", atomic.LoadInt32(&count))
+	if count.Load() != 1 {
+		t.Errorf("非可重试错误应只调用 1 次, 实际 %d", count.Load())
 	}
 }
 
 func TestDo_SimulateHTTPRateLimit(t *testing.T) {
-	ctx := context.Background()
-	var count int32
+	ctx := t.Context()
+	var count atomic.Int32
 
 	err := Do(ctx, 4, 10*time.Millisecond, func(ctx context.Context) error {
-		n := atomic.AddInt32(&count, 1)
+		n := count.Add(1)
 		if n < 4 {
 			return Retryable(fmt.Errorf("HTTP 429 Too Many Requests"))
 		}
@@ -290,14 +290,14 @@ func TestDo_SimulateHTTPRateLimit(t *testing.T) {
 	if err != nil {
 		t.Errorf("429 重试成功后不应返回错误: %v", err)
 	}
-	if atomic.LoadInt32(&count) != 4 {
-		t.Errorf("应重试 3 次（共 4 次调用）, 实际 %d", atomic.LoadInt32(&count))
+	if count.Load() != 4 {
+		t.Errorf("应重试 3 次（共 4 次调用）, 实际 %d", count.Load())
 	}
 }
 
 func TestDo_BackoffIncreasing(t *testing.T) {
 	// 验证重试后确实有等待，即每次重试的时间戳不同
-	ctx := context.Background()
+	ctx := t.Context()
 	var timestamps []time.Time
 
 	err := Do(ctx, 3, 30*time.Millisecond, func(ctx context.Context) error {
