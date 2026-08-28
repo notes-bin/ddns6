@@ -283,7 +283,7 @@ func (c *Client) resolveZone(ctx context.Context, domain string) (string, string
 
 	// 从右到左匹配 zone 名称
 	parts := strings.Split(domain, ".")
-	for i := 0; i < len(parts); i++ {
+	for i := range len(parts) {
 		zoneName := strings.Join(parts[i:], ".")
 		for _, z := range zones {
 			if z.Name == zoneName {
