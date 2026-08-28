@@ -254,15 +254,15 @@ func (c *GoDaddyClient) getRootDomain(ctx context.Context, domain string) (strin
 }
 
 // getDomain checks if a domain exists in GoDaddy
-func (c *GoDaddyClient) getDomain(ctx context.Context, domain string) (map[string]interface{}, error) {
+func (c *GoDaddyClient) getDomain(ctx context.Context, domain string) (map[string]any, error) {
 	url := fmt.Sprintf("%s/domains/%s", c.BaseURL, domain)
-	var result map[string]interface{}
+	var result map[string]any
 	err := c.makeRequest(ctx, "GET", url, nil, &result)
 	return result, err
 }
 
 // makeRequest performs an HTTP request to the GoDaddy API
-func (c *GoDaddyClient) makeRequest(ctx context.Context, method, url string, body io.Reader, result interface{}) error {
+func (c *GoDaddyClient) makeRequest(ctx context.Context, method, url string, body io.Reader, result any) error {
 	slog.Debug("GoDaddy API request", "module", "godaddy", "method", method, "url", url)
 
 	req, err := http.NewRequestWithContext(ctx, method, url, body)

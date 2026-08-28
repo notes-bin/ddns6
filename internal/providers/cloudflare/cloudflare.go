@@ -397,9 +397,9 @@ func (c *CloudflareClient) findZoneID(ctx context.Context, zone string) (string,
 }
 
 // getZoneDetails gets details for a specific zone
-func (c *CloudflareClient) getZoneDetails(ctx context.Context, zoneID string) (map[string]interface{}, error) {
+func (c *CloudflareClient) getZoneDetails(ctx context.Context, zoneID string) (map[string]any, error) {
 	url := fmt.Sprintf("%s/zones/%s", c.BaseURL, zoneID)
-	var result map[string]interface{}
+	var result map[string]any
 	err := c.makeRequest(ctx, "GET", url, nil, &result)
 	return result, err
 }
@@ -446,7 +446,7 @@ func (c *CloudflareClient) deleteDNSRecord(ctx context.Context, zoneID, recordID
 }
 
 // makeRequest performs an HTTP request to the Cloudflare API
-func (c *CloudflareClient) makeRequest(ctx context.Context, method, url string, body io.Reader, result interface{}) error {
+func (c *CloudflareClient) makeRequest(ctx context.Context, method, url string, body io.Reader, result any) error {
 	slog.Debug("Cloudflare API request", "module", "cloudflare", "method", method, "url", url)
 
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
