@@ -13,7 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 )
@@ -165,7 +165,7 @@ func buildCanonicalQueryStringV3(params map[string]string) string {
 	for k := range params {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	var buf strings.Builder
 	for i, k := range keys {
@@ -205,7 +205,7 @@ func buildCanonicalHeadersV3(headers map[string]string) (canonicalHeaders, signe
 	for k := range normalized {
 		names = append(names, k)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 
 	// 构建输出
 	var cBuf, sBuf strings.Builder
