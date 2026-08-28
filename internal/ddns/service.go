@@ -156,20 +156,18 @@ func syncAllDomains(ctx context.Context, domains []*Domain, ip net.IP, p DNSProv
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(domains))
 	for _, d := range domains {
-		wg.Add(1)
-		go func(domain *Domain) {
-			defer wg.Done()
-			if err := SyncRecord(ctx, domain, ip, p); err != nil {
+		wg.Go(func() {
+			if err := SyncRecord(ctx, d, ip, p); err != nil {
 				if failFast {
 					errCh <- fmt.Errorf("sync failed for %s/%s: %w",
-						domain.Domain, domain.SubDomain, err)
+						d.Domain, d.SubDomain, err)
 				} else {
 					slog.Error("sync failed on trigger",
 						"module", "ddns",
-						"domain", domain.Domain, "subdomain", domain.SubDomain, "err", err)
+						"domain", d.Domain, "subdomain", d.SubDomain, "err", err)
 				}
 			}
-		}(d)
+		})
 	}
 	wg.Wait()
 	close(errCh)

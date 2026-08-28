@@ -131,28 +131,26 @@ func handleClean(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider)
 	var failed int
 
 	for _, r := range toDelete {
-		wg.Add(1)
 		sem <- struct{}{} // 获取信号量，满 5 时阻塞
 
-		go func(rec ddns.RecordInfo) {
-			defer wg.Done()
+		wg.Go(func() {
 			defer func() { <-sem }() // 释放信号量
 
 			slog.Info("deleting DNS record",
-				"module", "cmd", "record_id", rec.ID, "name", rec.Name,
-				"type", rec.Type, "value", rec.Value)
+				"module", "cmd", "record_id", r.ID, "name", r.Name,
+				"type", r.Type, "value", r.Value)
 
-			if err := p.DeleteRecord(ctx, rec); err != nil {
+			if err := p.DeleteRecord(ctx, r); err != nil {
 				slog.Error("failed to delete record",
-					"module", "cmd", "record_id", rec.ID, "name", rec.Name, "err", err)
-				fmt.Fprintf(os.Stderr, "Error deleting %s (ID: %s): %v\n", rec.Name, rec.ID, err)
+					"module", "cmd", "record_id", r.ID, "name", r.Name, "err", err)
+				fmt.Fprintf(os.Stderr, "Error deleting %s (ID: %s): %v\n", r.Name, r.ID, err)
 				mu.Lock()
 				failed++
 				mu.Unlock()
 				return
 			}
-			fmt.Printf("Deleted: %s %s -> %s\n", rec.Name, rec.Type, rec.Value)
-		}(r)
+			fmt.Printf("Deleted: %s %s -> %s\n", r.Name, r.Type, r.Value)
+		})
 	}
 
 	wg.Wait()
