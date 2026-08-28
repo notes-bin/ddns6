@@ -1,7 +1,6 @@
 package alicloud
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,8 +8,6 @@ import (
 
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
-
-var ctx = context.Background()
 
 func TestAddRecord(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -21,7 +18,7 @@ func TestAddRecord(t *testing.T) {
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(ts.URL))
 
-	err := client.AddRecord(ctx, ddns.RecordInfo{Name: "test.example.com", Type: "A", Value: "192.168.1.1", TTL: 600})
+	err := client.AddRecord(t.Context(), ddns.RecordInfo{Name: "test.example.com", Type: "A", Value: "192.168.1.1", TTL: 600})
 	if err != nil {
 		t.Errorf("AddRecord failed: %v", err)
 	}
@@ -36,7 +33,7 @@ func TestModifyRecord(t *testing.T) {
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(ts.URL))
 
-	err := client.ModifyRecord(ctx, ddns.RecordInfo{Name: "test.example.com", ID: "123456", Type: "A", Value: "192.168.1.2", TTL: 600})
+	err := client.ModifyRecord(t.Context(), ddns.RecordInfo{Name: "test.example.com", ID: "123456", Type: "A", Value: "192.168.1.2", TTL: 600})
 	if err != nil {
 		t.Errorf("ModifyRecord failed: %v", err)
 	}
@@ -51,7 +48,7 @@ func TestDeleteRecord(t *testing.T) {
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(ts.URL))
 
-	err := client.DeleteRecord(ctx, ddns.RecordInfo{Name: "test.example.com", ID: "123456"})
+	err := client.DeleteRecord(t.Context(), ddns.RecordInfo{Name: "test.example.com", ID: "123456"})
 	if err != nil {
 		t.Errorf("DeleteRecord failed: %v", err)
 	}
@@ -66,7 +63,7 @@ func TestGetRecords(t *testing.T) {
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(ts.URL))
 
-	records, err := client.GetRecords(ctx, "test.example.com", "A")
+	records, err := client.GetRecords(t.Context(), "test.example.com", "A")
 	if err != nil {
 		t.Errorf("GetRecords failed: %v", err)
 	}
@@ -85,7 +82,7 @@ func TestGetDomainRecord(t *testing.T) {
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(ts.URL))
 
-	record, err := client.GetDomainRecord(ctx, "test.example.com", "123456")
+	record, err := client.GetDomainRecord(t.Context(), "test.example.com", "123456")
 	if err != nil {
 		t.Errorf("GetDomainRecord failed: %v", err)
 	}
@@ -104,7 +101,7 @@ func TestGetRootDomain(t *testing.T) {
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(ts.URL))
 
-	_, _, err := client.getRootDomain(ctx, "test.example.com")
+	_, _, err := client.getRootDomain(t.Context(), "test.example.com")
 	if err != nil {
 		t.Errorf("getRootDomain failed: %v", err)
 	}
@@ -119,7 +116,7 @@ func TestMakeRequest(t *testing.T) {
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(ts.URL))
 
-	_, err := client.makeV1Request(ctx, map[string]string{"Action": "TestAction"})
+	_, err := client.makeV1Request(t.Context(), map[string]string{"Action": "TestAction"})
 	if err != nil {
 		t.Errorf("makeV1Request failed: %v", err)
 	}
@@ -162,7 +159,7 @@ func TestMakeV3Request(t *testing.T) {
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(ts.URL))
 
-	_, err := client.makeV3Request(ctx, map[string]string{"Action": "TestAction"})
+	_, err := client.makeV3Request(t.Context(), map[string]string{"Action": "TestAction"})
 	if err != nil {
 		t.Errorf("makeV3Request failed: %v", err)
 	}

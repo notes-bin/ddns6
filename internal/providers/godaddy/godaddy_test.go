@@ -1,7 +1,6 @@
 package godaddy
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -10,8 +9,6 @@ import (
 
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
-
-var ctx = context.Background()
 
 // newGoDaddyTestServer creates a test server that handles both domain lookup and record operations
 func newGoDaddyTestServer(t *testing.T) *httptest.Server {
@@ -35,7 +32,7 @@ func TestAddRecord(t *testing.T) {
 
 	client := NewClient("testKey", "testSecret", WithBaseURL(ts.URL))
 
-	err := client.AddRecord(ctx, ddns.RecordInfo{Name: "test.example.com", Type: "A", Value: "192.168.1.1", TTL: 600})
+	err := client.AddRecord(t.Context(), ddns.RecordInfo{Name: "test.example.com", Type: "A", Value: "192.168.1.1", TTL: 600})
 	if err != nil {
 		t.Errorf("AddRecord failed: %v", err)
 	}
@@ -47,7 +44,7 @@ func TestModifyRecord(t *testing.T) {
 
 	client := NewClient("testKey", "testSecret", WithBaseURL(ts.URL))
 
-	err := client.ModifyRecord(ctx, ddns.RecordInfo{Name: "test.example.com", ID: "192.168.1.1", Type: "A", Value: "192.168.1.2", TTL: 600})
+	err := client.ModifyRecord(t.Context(), ddns.RecordInfo{Name: "test.example.com", ID: "192.168.1.1", Type: "A", Value: "192.168.1.2", TTL: 600})
 	if err != nil {
 		t.Errorf("ModifyRecord failed: %v", err)
 	}
@@ -59,7 +56,7 @@ func TestDeleteRecord(t *testing.T) {
 
 	client := NewClient("testKey", "testSecret", WithBaseURL(ts.URL))
 
-	err := client.DeleteRecord(ctx, ddns.RecordInfo{Name: "test.example.com", ID: "192.168.1.1"})
+	err := client.DeleteRecord(t.Context(), ddns.RecordInfo{Name: "test.example.com", ID: "192.168.1.1"})
 	if err != nil {
 		t.Errorf("DeleteRecord failed: %v", err)
 	}
@@ -71,7 +68,7 @@ func TestGetRecords(t *testing.T) {
 
 	client := NewClient("testKey", "testSecret", WithBaseURL(ts.URL))
 
-	records, err := client.GetRecords(ctx, "test.example.com", "A")
+	records, err := client.GetRecords(t.Context(), "test.example.com", "A")
 	if err != nil {
 		t.Errorf("GetRecords failed: %v", err)
 	}
@@ -91,7 +88,7 @@ func TestGetRootDomain(t *testing.T) {
 
 	client := NewClient("testKey", "testSecret", WithBaseURL(ts.URL))
 
-	subDomain, domain, err := client.getRootDomain(ctx, "test.example.com")
+	subDomain, domain, err := client.getRootDomain(t.Context(), "test.example.com")
 	if err != nil {
 		t.Errorf("getRootDomain failed: %v", err)
 	}
@@ -111,8 +108,8 @@ func TestMakeRequest(t *testing.T) {
 
 	client := NewClient("testKey", "testSecret", WithBaseURL(ts.URL))
 
-	var result map[string]interface{}
-	err := client.makeRequest(ctx, "GET", ts.URL, nil, &result)
+	var result map[string]any
+	err := client.makeRequest(t.Context(), "GET", ts.URL, nil, &result)
 	if err != nil {
 		t.Errorf("makeRequest failed: %v", err)
 	}

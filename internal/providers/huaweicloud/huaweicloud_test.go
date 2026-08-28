@@ -1,7 +1,6 @@
 package huaweicloud
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,8 +8,6 @@ import (
 
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
-
-var ctx = context.Background()
 
 // newHuaweiTestServer 创建测试服务器，处理 zone 查询、recordsets 操作
 // 使用 SDK-HMAC-SHA256 签名后请求都会携带 Authorization 头，mock server 验证签名格式
@@ -47,7 +44,7 @@ func TestAddRecord(t *testing.T) {
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(ts.URL))
 
-	err := client.AddRecord(ctx, ddns.RecordInfo{Name: "test.example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 300})
+	err := client.AddRecord(t.Context(), ddns.RecordInfo{Name: "test.example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 300})
 	if err != nil {
 		t.Errorf("AddRecord failed: %v", err)
 	}
@@ -59,7 +56,7 @@ func TestModifyRecord(t *testing.T) {
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(ts.URL))
 
-	err := client.ModifyRecord(ctx, ddns.RecordInfo{Name: "test.example.com", ID: "123456", Type: "AAAA", Value: "2001:db8::2", TTL: 300})
+	err := client.ModifyRecord(t.Context(), ddns.RecordInfo{Name: "test.example.com", ID: "123456", Type: "AAAA", Value: "2001:db8::2", TTL: 300})
 	if err != nil {
 		t.Errorf("ModifyRecord failed: %v", err)
 	}
@@ -71,7 +68,7 @@ func TestDeleteRecord(t *testing.T) {
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(ts.URL))
 
-	err := client.DeleteRecord(ctx, ddns.RecordInfo{Name: "test.example.com", ID: "123456"})
+	err := client.DeleteRecord(t.Context(), ddns.RecordInfo{Name: "test.example.com", ID: "123456"})
 	if err != nil {
 		t.Errorf("DeleteRecord failed: %v", err)
 	}
@@ -95,7 +92,7 @@ func TestGetRecords(t *testing.T) {
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(ts.URL))
 
-	records, err := client.GetRecords(ctx, "test.example.com", "AAAA")
+	records, err := client.GetRecords(t.Context(), "test.example.com", "AAAA")
 	if err != nil {
 		t.Errorf("GetRecords failed: %v", err)
 	}

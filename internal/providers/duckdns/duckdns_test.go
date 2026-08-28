@@ -1,7 +1,6 @@
 package duckdns
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -25,7 +24,7 @@ func TestClient_AddRecord(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("test-token", WithBaseURL(server.URL))
-	err := client.AddRecord(context.Background(), ddns.RecordInfo{Name: "myhost.duckdns.org", Type: "AAAA", Value: "2001:db8::1", TTL: 600})
+	err := client.AddRecord(t.Context(), ddns.RecordInfo{Name: "myhost.duckdns.org", Type: "AAAA", Value: "2001:db8::1", TTL: 600})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -41,7 +40,7 @@ func TestClient_ModifyRecord(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("test-token", WithBaseURL(server.URL))
-	err := client.ModifyRecord(context.Background(), ddns.RecordInfo{Name: "myhost.duckdns.org", ID: "", Type: "AAAA", Value: "2001:db8::2", TTL: 600})
+	err := client.ModifyRecord(t.Context(), ddns.RecordInfo{Name: "myhost.duckdns.org", ID: "", Type: "AAAA", Value: "2001:db8::2", TTL: 600})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -57,7 +56,7 @@ func TestClient_DeleteRecord(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("test-token", WithBaseURL(server.URL))
-	err := client.DeleteRecord(context.Background(), ddns.RecordInfo{Name: "myhost.duckdns.org", ID: ""})
+	err := client.DeleteRecord(t.Context(), ddns.RecordInfo{Name: "myhost.duckdns.org", ID: ""})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -65,7 +64,7 @@ func TestClient_DeleteRecord(t *testing.T) {
 
 func TestClient_GetRecords_Empty(t *testing.T) {
 	client := NewClient("test-token")
-	records, err := client.GetRecords(context.Background(), "myhost.duckdns.org", "AAAA")
+	records, err := client.GetRecords(t.Context(), "myhost.duckdns.org", "AAAA")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -81,7 +80,7 @@ func TestClient_APIError(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("test-token", WithBaseURL(server.URL))
-	err := client.AddRecord(context.Background(), ddns.RecordInfo{Name: "myhost.duckdns.org", Type: "AAAA", Value: "2001:db8::1", TTL: 600})
+	err := client.AddRecord(t.Context(), ddns.RecordInfo{Name: "myhost.duckdns.org", Type: "AAAA", Value: "2001:db8::1", TTL: 600})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}

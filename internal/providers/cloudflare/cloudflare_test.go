@@ -1,7 +1,6 @@
 package cloudflare
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,8 +8,6 @@ import (
 
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
-
-var ctx = context.Background()
 
 // newCloudflareTestServer creates a test server that handles both zone lookup and record operations
 func newCloudflareTestServer(t *testing.T) *httptest.Server {
@@ -38,7 +35,7 @@ func TestAddRecord(t *testing.T) {
 
 	client := NewClient(WithAPIToken("test-token"), WithBaseURL(ts.URL))
 
-	err := client.AddRecord(ctx, ddns.RecordInfo{Name: "test.example.com", Type: "A", Value: "192.168.1.1", TTL: 600})
+	err := client.AddRecord(t.Context(), ddns.RecordInfo{Name: "test.example.com", Type: "A", Value: "192.168.1.1", TTL: 600})
 	if err != nil {
 		t.Errorf("AddRecord failed: %v", err)
 	}
@@ -50,7 +47,7 @@ func TestModifyRecord(t *testing.T) {
 
 	client := NewClient(WithAPIToken("test-token"), WithBaseURL(ts.URL))
 
-	err := client.ModifyRecord(ctx, ddns.RecordInfo{Name: "test.example.com", ID: "123456", Type: "A", Value: "192.168.1.2", TTL: 600})
+	err := client.ModifyRecord(t.Context(), ddns.RecordInfo{Name: "test.example.com", ID: "123456", Type: "A", Value: "192.168.1.2", TTL: 600})
 	if err != nil {
 		t.Errorf("ModifyRecord failed: %v", err)
 	}
@@ -62,7 +59,7 @@ func TestDeleteRecord(t *testing.T) {
 
 	client := NewClient(WithAPIToken("test-token"), WithBaseURL(ts.URL))
 
-	err := client.DeleteRecord(ctx, ddns.RecordInfo{Name: "test.example.com", ID: "123456"})
+	err := client.DeleteRecord(t.Context(), ddns.RecordInfo{Name: "test.example.com", ID: "123456"})
 	if err != nil {
 		t.Errorf("DeleteRecord failed: %v", err)
 	}
@@ -83,7 +80,7 @@ func TestGetRecords(t *testing.T) {
 
 	client := NewClient(WithAPIToken("test-token"), WithBaseURL(ts.URL))
 
-	records, err := client.GetRecords(ctx, "test.example.com", "A")
+	records, err := client.GetRecords(t.Context(), "test.example.com", "A")
 	if err != nil {
 		t.Errorf("GetRecords failed: %v", err)
 	}
@@ -99,7 +96,7 @@ func TestGetDomainRecord(t *testing.T) {
 
 	client := NewClient(WithAPIToken("test-token"), WithBaseURL(ts.URL))
 
-	record, err := client.GetDomainRecord(ctx, "test.example.com", "123456")
+	record, err := client.GetDomainRecord(t.Context(), "test.example.com", "123456")
 	if err != nil {
 		t.Fatalf("GetDomainRecord failed: %v", err)
 	}
@@ -115,7 +112,7 @@ func TestGetZoneID(t *testing.T) {
 
 	client := NewClient(WithAPIToken("test-token"), WithBaseURL(ts.URL))
 
-	zoneID, err := client.getZoneID(ctx, "test.example.com")
+	zoneID, err := client.getZoneID(t.Context(), "test.example.com")
 	if err != nil {
 		t.Errorf("getZoneID failed: %v", err)
 	}
@@ -135,8 +132,8 @@ func TestMakeRequest(t *testing.T) {
 
 	client := NewClient(WithAPIToken("test-token"), WithBaseURL(ts.URL))
 
-	var result map[string]interface{}
-	err := client.makeRequest(ctx, "GET", ts.URL, nil, &result)
+	var result map[string]any
+	err := client.makeRequest(t.Context(), "GET", ts.URL, nil, &result)
 	if err != nil {
 		t.Errorf("makeRequest failed: %v", err)
 	}
