@@ -62,24 +62,24 @@ func GetIPv6Addr(ctx context.Context, fetchers ...IPv6Fetcher) (net.IP, error) {
 	errCh := make(chan error, len(shuffled))
 
 	for _, fn := range shuffled {
-		go func(fetcher IPv6Fetcher) {
-			slog.Debug("starting fetcher", "module", "ipaddr", "fetcher", fmt.Sprintf("%T", fetcher))
-			ip, err := fetcher.Fetch(ctx)
+		go func() {
+			slog.Debug("starting fetcher", "module", "ipaddr", "fetcher", fmt.Sprintf("%T", fn))
+			ip, err := fn.Fetch(ctx)
 			if err != nil {
 				// 区分错误类型：取消=竞速正常副作用，超时=可能网络问题，其他=真正故障
 				switch {
 				case errors.Is(err, context.Canceled):
-					slog.Debug("fetcher canceled", "module", "ipaddr", "fetcher", fmt.Sprintf("%T", fetcher))
+					slog.Debug("fetcher canceled", "module", "ipaddr", "fetcher", fmt.Sprintf("%T", fn))
 				case errors.Is(err, context.DeadlineExceeded):
-					slog.Info("fetcher timed out", "module", "ipaddr", "fetcher", fmt.Sprintf("%T", fetcher))
+					slog.Info("fetcher timed out", "module", "ipaddr", "fetcher", fmt.Sprintf("%T", fn))
 				default:
-					slog.Warn("fetcher failed", "module", "ipaddr", "fetcher", fmt.Sprintf("%T", fetcher), "err", err)
+					slog.Warn("fetcher failed", "module", "ipaddr", "fetcher", fmt.Sprintf("%T", fn), "err", err)
 				}
 				errCh <- err
 				return
 			}
 			resultCh <- ip
-		}(fn)
+		}()
 	}
 
 	// 等待第一个成功结果或所有失败，同时统计各类错误数量
