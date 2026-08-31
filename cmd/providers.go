@@ -18,19 +18,24 @@ import (
 	"github.com/notes-bin/ddns6/internal/config"
 	"github.com/notes-bin/ddns6/internal/ddns"
 	"github.com/notes-bin/ddns6/internal/providers/alicloud"
+	"github.com/notes-bin/ddns6/internal/providers/aws"
+	"github.com/notes-bin/ddns6/internal/providers/azure"
 	"github.com/notes-bin/ddns6/internal/providers/baiducloud"
 	"github.com/notes-bin/ddns6/internal/providers/cloudflare"
 	"github.com/notes-bin/ddns6/internal/providers/desec"
 	"github.com/notes-bin/ddns6/internal/providers/digitalocean"
 	"github.com/notes-bin/ddns6/internal/providers/dnspod"
+	"github.com/notes-bin/ddns6/internal/providers/dpi"
 	"github.com/notes-bin/ddns6/internal/providers/duckdns"
 	"github.com/notes-bin/ddns6/internal/providers/dynv6"
+	"github.com/notes-bin/ddns6/internal/providers/gcloud"
 	"github.com/notes-bin/ddns6/internal/providers/godaddy"
 	"github.com/notes-bin/ddns6/internal/providers/he"
 	"github.com/notes-bin/ddns6/internal/providers/hetzner"
 	"github.com/notes-bin/ddns6/internal/providers/huaweicloud"
 	"github.com/notes-bin/ddns6/internal/providers/ionos"
 	"github.com/notes-bin/ddns6/internal/providers/linode"
+	"github.com/notes-bin/ddns6/internal/providers/namecheap"
 	"github.com/notes-bin/ddns6/internal/providers/namesilo"
 	"github.com/notes-bin/ddns6/internal/providers/noip"
 	"github.com/notes-bin/ddns6/internal/providers/porkbun"
@@ -376,6 +381,116 @@ var providerFactories = []providerFactory{
 			return hetzner.NewClient(cfg.Auth["token"]), nil
 		},
 	},
+	{
+		name: "aws", short: "AWS Route 53 - 需 --access-key-id 和 --secret-access-key",
+		flags: []providerFlag{
+			{"access-key-id", "AWS Access Key ID (必填)"},
+			{"secret-access-key", "AWS Secret Access Key (必填)"},
+			{"session-token", "AWS Session Token（可选，IAM Role/STS）"},
+		},
+		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
+			domains, err := createDomainConfigs(cmd)
+			if err != nil {
+				return nil, nil, err
+			}
+			opts := []aws.Option{}
+			if tok := getString(cmd, "session-token"); tok != "" {
+				opts = append(opts, aws.WithSessionToken(tok))
+			}
+			return domains, aws.NewClient(getString(cmd, "access-key-id"), getString(cmd, "secret-access-key"), opts...), nil
+		},
+		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
+			opts := []aws.Option{}
+			if tok := cfg.Auth["session_token"]; tok != "" {
+				opts = append(opts, aws.WithSessionToken(tok))
+			}
+			return aws.NewClient(cfg.Auth["access_key_id"], cfg.Auth["secret_access_key"], opts...), nil
+		},
+	},
+	{
+		name: "gcloud", short: "Google Cloud DNS - 需 --project 和 --access-token",
+		flags: []providerFlag{
+			{"project", "GCP 项目 ID (必填)"},
+			{"access-token", "OAuth2 Access Token (必填，可用 gcloud auth print-access-token 获取)"},
+		},
+		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
+			domains, err := createDomainConfigs(cmd)
+			if err != nil {
+				return nil, nil, err
+			}
+			return domains, gcloud.NewClient(getString(cmd, "project"), getString(cmd, "access-token")), nil
+		},
+		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
+			return gcloud.NewClient(cfg.Auth["project"], cfg.Auth["access_token"]), nil
+		},
+	},
+	{
+		name: "azure", short: "Azure DNS - 需 --subscription-id、--tenant-id、--client-id、--client-secret",
+		flags: []providerFlag{
+			{"subscription-id", "Azure Subscription ID (必填)"},
+			{"tenant-id", "Azure Tenant ID (必填)"},
+			{"client-id", "Azure App/Client ID (必填)"},
+			{"client-secret", "Azure Client Secret (必填)"},
+		},
+		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
+			domains, err := createDomainConfigs(cmd)
+			if err != nil {
+				return nil, nil, err
+			}
+			return domains, azure.NewClient(
+				getString(cmd, "subscription-id"),
+				getString(cmd, "tenant-id"),
+				getString(cmd, "client-id"),
+				getString(cmd, "client-secret"),
+			), nil
+		},
+		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
+			return azure.NewClient(
+				cfg.Auth["subscription_id"],
+				cfg.Auth["tenant_id"],
+				cfg.Auth["client_id"],
+				cfg.Auth["client_secret"],
+			), nil
+		},
+	},
+	{
+		name: "namecheap", short: "Namecheap DNS - 需 --api-key、--username、--client-ip",
+		flags: []providerFlag{
+			{"api-key", "Namecheap API Key (必填)"},
+			{"username", "Namecheap Username (必填)"},
+			{"client-ip", "Namecheap API 白名单 IP (必填)"},
+		},
+		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
+			domains, err := createDomainConfigs(cmd)
+			if err != nil {
+				return nil, nil, err
+			}
+			return domains, namecheap.NewClient(
+				getString(cmd, "api-key"),
+				getString(cmd, "username"),
+				getString(cmd, "client-ip"),
+			), nil
+		},
+		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
+			return namecheap.NewClient(cfg.Auth["api_key"], cfg.Auth["username"], cfg.Auth["client_ip"]), nil
+		},
+	},
+	{
+		name: "dpi", short: "DNSPod.com 国际版 - 需 --login-token (ID,Key)",
+		flags: []providerFlag{
+			{"login-token", "DNSPod 国际版 Login Token，格式 ID,Key (必填)"},
+		},
+		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
+			domains, err := createDomainConfigs(cmd)
+			if err != nil {
+				return nil, nil, err
+			}
+			return domains, dpi.NewClient(getString(cmd, "login-token")), nil
+		},
+		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
+			return dpi.NewClient(cfg.Auth["login_token"]), nil
+		},
+	},
 }
 
 // registerProviders 注册所有 DNS 运营商子命令到 runCmd。
@@ -438,7 +553,7 @@ type providerCmdHandler func(cmd *cobra.Command, domains []*ddns.Domain, p ddns.
 // registerProviderSubCommands 为 list/clean 等命令注册 provider 子命令。
 //
 // 复用 providerFactories 中的 auth 参数定义和 run 函数，避免为每个命令重复定义
-// 18 个 provider 的认证参数。参数:
+// 23 个 provider 的认证参数。参数:
 //   - parent: 父命令（listCmd / cleanCmd）
 //   - commandName: 命令名称（"list" / "clean"），用于生成帮助文本
 //   - extraFlags: 注册额外 flag 的回调，可为 nil
