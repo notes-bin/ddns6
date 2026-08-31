@@ -378,3 +378,105 @@ services:
   #     - --interface=${INTERFACE:-}
   #     - --ttl=${TTL:-600}
   #     - --interval=${INTERVAL:-5m}
+
+  # AWS Route 53
+  # ddns6-aws:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
+  #   restart: always
+  #   command:
+  #     - run
+  #     - aws
+  #     - --access-key-id=${AWS_ACCESS_KEY_ID}
+  #     - --secret-access-key=${AWS_SECRET_ACCESS_KEY}
+  #     - --domain=${DOMAIN}
+  #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interface=${INTERFACE:-}
+  #     - --ttl=${TTL:-600}
+  #     - --interval=${INTERVAL:-5m}
+
+  # Google Cloud DNS
+  # ddns6-gcloud:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
+  #   restart: always
+  #   command:
+  #     - run
+  #     - gcloud
+  #     - --project=${GCLOUD_PROJECT}
+  #     - --access-token=${GCLOUD_ACCESS_TOKEN}
+  #     - --domain=${DOMAIN}
+  #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interface=${INTERFACE:-}
+  #     - --ttl=${TTL:-600}
+  #     - --interval=${INTERVAL:-5m}
+
+  # Azure DNS
+  # ddns6-azure:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
+  #   restart: always
+  #   command:
+  #     - run
+  #     - azure
+  #     - --subscription-id=${AZURE_SUBSCRIPTION_ID}
+  #     - --tenant-id=${AZURE_TENANT_ID}
+  #     - --client-id=${AZURE_CLIENT_ID}
+  #     - --client-secret=${AZURE_CLIENT_SECRET}
+  #     - --domain=${DOMAIN}
+  #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interface=${INTERFACE:-}
+  #     - --ttl=${TTL:-600}
+  #     - --interval=${INTERVAL:-5m}
+
+  # Namecheap
+  # ddns6-namecheap:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
+  #   restart: always
+  #   command:
+  #     - run
+  #     - namecheap
+  #     - --api-key=${NAMECHEAP_API_KEY}
+  #     - --username=${NAMECHEAP_USERNAME}
+  #     - --client-ip=${NAMECHEAP_CLIENT_IP}
+  #     - --domain=${DOMAIN}
+  #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interface=${INTERFACE:-}
+  #     - --ttl=${TTL:-600}
+  #     - --interval=${INTERVAL:-5m}
+
+  # DNSPod 国际版
+  # ddns6-dpi:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
+  #   restart: always
+  #   command:
+  #     - run
+  #     - dpi
+  #     - --login-token=${DPI_LOGIN_TOKEN}
+  #     - --domain=${DOMAIN}
+  #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interface=${INTERFACE:-}
+  #     - --ttl=${TTL:-600}
+  #     - --interval=${INTERVAL:-5m}
