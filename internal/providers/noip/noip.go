@@ -1,4 +1,4 @@
-// Package noip 实现 No-IP 免费 DDNS 服务
+// Package noip 实现 No-IP 免费 DDNS 服务。
 // No-IP 是一个经典的动态 DNS 服务商，通过 HTTP Basic Auth 和 GET 请求更新域名解析记录
 package noip
 

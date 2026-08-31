@@ -1,8 +1,5 @@
-// Package huaweicloud 实现华为云 DNS API 服务
-//
-// signer.go 实现华为云 SDK-HMAC-SHA256 签名算法
+// 本文件实现华为云 SDK-HMAC-SHA256 签名算法。
 // 参考：https://support.huaweicloud.com/api-dns/dns_api_64001.html
-// 基于 ddns-go 的 huawei_signer.go 移植
 package huaweicloud
 
 import (

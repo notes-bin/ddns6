@@ -2,6 +2,8 @@
 
 package ddns
 
+// 本文件实现 Linux 平台的地址变化触发：Netlink RTM_NEWADDR + 防抖，失败时回退轮询。
+
 import (
 	"context"
 	"log/slog"

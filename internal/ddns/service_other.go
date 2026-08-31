@@ -2,6 +2,8 @@
 
 package ddns
 
+// 本文件实现非 Linux 平台的地址变化触发：按 --interval 定时轮询。
+
 import (
 	"context"
 	"log/slog"

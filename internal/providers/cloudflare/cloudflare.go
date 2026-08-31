@@ -1,4 +1,4 @@
-// Package cloudflare 实现 Cloudflare DNS API 服务
+// Package cloudflare 实现 Cloudflare DNS API 服务。
 //
 // 认证方式：API Token（需具有 DNS:Edit 权限）
 // 必填参数：--api-token

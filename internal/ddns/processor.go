@@ -1,4 +1,3 @@
-// Package ddns 提供动态域名解析（DDNS）服务编排。
 package ddns
 
 import (

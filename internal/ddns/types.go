@@ -1,24 +1,24 @@
-// Package ddns 提供动态域名解析（DDNS）服务编排
+// Package ddns 提供动态域名解析（DDNS）服务编排。
 //
-// 本包定义了 DDNS 核心类型：RecordInfo（通用 DNS 记录）、DNSProvider（服务商接口）、
-// Domain（域名配置），以及服务编排的入口 RunService。
+// 核心类型：RecordInfo（通用 DNS 记录）、DNSProvider（服务商接口）、
+// Domain（域名配置）；入口为 RunService。
+//
+// 工作流程：
+//
+//	Linux: Netlink 监听地址变化 -> debounce 10s -> 获取 IPv6 -> 同步 DNS 记录
+//	其他:  定时轮询 -> 获取 IPv6 -> 同步 DNS 记录
+//
+// 同步策略：查询目标子域名 AAAA 记录；IP 相同则跳过，不同则修改；无记录则新增。
 //
 // 使用示例（作为库调用）：
 //
-//	// 1. 创建域名配置
 //	domains := []*ddns.Domain{
 //	    {Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600},
-//	    {Domain: "example.com", SubDomain: "@", Type: "AAAA", TTL: 600},
 //	}
-//
-//	// 2. 创建 Provider（以 tencent 为例）
 //	p := tencent.NewDNSPod("your-secret-id", "your-secret-key")
-//
-//	// 3. 启动服务
 //	err := ddns.RunService(domains, p, 5*time.Minute, ddns.DefaultIPv6Fetchers, "")
 //
-// 新增 DNS 运营商需实现 DNSProvider 接口（4 个方法），然后在
-// cmd/providers.go 的 providerFactories 列表中注册。
+// 新增运营商需实现 DNSProvider（4 个方法），并在 cmd/providers.go 注册。
 package ddns
 
 import (
@@ -28,21 +28,20 @@ import (
 	"sync"
 )
 
-// RecordInfo 通用 DNS 记录类型
+// RecordInfo 是 DNSProvider CRUD 方法的统一记录载体。
 //
-// 作为 DNSProvider 接口中所有 CRUD 方法的统一数据载体，在服务编排层（sync.go）和
-// 运营商实现层（providers/ 下各子包）之间传递数据。各运营商内部有各自的 API 结构体，
-// 在接口方法边界处与 RecordInfo 相互转换。
+// 在服务编排层（record.go / processor.go）与运营商实现之间传递；
+// 各运营商内部 API 结构体在接口边界处与 RecordInfo 相互转换。
 //
-// Zone 字段存储根域名（来自 --domain 参数），供 provider 的 SplitDomain 操作使用。
-// 当 Zone 非空时，provider 应优先使用 Zone 而不是从 Name 中推导根域名。
+// Zone 为根域名（来自 --domain）；非空时 provider 应优先使用 Zone，
+// 而不是从 Name 推导根域名。
 type RecordInfo struct {
-	ID    string
-	Name  string
-	Zone  string // 根域名（如 example.com），可选，为空时回退到从 Name 推导
-	Type  string
-	Value string
-	TTL   int
+	ID    string // 记录 ID（部分运营商创建后才有）
+	Name  string // 完整记录名或主机名（因运营商而异）
+	Zone  string // 根域名（如 example.com）；可选，空则从 Name 推导
+	Type  string // 记录类型，如 AAAA
+	Value string // 记录值，如 IPv6 地址
+	TTL   int    // TTL（秒）
 }
 
 // Key 返回用于去重的唯一键。
@@ -65,15 +64,15 @@ type DNSProvider interface {
 	DeleteRecord(ctx context.Context, record RecordInfo) error
 }
 
-// Domain 表示一个域名及其相关配置
+// Domain 表示待同步的域名配置及缓存的 IPv6 地址。
 //
-// 包含域名、子域名、记录类型、TTL 和缓存的 IP 地址。内嵌 sync.Mutex 保护并发访问。
+// 并发访问由内嵌的 mu 保护；通过 CheckAndSetAddr / AddrString 等导出方法读写缓存。
 type Domain struct {
-	Domain    string
-	SubDomain string
-	Type      string
-	TTL       int
-	Addr      net.IP
+	Domain    string // 根域名
+	SubDomain string // 子域名；"@" 表示根域名本身
+	Type      string // 记录类型，通常为 AAAA
+	TTL       int    // TTL（秒）
+	Addr      net.IP // 最近一次成功同步的地址缓存
 	mu        sync.Mutex
 }
 

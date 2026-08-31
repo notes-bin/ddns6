@@ -1,4 +1,4 @@
-// Package dnspod 实现 DNSPod 旧版 API（腾讯云 DNSPod 经典接口）
+// Package dnspod 实现 DNSPod 旧版 API（腾讯云 DNSPod 经典接口）。
 // 与 internal/providers/tencent（Tencent Cloud API v3）不同，此包使用 DNSPod 的原始 API
 package dnspod
 

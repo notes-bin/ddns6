@@ -1,4 +1,4 @@
-// Package domainutil 提供域名相关工具函数
+// Package domainutil 提供域名拆分等工具函数。
 package domainutil
 
 import "strings"

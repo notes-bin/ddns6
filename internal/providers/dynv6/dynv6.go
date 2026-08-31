@@ -1,4 +1,4 @@
-// Package dynv6 实现 Dynv6 免费 DDNS 服务
+// Package dynv6 实现 Dynv6 免费 DDNS 服务。
 // Dynv6 是一个专为 IPv6 设计的免费动态 DNS 服务商，提供 RESTful JSON API
 package dynv6
 

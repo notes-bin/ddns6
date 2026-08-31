@@ -1,4 +1,4 @@
-// Package duckdns 实现 DuckDNS 免费 DDNS 服务
+// Package duckdns 实现 DuckDNS 免费 DDNS 服务。
 // DuckDNS 是一个简单的免费 DDNS 服务，通过 HTTP GET 请求更新域名解析记录
 package duckdns
 
