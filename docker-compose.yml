@@ -282,3 +282,99 @@ services:
   #     - --interface=${INTERFACE:-}
   #     - --ttl=${TTL:-600}
   #     - --interval=${INTERVAL:-5m}
+
+  # deSEC.io
+  # ddns6-desec:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
+  #   restart: always
+  #   command:
+  #     - run
+  #     - desec
+  #     - --token=${DESEC_TOKEN}
+  #     - --domain=${DOMAIN}
+  #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interface=${INTERFACE:-}
+  #     - --ttl=${TTL:-600}
+  #     - --interval=${INTERVAL:-5m}
+
+  # Linode (Akamai) DNS
+  # ddns6-linode:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
+  #   restart: always
+  #   command:
+  #     - run
+  #     - linode
+  #     - --api-key=${LINODE_API_KEY}
+  #     - --domain=${DOMAIN}
+  #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interface=${INTERFACE:-}
+  #     - --ttl=${TTL:-600}
+  #     - --interval=${INTERVAL:-5m}
+
+  # NameSilo
+  # ddns6-namesilo:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
+  #   restart: always
+  #   command:
+  #     - run
+  #     - namesilo
+  #     - --api-key=${NAMESILO_API_KEY}
+  #     - --domain=${DOMAIN}
+  #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interface=${INTERFACE:-}
+  #     - --ttl=${TTL:-600}
+  #     - --interval=${INTERVAL:-5m}
+
+  # IONOS DNS
+  # ddns6-ionos:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
+  #   restart: always
+  #   command:
+  #     - run
+  #     - ionos
+  #     - --prefix=${IONOS_PREFIX}
+  #     - --secret=${IONOS_SECRET}
+  #     - --domain=${DOMAIN}
+  #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interface=${INTERFACE:-}
+  #     - --ttl=${TTL:-600}
+  #     - --interval=${INTERVAL:-5m}
+
+  # Hetzner Cloud DNS
+  # ddns6-hetzner:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
+  #   restart: always
+  #   command:
+  #     - run
+  #     - hetzner
+  #     - --token=${HETZNER_TOKEN}
+  #     - --domain=${DOMAIN}
+  #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interface=${INTERFACE:-}
+  #     - --ttl=${TTL:-600}
+  #     - --interval=${INTERVAL:-5m}
