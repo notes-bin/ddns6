@@ -1,12 +1,3 @@
-// Package ddns 提供动态域名解析（DDNS）服务编排。
-//
-// 工作流程：
-//
-//	Linux: Netlink 事件监听 -> debounce 10s -> 获取 IPv6 -> 同步 DNS 记录
-//	其他:  cron 定时轮询 -> 获取 IPv6 -> 同步 DNS 记录
-//
-// RunService 是唯一的公开入口，接受域名列表、DNS 服务商等参数。
-// 同一个进程可以管理同一根域名下的多个子域名。
 package ddns
 
 import (
@@ -25,8 +16,8 @@ import (
 
 // DefaultIPv6Fetchers 默认的 IPv6 地址获取器列表。
 //
-// 每次触发同步时，会随机打乱此列表后逐个尝试，取第一个成功的结果。
-// 包含 HTTP 和 DNS 两种获取方式，互为备份。
+// 每次触发同步时随机打乱顺序后并发竞速，取第一个成功结果。
+// 包含 HTTP 与 DNS 两种来源，互为备份。
 var DefaultIPv6Fetchers = []ipaddr.IPv6Fetcher{
 	ipaddr.NewHttpIPv6Fetcher("https://6.ipw.cn"),
 	ipaddr.NewHttpIPv6Fetcher("https://ifconfig.co"),

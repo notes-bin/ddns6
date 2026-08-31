@@ -11,13 +11,15 @@ import (
 	"time"
 )
 
-// HttpIPv6Fetcher 从 HTTP 端点获取 IPv6 地址
+// HttpIPv6Fetcher 通过 HTTP GET 访问返回纯文本 IP 的端点，解析本机公网 IPv6。
+//
+// 客户端单次请求超时为 5 秒；总超时仍受调用方 context 约束。
 type HttpIPv6Fetcher struct {
 	url    string
 	client *http.Client
 }
 
-// NewHttpIPv6Fetcher 创建新的 HttpIPv6Fetcher
+// NewHttpIPv6Fetcher 创建指向 url 的 HTTP IPv6 获取器。
 func NewHttpIPv6Fetcher(url string) *HttpIPv6Fetcher {
 	return &HttpIPv6Fetcher{
 		url:    url,
@@ -25,12 +27,12 @@ func NewHttpIPv6Fetcher(url string) *HttpIPv6Fetcher {
 	}
 }
 
-// String 返回 HttpIPv6Fetcher 的字符串表示
+// String 返回目标 URL。
 func (h *HttpIPv6Fetcher) String() string {
 	return h.url
 }
 
-// Fetch 实现 Fetcher 接口
+// Fetch 请求端点并将响应正文解析为 IPv6 地址。
 func (h *HttpIPv6Fetcher) Fetch(ctx context.Context) (net.IP, error) {
 	// 创建 HTTP 请求
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, h.url, nil)

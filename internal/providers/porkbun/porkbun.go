@@ -1,4 +1,4 @@
-// Package porkbun 实现 Porkbun DNS API 服务
+// Package porkbun 实现 Porkbun DNS API 服务。
 // Porkbun 是一个流行的域名注册商，提供 RESTful JSON API 管理 DNS 记录
 package porkbun
 

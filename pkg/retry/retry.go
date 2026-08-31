@@ -1,16 +1,19 @@
 // Package retry 提供带指数退避的重试机制。
 //
-// 使用场景：HTTP API 调用遇到临时性错误（网络波动、服务端限流 429、5xx 等）
-// 时自动重试，提升服务可靠性。
+// 使用场景：HTTP API 调用遇到临时性错误（网络波动、限流 429、5xx 等）时自动重试。
 //
 // 使用示例：
 //
-//	body, err := retry.Do(ctx, 3, 100*time.Millisecond, func(ctx context.Context) error {
+//	err := retry.Do(ctx, 3, 100*time.Millisecond, func(ctx context.Context) error {
 //	    resp, err := http.Get(url)
-//	    if err != nil { return retry.Retryable(err) }
-//	    if resp.StatusCode == 429 { return retry.Retryable(fmt.Errorf("rate limited")) }
-//	    if resp.StatusCode >= 500 { return retry.Retryable(fmt.Errorf("server error: %d", resp.StatusCode)) }
-//	    return nil  // 成功，不重试
+//	    if err != nil {
+//	        return retry.Retryable(err)
+//	    }
+//	    defer resp.Body.Close()
+//	    if resp.StatusCode == 429 || resp.StatusCode >= 500 {
+//	        return retry.Retryable(fmt.Errorf("HTTP %d", resp.StatusCode))
+//	    }
+//	    return nil // 成功，不重试
 //	})
 package retry
 

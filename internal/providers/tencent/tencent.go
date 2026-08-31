@@ -1,4 +1,4 @@
-// Package tencent 实现腾讯云 DNSPod API v3 服务
+// Package tencent 实现腾讯云 DNSPod API v3 服务。
 //
 // 认证方式：SecretID + SecretKey（从腾讯云访问管理 CAM 获取）
 // 必填参数：--secret-id, --secret-key

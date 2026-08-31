@@ -1,4 +1,4 @@
-// Package he 实现 Hurricane Electric DNS 服务
+// Package he 实现 Hurricane Electric DNS 服务。
 // HE DNS 提供免费的 DNS 托管服务，支持通过 DDNS API 更新 IPv6 解析记录
 package he
 

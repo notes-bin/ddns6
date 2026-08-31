@@ -1,5 +1,13 @@
 package cmd
 
+// providers.go 注册全部 DNS 运营商工厂，并挂载到 run / list / clean / check / init 子命令。
+//
+// 新增运营商步骤：
+//  1. 在 internal/providers/<name>/ 实现 ddns.DNSProvider
+//  2. 在本文件 providerFactories 追加一条（flags、run、fromConfig）
+//  3. 若 API 仅支持更新、不支持查询/删除，加入 restrictedProviders
+//  4. 补充 docker-compose.yml / .env.example / README 中的对应说明
+
 import (
 	"fmt"
 	"strings"
@@ -46,7 +54,7 @@ type providerFactory struct {
 	fromConfig func(cfg *config.Config) (ddns.DNSProvider, error)
 }
 
-// restrictedProviders 返回不支持 list/clean 的 provider 名称集合
+// restrictedProviders 为 API 仅提供更新接口、不支持 list/clean 的运营商。
 var restrictedProviders = map[string]bool{
 	"duckdns": true,
 	"he":      true,

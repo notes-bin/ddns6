@@ -1,4 +1,4 @@
-// Package digitalocean 实现 DigitalOcean DNS API 服务
+// Package digitalocean 实现 DigitalOcean DNS API 服务。
 //
 // 认证方式：Personal Access Token（需具有 write 权限）
 // 必填参数：--token

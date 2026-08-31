@@ -1,4 +1,4 @@
-// Package godaddy 实现 GoDaddy DNS API 服务
+// Package godaddy 实现 GoDaddy DNS API 服务。
 //
 // 认证方式：API Key + API Secret（从 GoDaddy Developer Portal 获取）
 // 必填参数：--api-key, --api-secret

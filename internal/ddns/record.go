@@ -1,15 +1,3 @@
-// Package ddns 提供动态域名解析（DDNS）服务编排。
-//
-// 核心流程：
-//
-//	Linux: Netlink 监听地址变化 -> debounce 10s -> 获取 IPv6 -> 同步 DNS 记录
-//	其他:   cron 定时轮询 -> 获取 IPv6 -> 同步 DNS 记录
-//
-// 同步策略：
-//  1. 查询目标子域名的所有 AAAA 记录
-//  2. 遍历匹配的子域名记录，IP 相同则跳过，不同则修改
-//  3. 目标子域名无 AAAA 记录则新增
-//  4. 同一个子域名下有多个 AAAA 记录则全部处理
 package ddns
 
 import (

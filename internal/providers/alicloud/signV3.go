@@ -1,6 +1,4 @@
-// Package alicloud 提供阿里云 DNS API（Alibaba Cloud DNS）客户端实现。
-//
-// 本文件实现阿里云 V3 签名机制（ACS3-HMAC-SHA256），用于替代原有的 V1 签名。
+// 本文件实现阿里云 V3 签名（ACS3-HMAC-SHA256），供 makeV3Request 使用。
 package alicloud
 
 import (

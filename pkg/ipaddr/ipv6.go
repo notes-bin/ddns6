@@ -2,14 +2,15 @@
 //
 // 使用示例：
 //
-//	// 使用默认获取器（3 个 HTTP + 4 个 DNS 源）
-//	ip, err := ipaddr.GetIPv6Addr(ipaddr.DefaultFetchers...)
+//	ctx := context.Background()
+//	ip, err := ipaddr.GetIPv6Addr(ctx,
+//	    ipaddr.NewHttpIPv6Fetcher("https://6.ipw.cn"),
+//	    ipaddr.NewDnsFetcher("2001:4860:4860::8888"),
+//	)
 //
-//	// 自定义获取器
-//	fetcher := ipaddr.NewHttpIPv6Fetcher("https://6.ipw.cn")
-//	ip, err := ipaddr.GetIPv6Addr(fetcher)
+// 库使用者也可直接传入 ddns.DefaultIPv6Fetchers。
 //
-// 获取策略（每次调用时随机排序后并发竞速）：
+// 获取策略（每次调用随机排序后并发竞速）：
 //  1. 随机打乱所有 fetcher 的顺序
 //  2. 所有 fetcher 并发执行
 //  3. 第一个成功返回的地址即为结果
@@ -26,7 +27,7 @@ import (
 	"time"
 )
 
-// IPv6Fetcher 定义了获取 IPv6 地址的接口
+// IPv6Fetcher 定义获取本机 IPv6 地址的接口；实现方应尊重 ctx 取消与超时。
 type IPv6Fetcher interface {
 	Fetch(ctx context.Context) (net.IP, error)
 }

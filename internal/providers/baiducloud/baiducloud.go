@@ -1,4 +1,4 @@
-// Package baiducloud 实现百度云 DNS API 服务
+// Package baiducloud 实现百度云 DNS API 服务。
 // 百度云 DNS 使用 BCE（Baidu Cloud Engine）认证协议，基于 HMAC-SHA256 签名
 package baiducloud
 
