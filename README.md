@@ -1,9 +1,9 @@
 # DDNS6 — IPv6 动态域名解析工具
 
-[![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?logo=go)](go.mod)
+[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go)](go.mod)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-自动检测本机 IPv6 地址变化，实时更新到 DNS 服务商的 AAAA 记录。支持 **13 个 DNS 运营商**，Linux 上通过 Netlink 事件驱动、其他平台定时轮询。
+自动检测本机 IPv6 地址变化，实时更新到 DNS 服务商的 AAAA 记录。支持 **13 个 DNS 运营商**；Linux 通过 Netlink 事件驱动，其他平台定时轮询。
 
 ---
 
@@ -18,7 +18,14 @@ go build -o ddns6 .
 sudo mv ddns6 /usr/local/bin/
 ```
 
-或者直接下载 [GitHub Releases](https://github.com/notes-bin/ddns6/releases) 的预编译二进制。
+或使用 Makefile：
+
+```bash
+make build          # 输出到 bin/ddns6
+sudo make install   # 安装到 GOPATH/bin
+```
+
+也可直接下载 [GitHub Releases](https://github.com/notes-bin/ddns6/releases) 的预编译二进制。
 
 ### 临时运行（单次测试）
 
@@ -31,7 +38,7 @@ ddns6 run tencent \
   --secret-key YOUR_SECRET_KEY
 ```
 
-首次运行会立即获取 IPv6 地址并更新 DNS 记录。Linux 上后续通过 Netlink 实时监听变化，其他平台每 5 分钟轮询一次。
+首次运行会立即获取 IPv6 并更新 DNS。Linux 后续由 Netlink 实时监听；其他平台默认每 5 分钟轮询一次。
 
 ### 使用配置文件（长期服务）
 
@@ -68,10 +75,10 @@ ddns6 check tencent --domain example.com --secret-id xxx --secret-key yyy
 | `--subdomain` | `DDNS6_SUBDOMAIN` | string[] | `@` | 子域名，可多次指定 |
 | `--ttl` | `DDNS6_TTL` | int | `600` | DNS 记录 TTL（秒） |
 | `--interval` | `DDNS6_INTERVAL` | duration | `5m` | 非 Linux 轮询间隔 |
-| `--interface` | `DDNS6_INTERFACE` | string | — | 网络接口（仅 Linux） |
+| `--interface` | `DDNS6_INTERFACE` | string | — | 网络接口（仅 Linux Netlink） |
 | `--log-file` | `DDNS6_LOG_FILE` | string | `ddns6.log` | 日志路径，`""`=仅 stderr |
 | `--debug` | `DDNS6_DEBUG` | bool | `false` | 调试日志 |
-| `-V / --version` | — | bool | `false` | 版本信息 |
+| `-V` / `--version` | — | bool | `false` | 版本信息（等同于 `ddns6 version`） |
 
 优先级：**命令行 > 环境变量 > 配置文件**。
 
@@ -102,18 +109,21 @@ ddns6 run tencent --secret-id xxx --secret-key yyy
 验证配置和 API 连通性，**不会修改任何 DNS 记录**。
 
 ```bash
-# 验证配置文件
 ddns6 check
-
-# 验证命令行参数
 ddns6 check tencent --domain example.com --secret-id xxx --secret-key yyy
 ```
 
-检查项：配置文件解析 → Provider 名称 → 认证参数完整性 → API 连通性测试。
+检查项：配置文件解析 → Provider 名称 → 认证参数完整性 → API 连通性。
 
 ### `ddns6 list [provider]`
 
 列出 DNS 记录。
+
+命令专属参数：
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--type` | `AAAA` | 记录类型过滤；设为 `""` 表示不过滤类型 |
 
 ```bash
 # 列出 AAAA 记录
@@ -122,18 +132,26 @@ ddns6 list tencent --domain example.com --subdomain www --secret-id xxx --secret
 # 列出所有类型
 ddns6 list tencent --domain example.com --type "" --secret-id xxx --secret-key yyy
 
-# 不带 --subdomain 则展示该域名下所有记录
+# 不带 --subdomain 则展示该域名下匹配类型的全部记录
 ddns6 list tencent --domain example.com --secret-id xxx --secret-key yyy
 ```
 
-> ⚠️ duckdns、he、noip 不支持 list（API 仅提供更新接口）。
+> 注意：duckdns、he、noip 为受限 API（仅更新接口），不支持 `list`。
 
 ### `ddns6 clean [provider]`
 
 删除 DNS 记录。
 
+命令专属参数：
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--type` | `AAAA` | 记录类型过滤 |
+| `--dry-run` | `false` | 仅预览，不实际删除 |
+| `--yes` | `false` | 跳过交互确认（适合脚本） |
+
 ```bash
-# 预览（不实际执行）
+# 预览
 ddns6 clean tencent --domain example.com --subdomain www --dry-run \
   --secret-id xxx --secret-key yyy
 
@@ -141,28 +159,32 @@ ddns6 clean tencent --domain example.com --subdomain www --dry-run \
 ddns6 clean tencent --domain example.com --subdomain www \
   --secret-id xxx --secret-key yyy
 
-# 自动删除（跳过确认）
+# 自动删除
 ddns6 clean tencent --domain example.com --subdomain www --yes \
   --secret-id xxx --secret-key yyy
 ```
 
-安全特性：删除前列表确认、`--dry-run` 预览、`--yes` 跳过确认、并发限流。
+安全特性：删除前列表确认、`--dry-run` 预览、`--yes` 跳过确认、并发限流（最多 5）。
 
-> ⚠️ duckdns、he、noip 不支持 clean。
+> 注意：duckdns、he、noip 不支持 `clean`。
 
 ### `ddns6 init [provider]`
 
 生成 `~/.ddns6/config.yaml`。
 
 ```bash
-# 仅模板（手动编辑）
 ddns6 init
-
-# 预填域名
 ddns6 init --domain example.com --subdomain www --subdomain @
-
-# 完整配置
 ddns6 init tencent --domain example.com --secret-id xxx --secret-key yyy
+```
+
+### `ddns6 version`
+
+显示版本、提交与构建时间（也可用 `-V` / `--version`）。
+
+```bash
+ddns6 version
+ddns6 -V
 ```
 
 ### `ddns6 completion [bash|zsh|fish|powershell]`
@@ -170,12 +192,10 @@ ddns6 init tencent --domain example.com --secret-id xxx --secret-key yyy
 生成 Shell 自动补全脚本。
 
 ```bash
-# Bash
+# Bash（需已安装 bash-completion）
 ddns6 completion bash > /etc/bash_completion.d/ddns6
 source /etc/bash_completion.d/ddns6
 ```
-
-需要安装 `bash-completion` 包：
 
 ```bash
 # Debian/Ubuntu
@@ -189,36 +209,35 @@ yum install bash-completion -y
 
 ## 支持的 DNS 运营商
 
-| 运营商 | CLI 名称 | 必填参数 | 配置文件字段 |
-|--------|---------|---------|-------------|
-| **腾讯云 DNSPod** | `tencent` | `--secret-id` `--secret-key` | `secret_id` `secret_key` |
-| **Cloudflare** | `cloudflare` | `--api-token` | `api_token` |
-| **阿里云 DNS** | `alicloud` | `--access-key-id` `--access-key-secret` | `access_key_id` `access_key_secret` |
-| **GoDaddy** | `godaddy` | `--api-key` `--api-secret` | `api_key` `api_secret` |
-| **华为云 DNS** | `huaweicloud` | `--access-key` `--secret-key` | `access_key` `secret_key` |
-| **百度云 BCD** | `baiducloud` | `--access-key` `--secret-key` | `access_key` `secret_key` |
-| **DigitalOcean** | `digitalocean` | `--token` | `token` |
-| **DNSPod 旧版** | `dnspod` | `--login-token` | `login_token`（格式：`ID,Token`）|
-| **Porkbun** | `porkbun` | `--api-key` `--api-secret` | `api_key` `api_secret` |
-| **DuckDNS** 🚫 | `duckdns` | `--token` | `token` |
-| **HE** 🚫 | `he` | `--password` | `password` |
-| **No-IP** 🚫 | `noip` | `--username` `--password` | `username` `password` |
-| **Dynv6** | `dynv6` | `--token` | `token` |
-
-🚫 = 受限 API（仅更新接口，不支持 list/clean）。
+| 运营商 | CLI 名称 | 必填参数 | 配置文件字段 | 说明 |
+|--------|---------|---------|-------------|------|
+| 腾讯云 DNSPod | `tencent` | `--secret-id` `--secret-key` | `secret_id` `secret_key` | |
+| Cloudflare | `cloudflare` | `--api-token` | `api_token` | |
+| 阿里云 DNS | `alicloud` | `--access-key-id` `--access-key-secret` | `access_key_id` `access_key_secret` | 可选 `sign_version` |
+| GoDaddy | `godaddy` | `--api-key` `--api-secret` | `api_key` `api_secret` | |
+| 华为云 DNS | `huaweicloud` | `--access-key` `--secret-key` | `access_key` `secret_key` | |
+| 百度云 BCD | `baiducloud` | `--access-key` `--secret-key` | `access_key` `secret_key` | |
+| DigitalOcean | `digitalocean` | `--token` | `token` | |
+| DNSPod 旧版 | `dnspod` | `--login-token` | `login_token` | 格式：`ID,Token` |
+| Porkbun | `porkbun` | `--api-key` `--api-secret` | `api_key` `api_secret` | |
+| DuckDNS | `duckdns` | `--token` | `token` | 受限：不支持 list/clean |
+| HE | `he` | `--password` | `password` | 受限：不支持 list/clean |
+| No-IP | `noip` | `--username` `--password` | `username` `password` | 受限：不支持 list/clean |
+| Dynv6 | `dynv6` | `--token` | `token` | |
 
 各运营商详细参数运行 `ddns6 run <name> --help` 查看。
 
 ### 阿里云 V3 签名
 
-阿里云默认为 V1 签名（HMAC-SHA1），可切换到 V3（ACS3-HMAC-SHA256）：
+阿里云默认为 V1（HMAC-SHA1），可切换到 V3（ACS3-HMAC-SHA256）：
 
 ```bash
 ddns6 run alicloud --domain example.com --sign-version v3 \
   --access-key-id xxx --access-key-secret yyy
 ```
 
-配置文件中设置：
+配置文件：
+
 ```yaml
 auth:
   access_key_id: "xxx"
@@ -240,29 +259,71 @@ auth:                        # 必填：认证凭据
 domain: "example.com"        # 必填：根域名
 subdomains:                  # 必填：子域名列表
   - "www"
-  - "@"                      # "@" 表示根域名
-# interval: 5m               # 可选：轮询间隔
+  - "@"                      # "@" 表示根域名本身
+# interval: 5m               # 可选：非 Linux 轮询间隔
 # interface: ppp0            # 可选：网络接口（仅 Linux）
 # ttl: 600                   # 可选：TTL（默认 600 秒）
 ```
 
+建议：`chmod 600 ~/.ddns6/config.yaml`。
+
 ---
 
-## 配置 Shell 自动补全
+## Docker 部署
+
+镜像为多阶段构建，默认以非 root 用户 `ddns6` 运行。Linux 上使用 Netlink 时需要主机网络命名空间。
+
+### 前置条件
+
+- Linux 主机（`network_mode: host` 在 Docker Desktop / macOS 上无效或意义不同）
+- 已安装 Docker 与 Compose
+
+### 方式一：配置文件挂载（推荐）
 
 ```bash
-# 1. 安装 bash-completion
-apt install bash-completion -y
-# 或 yum install bash-completion -y
-
-# 2. 生成并安装补全脚本
-ddns6 completion bash > /etc/bash_completion.d/ddns6
-
-# 3. 重新加载（或新开 shell）
-source /etc/bash_completion.d/ddns6
+ddns6 init tencent --domain example.com --subdomain www \
+  --secret-id xxx --secret-key yyy
+chmod 600 ~/.ddns6/config.yaml
 ```
 
-之后输入 `ddns6 ␣␣`（按两次 Tab）即可看到子命令列表，`ddns6 run ␣␣` 看到 13 个 provider 名称。
+在 `docker-compose.yml` 中取消注释 `ddns6-config` 服务（挂载路径为 `/home/ddns6/.ddns6`），然后：
+
+```bash
+make docker-build
+# 或
+docker compose up -d ddns6-config
+```
+
+### 方式二：环境变量 + Compose
+
+```bash
+cp .env.example .env
+# 编辑 .env：填写 DOMAIN、SUBDOMAIN 以及所选运营商的凭证
+# 默认启用 ddns6-tencent；其他运营商服务需在 docker-compose.yml 中取消注释
+
+make docker-up      # docker compose up -d
+make docker-logs    # 跟踪日志
+make docker-down    # 停止并删除
+```
+
+要点：
+
+| 项 | 说明 |
+|----|------|
+| `network_mode: host` | 与主机共用网络栈，Netlink 才能感知地址变化 |
+| `cap_add: NET_ADMIN` | 部分环境下订阅路由/地址事件需要的能力 |
+| 配置挂载 | `~/.ddns6` → `/home/ddns6/.ddns6`（与镜像用户一致） |
+| 多子域名 | Compose 命令行模式通常只传单个 `--subdomain`；多子域名请用配置文件模式 |
+
+### 直接 `docker run`
+
+```bash
+make docker-build
+docker run -d --name ddns6 --restart always \
+  --network host --cap-add=NET_ADMIN \
+  -v ~/.ddns6:/home/ddns6/.ddns6:ro \
+  ddns6 run
+```
 
 ---
 
@@ -287,54 +348,52 @@ WantedBy=multi-user.target
 ```
 
 ```bash
-# 先完成配置
 ddns6 init tencent --domain example.com --subdomain www \
   --secret-id xxx --secret-key yyy
 
-# 启动服务
 sudo systemctl daemon-reload
 sudo systemctl enable --now ddns6
-sudo journalctl -u ddns6 -f   # 查看日志
+sudo journalctl -u ddns6 -f
 ```
 
 ---
 
 ## 安全注意事项
 
-- **配置文件权限**：`~/.ddns6/config.yaml` 包含 API 密钥，建议 `chmod 600`
-- 运行 `ddns6 check` 或 `ddns6 run` 时如果权限过松会输出警告
-- 日志中不会记录 secret key、token 等敏感信息
+- 配置文件含 API 密钥，建议 `chmod 600 ~/.ddns6/config.yaml`
+- 运行 `check` / `run` 时若权限过松会输出警告
+- 日志不记录 secret key、token 等敏感信息
 - 建议为 DDNS 创建专用 API 令牌，仅授予 DNS 编辑权限
 
 ---
 
 ## 架构说明
 
-### 触发器（地址变化怎么被发现的）
+### 触发器
 
 | 平台 | 模式 | 说明 |
 |------|------|------|
-| Linux | Netlink 事件驱动 | 实时监听内核地址变化，PPPoE 重拨后秒级触发 |
-| macOS / Windows | 定时轮询 | 每 5 分钟检测一次（可配置） |
+| Linux | Netlink 事件驱动 | 实时监听内核地址变化；PPPoE 重拨后秒级触发 |
+| macOS / Windows 等 | 定时轮询 | 默认每 5 分钟（`--interval` 可配） |
 
 ### 防抖（Debounce）
 
-PPPoE 重拨时地址可能短时间内多次变化。DDNS6 检测到新地址后等待 10 秒防抖窗口，窗口内每次新事件重置计时器，地址稳定后才执行 DNS 更新。
+PPPoE 重拨时地址可能短时间内多次变化。检测到新地址后等待 10 秒防抖窗口，窗口内每次新事件重置计时器，地址稳定后再执行 DNS 更新。
 
 ### 同步流程
 
 ```
-地址变化 → GetIPv6Addr(多源并发请求) → 对比缓存
+地址变化 → GetIPv6Addr（多源并发竞速） → 对比缓存
   ├─ 未变化 → 跳过
   └─ 已变化 → 并发同步所有子域名
-        ├─ GetRecords(查询现有记录)
-        ├─ 遍历记录：IP 相同→跳过，不同→ModifyRecord
+        ├─ GetRecords（查询现有记录）
+        ├─ 遍历：IP 相同 → 跳过；不同 → ModifyRecord
         └─ 无记录 → AddRecord
 ```
 
 ### IPv6 获取源
 
-每次随机打乱顺序，多个来源并发竞速，首个成功即返回：
+每次随机打乱顺序后并发竞速，首个成功即返回：
 
 | 来源 | 类型 |
 |------|------|
@@ -355,40 +414,31 @@ ddns6/
 ├── main.go                    # 程序入口
 ├── cmd/                       # CLI 命令定义
 │   ├── root.go                # 根命令、全局参数、环境变量
-│   ├── check.go               # ddns6 check
-│   ├── list.go                # ddns6 list
-│   ├── clean.go               # ddns6 clean
-│   └── providers.go           # 13 个 provider 的工厂注册
+│   ├── providers.go           # 13 个 provider 工厂注册
+│   ├── check.go / list.go / clean.go
+│   └── ...
 ├── internal/
-│   ├── config/                # 配置加载、生成
-│   ├── crypto/                # 密码学工具
-│   └── ddns/                  # 核心服务编排
-│       ├── types.go           # RecordInfo、DNSProvider 接口
-│       ├── service.go         # RunService 主循环
-│       ├── record.go          # DNS 记录同步
-│       ├── match.go           # 记录名匹配、地址比较
-│       ├── processor.go       # CollectMatchingRecords
-│       └── display.go         # 格式化输出
-│   └── providers/             # 13 个运营商实现
-│       ├── tencent/           # 腾讯云 DNSPod
-│       ├── alicloud/          # 阿里云 DNS
-│       ├── baiducloud/        # 百度云 BCD
-│       ├── cloudflare/        # Cloudflare DNS
-│       ├── digitalocean/      # DigitalOcean
-│       ├── dnspod/            # DNSPod 旧版
-│       ├── duckdns/           # DuckDNS
-│       ├── dynv6/             # Dynv6
-│       ├── godaddy/           # GoDaddy
-│       ├── he/                # Hurricane Electric
-│       ├── huaweicloud/       # 华为云 DNS
-│       ├── noip/              # No-IP
-│       └── porkbun/           # Porkbun
+│   ├── config/                # 配置加载与生成
+│   ├── crypto/                # 签名用哈希工具
+│   ├── ddns/                  # 核心服务编排
+│   │   ├── types.go           # RecordInfo、DNSProvider、Domain
+│   │   ├── service.go         # RunService 主循环
+│   │   ├── service_linux.go   # Netlink 触发（Linux）
+│   │   ├── service_other.go   # 轮询触发（非 Linux）
+│   │   ├── record.go          # DNS 记录同步
+│   │   ├── match.go           # 记录名匹配、地址比较
+│   │   ├── processor.go       # CollectMatchingRecords
+│   │   └── display.go         # 表格输出
+│   └── providers/             # 各运营商实现
 ├── pkg/
-│   ├── domainutil/            # 域名工具（SplitDomain）
-│   ├── ipaddr/                # IPv6 地址获取
+│   ├── domainutil/            # SplitDomain
+│   ├── ipaddr/                # IPv6 获取（HTTP / DNS）
 │   └── retry/                 # 指数退避重试
-└── .github/workflows/
-    └── release.yml            # CI/CD 流水线
+├── Dockerfile
+├── docker-compose.yml
+├── .env.example
+├── Makefile
+└── .github/workflows/release.yml
 ```
 
 ---
@@ -396,53 +446,60 @@ ddns6/
 ## 开发
 
 ```bash
-go build ./...        # 编译
-go test ./...         # 测试
+make build            # 编译到 bin/ddns6
+make test             # 测试
 go vet ./...          # 静态分析
-go mod tidy           # 整理依赖
-
-# 交叉编译
-GOOS=linux GOARCH=amd64 go build -o ddns6-linux .
-GOOS=darwin GOARCH=arm64 go build -o ddns6-darwin-arm64 .
-GOOS=windows GOARCH=amd64 go build -o ddns6.exe .
+make fmt              # go fmt
+make cross-build      # linux/darwin 交叉编译
+make release          # 打包发布产物
+make help             # 查看全部目标
 ```
+
+要求 Go **1.25+**（见 `go.mod`）。
 
 ### 添加新运营商
 
-1. 在 `internal/providers/` 下创建新包
-2. 实现 `ddns.DNSProvider` 接口（4 个 CRUD 方法）
-3. 在 `cmd/providers.go` 的 `providerFactories` 列表注册
+1. 在 `internal/providers/` 下创建新包，实现 `ddns.DNSProvider`
+2. 在 `cmd/providers.go` 的 `providerFactories` 注册；若仅支持更新，加入 `restrictedProviders`
+3. 同步更新 `docker-compose.yml`、`.env.example` 与本 README
 4. 运行 `go test ./...` 确认通过
 
 ---
 
 ## 常见问题
 
-**Q: 怎么知道自己当前的 IPv6 地址？**
+**Q: 怎么查看当前公网 IPv6？**
+
 ```bash
 curl -6 https://6.ipw.cn
 ```
 
-**Q: 如何测试配置是否有效？**  
+**Q: 如何验证配置？**
+
 ```bash
 ddns6 check tencent --domain example.com --secret-id xxx --secret-key yyy
 ```
 
-**Q: Netlink 需要 root 权限吗？**  
-读取 `NETLINK_ROUTE` 通常不需要 root。如果遇到权限错误，自动回退到定时轮询。
+**Q: Netlink 需要 root 吗？**  
+读取 `NETLINK_ROUTE` 通常不需要 root。权限不足时会自动回退到定时轮询。
 
 **Q: 支持 A 记录（IPv4）吗？**  
-不支持。本项目专注 IPv6 DDNS（项目名称 ddns6 即反映此目标）。
+不支持。本项目专注 IPv6 DDNS（名称中的「6」即此意）。
 
-**Q: Docker 部署需要 `--network host` 吗？**  
-是的。Netlink 需要主机的网络命名空间。
+**Q: Docker 为什么要 `--network host`？**  
+Netlink 需要主机网络命名空间，才能感知本机 IPv6 变化。
 
-**Q: 日志文件越来越大怎么办？**  
-使用 `--log-file ""` 禁用文件日志，或配合 logrotate 轮转：
+**Q: 日志文件过大怎么办？**  
+使用 `--log-file ""` 仅输出到 stderr，或配合 logrotate：
+
 ```bash
 # /etc/logrotate.d/ddns6
 /var/log/ddns6.log {
-    daily; rotate 7; compress; missingok; copytruncate
+    daily
+    rotate 7
+    compress
+    missingok
+    copytruncate
 }
 ```
 
