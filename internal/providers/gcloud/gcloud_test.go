@@ -2,6 +2,7 @@ package gcloud
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,47 +11,123 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-func TestClient(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Bearer test-token" {
-			t.Error("missing bearer token")
-		}
-		switch {
-		case strings.Contains(r.URL.Path, "/rrsets"):
-			json.NewEncoder(w).Encode(map[string]any{
-				"rrsets": []rrSet{{Name: "www.example.com.", Type: "AAAA", TTL: 600, Rrdatas: []string{"2001:db8::1"}}},
-			})
-		case strings.Contains(r.URL.Path, "/managedZones") && r.Method == http.MethodGet:
-			json.NewEncoder(w).Encode(zoneList{
-				ManagedZones: []managedZone{{Name: "example-com", DNSName: "example.com."}},
-			})
-		case strings.Contains(r.URL.Path, "/changes"):
-			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string]string{"status": "pending"})
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer server.Close()
+func newTestClient(t *testing.T, handler http.HandlerFunc) *Client {
+	t.Helper()
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	return NewClient("proj", "test-token", WithBaseURL(server.URL))
+}
 
-	client := NewClient("proj", "test-token", WithBaseURL(server.URL))
-
-	t.Run("GetRecords", func(t *testing.T) {
-		records, err := client.GetRecords(t.Context(), "www.example.com", "AAAA")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(records) != 1 || records[0].Value != "2001:db8::1" {
-			t.Fatalf("unexpected records: %+v", records)
-		}
-	})
-
-	t.Run("AddRecord", func(t *testing.T) {
-		err := client.AddRecord(t.Context(), ddns.RecordInfo{
-			Name: "www.example.com", Zone: "example.com", Type: "AAAA", Value: "2001:db8::2", TTL: 600,
+func defaultHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("Authorization") != "Bearer test-token" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	switch {
+	case strings.Contains(r.URL.Path, "/rrsets"):
+		json.NewEncoder(w).Encode(map[string]any{
+			"rrsets": []rrSet{{Name: "www.example.com.", Type: "AAAA", TTL: 600, Rrdatas: []string{"2001:db8::1"}}},
 		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+	case strings.Contains(r.URL.Path, "/managedZones") && r.Method == http.MethodGet:
+		json.NewEncoder(w).Encode(zoneList{
+			ManagedZones: []managedZone{{Name: "example-com", DNSName: "example.com."}},
+		})
+	case strings.Contains(r.URL.Path, "/changes") && r.Method == http.MethodPost:
+		json.NewEncoder(w).Encode(map[string]string{"status": "pending"})
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+func TestClient_GetRecords(t *testing.T) {
+	client := newTestClient(t, defaultHandler)
+	records, err := client.GetRecords(t.Context(), "www.example.com", "AAAA")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(records) != 1 || records[0].Value != "2001:db8::1" {
+		t.Fatalf("unexpected records: %+v", records)
+	}
+}
+
+func TestClient_AddRecord(t *testing.T) {
+	var hasAddition bool
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/changes") && r.Method == http.MethodPost {
+			body, _ := io.ReadAll(r.Body)
+			hasAddition = strings.Contains(string(body), `"additions"`)
+			json.NewEncoder(w).Encode(map[string]string{"status": "pending"})
+			return
 		}
+		defaultHandler(w, r)
 	})
+	err := client.AddRecord(t.Context(), ddns.RecordInfo{
+		Name: "www.example.com", Zone: "example.com", Type: "AAAA", Value: "2001:db8::2", TTL: 600,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !hasAddition {
+		t.Error("expected additions in change request")
+	}
+}
+
+func TestClient_ModifyRecord(t *testing.T) {
+	var changeCount int
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/changes") && r.Method == http.MethodPost {
+			changeCount++
+			json.NewEncoder(w).Encode(map[string]string{"status": "pending"})
+			return
+		}
+		defaultHandler(w, r)
+	})
+	err := client.ModifyRecord(t.Context(), ddns.RecordInfo{
+		Name: "www.example.com", Zone: "example.com", Type: "AAAA", Value: "2001:db8::3", TTL: 600,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if changeCount != 2 {
+		t.Errorf("ModifyRecord should call changes twice (delete+add), got %d", changeCount)
+	}
+}
+
+func TestClient_DeleteRecord(t *testing.T) {
+	var hasDeletion bool
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/changes") && r.Method == http.MethodPost {
+			body, _ := io.ReadAll(r.Body)
+			hasDeletion = strings.Contains(string(body), `"deletions"`)
+			json.NewEncoder(w).Encode(map[string]string{"status": "pending"})
+			return
+		}
+		defaultHandler(w, r)
+	})
+	err := client.DeleteRecord(t.Context(), ddns.RecordInfo{
+		Name: "www.example.com", Zone: "example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !hasDeletion {
+		t.Error("expected deletions in change request")
+	}
+}
+
+func TestClient_ApiError(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/managedZones") {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		http.NotFound(w, r)
+	})
+	_, err := client.GetRecords(t.Context(), "www.example.com", "AAAA")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "403") {
+		t.Errorf("expected status 403 in error, got: %v", err)
+	}
 }
