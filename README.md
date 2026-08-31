@@ -3,7 +3,7 @@
 [![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go)](go.mod)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-自动检测本机 IPv6 地址变化，实时更新到 DNS 服务商的 AAAA 记录。支持 **13 个 DNS 运营商**；Linux 通过 Netlink 事件驱动，其他平台定时轮询。
+自动检测本机 IPv6 地址变化，实时更新到 DNS 服务商的 AAAA 记录。支持 **18 个 DNS 运营商**；Linux 通过 Netlink 事件驱动，其他平台定时轮询。
 
 ---
 
@@ -224,8 +224,13 @@ yum install bash-completion -y
 | HE | `he` | `--password` | `password` | 受限：不支持 list/clean |
 | No-IP | `noip` | `--username` `--password` | `username` `password` | 受限：不支持 list/clean |
 | Dynv6 | `dynv6` | `--token` | `token` | |
+| deSEC.io | `desec` | `--token` | `token` | |
+| Linode (Akamai) | `linode` | `--api-key` | `api_key` | |
+| NameSilo | `namesilo` | `--api-key` | `api_key` | |
+| IONOS | `ionos` | `--prefix` `--secret` | `prefix` `secret` | |
+| Hetzner Cloud | `hetzner` | `--token` | `token` | |
 
-各运营商详细参数运行 `ddns6 run <name> --help` 查看。
+各运营商详细参数运行 `ddns6 run <name> --help` 查看。新增供应商参考 [acme.sh dnsapi](https://github.com/acmesh-official/acme.sh/tree/master/dnsapi) 实现。
 
 ### 阿里云 V3 签名
 
@@ -414,7 +419,7 @@ ddns6/
 ├── main.go                    # 程序入口
 ├── cmd/                       # CLI 命令定义
 │   ├── root.go                # 根命令、全局参数、环境变量
-│   ├── providers.go           # 13 个 provider 工厂注册
+│   ├── providers.go           # 18 个 provider 工厂注册
 │   ├── check.go / list.go / clean.go
 │   └── ...
 ├── internal/
