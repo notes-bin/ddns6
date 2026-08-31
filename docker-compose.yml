@@ -12,7 +12,7 @@ services:
   # ============================================================
 
   # ---------- 配置文件模式（推荐） ----------
-  # 将 ~/.ddns6/config.yaml 挂载到容器内，无需在命令行输入参数
+  # 将主机 ~/.ddns6 挂载到容器用户家目录（镜像以非 root 用户 ddns6 运行）
   # ddns6-config:
   #   build:
   #     context: .
@@ -22,7 +22,7 @@ services:
   #     - NET_ADMIN
   #   restart: always
   #   volumes:
-  #     - ~/.ddns6:/root/.ddns6:ro
+  #     - ~/.ddns6:/home/ddns6/.ddns6:ro
   #   command:
   #     - run
 
@@ -120,9 +120,8 @@ services:
   #   command:
   #     - run
   #     - huaweicloud
-  #     - --username=${HUAWEI_USERNAME}
-  #     - --password=${HUAWEI_PASSWORD}
-  #     - --domain-name=${HUAWEI_DOMAIN_NAME}
+  #     - --access-key=${HUAWEI_ACCESS_KEY}
+  #     - --secret-key=${HUAWEI_SECRET_KEY}
   #     - --domain=${DOMAIN}
   #     - --subdomain=${SUBDOMAIN:-@}
   #     - --interface=${INTERFACE:-}
