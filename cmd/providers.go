@@ -20,13 +20,18 @@ import (
 	"github.com/notes-bin/ddns6/internal/providers/alicloud"
 	"github.com/notes-bin/ddns6/internal/providers/baiducloud"
 	"github.com/notes-bin/ddns6/internal/providers/cloudflare"
+	"github.com/notes-bin/ddns6/internal/providers/desec"
 	"github.com/notes-bin/ddns6/internal/providers/digitalocean"
 	"github.com/notes-bin/ddns6/internal/providers/dnspod"
 	"github.com/notes-bin/ddns6/internal/providers/duckdns"
 	"github.com/notes-bin/ddns6/internal/providers/dynv6"
 	"github.com/notes-bin/ddns6/internal/providers/godaddy"
 	"github.com/notes-bin/ddns6/internal/providers/he"
+	"github.com/notes-bin/ddns6/internal/providers/hetzner"
 	"github.com/notes-bin/ddns6/internal/providers/huaweicloud"
+	"github.com/notes-bin/ddns6/internal/providers/ionos"
+	"github.com/notes-bin/ddns6/internal/providers/linode"
+	"github.com/notes-bin/ddns6/internal/providers/namesilo"
 	"github.com/notes-bin/ddns6/internal/providers/noip"
 	"github.com/notes-bin/ddns6/internal/providers/porkbun"
 	"github.com/notes-bin/ddns6/internal/providers/tencent"
@@ -290,6 +295,87 @@ var providerFactories = []providerFactory{
 			return dnspod.NewClient(cfg.Auth["login_token"]), nil
 		},
 	},
+	{
+		name: "desec", short: "deSEC.io DNS - 需 --token",
+		flags: []providerFlag{
+			{"token", "deSEC API Token (必填)"},
+		},
+		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
+			domains, err := createDomainConfigs(cmd)
+			if err != nil {
+				return nil, nil, err
+			}
+			return domains, desec.NewClient(getString(cmd, "token")), nil
+		},
+		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
+			return desec.NewClient(cfg.Auth["token"]), nil
+		},
+	},
+	{
+		name: "linode", short: "Linode (Akamai) DNS API v4 - 需 --api-key",
+		flags: []providerFlag{
+			{"api-key", "Linode Personal Access Token (必填)"},
+		},
+		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
+			domains, err := createDomainConfigs(cmd)
+			if err != nil {
+				return nil, nil, err
+			}
+			return domains, linode.NewClient(getString(cmd, "api-key")), nil
+		},
+		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
+			return linode.NewClient(cfg.Auth["api_key"]), nil
+		},
+	},
+	{
+		name: "namesilo", short: "NameSilo DNS - 需 --api-key",
+		flags: []providerFlag{
+			{"api-key", "NameSilo API Key (必填)"},
+		},
+		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
+			domains, err := createDomainConfigs(cmd)
+			if err != nil {
+				return nil, nil, err
+			}
+			return domains, namesilo.NewClient(getString(cmd, "api-key")), nil
+		},
+		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
+			return namesilo.NewClient(cfg.Auth["api_key"]), nil
+		},
+	},
+	{
+		name: "ionos", short: "IONOS DNS - 需 --prefix 和 --secret",
+		flags: []providerFlag{
+			{"prefix", "IONOS API Key Prefix (必填)"},
+			{"secret", "IONOS API Key Secret (必填)"},
+		},
+		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
+			domains, err := createDomainConfigs(cmd)
+			if err != nil {
+				return nil, nil, err
+			}
+			return domains, ionos.NewClient(getString(cmd, "prefix"), getString(cmd, "secret")), nil
+		},
+		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
+			return ionos.NewClient(cfg.Auth["prefix"], cfg.Auth["secret"]), nil
+		},
+	},
+	{
+		name: "hetzner", short: "Hetzner Cloud DNS - 需 --token",
+		flags: []providerFlag{
+			{"token", "Hetzner Cloud API Token (必填，需 DNS 权限)"},
+		},
+		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
+			domains, err := createDomainConfigs(cmd)
+			if err != nil {
+				return nil, nil, err
+			}
+			return domains, hetzner.NewClient(getString(cmd, "token")), nil
+		},
+		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
+			return hetzner.NewClient(cfg.Auth["token"]), nil
+		},
+	},
 }
 
 // registerProviders 注册所有 DNS 运营商子命令到 runCmd。
@@ -352,7 +438,7 @@ type providerCmdHandler func(cmd *cobra.Command, domains []*ddns.Domain, p ddns.
 // registerProviderSubCommands 为 list/clean 等命令注册 provider 子命令。
 //
 // 复用 providerFactories 中的 auth 参数定义和 run 函数，避免为每个命令重复定义
-// 13 个 provider 的认证参数。参数:
+// 18 个 provider 的认证参数。参数:
 //   - parent: 父命令（listCmd / cleanCmd）
 //   - commandName: 命令名称（"list" / "clean"），用于生成帮助文本
 //   - extraFlags: 注册额外 flag 的回调，可为 nil
