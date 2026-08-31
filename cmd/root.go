@@ -26,7 +26,12 @@
 //	│   ├── linode       Linode (Akamai) DNS
 //	│   ├── namesilo     NameSilo DNS
 //	│   ├── ionos        IONOS DNS
-//	│   └── hetzner      Hetzner Cloud DNS
+//	│   ├── hetzner      Hetzner Cloud DNS
+//	│   ├── aws          AWS Route 53
+//	│   ├── gcloud       Google Cloud DNS
+//	│   ├── azure        Azure DNS
+//	│   ├── namecheap    Namecheap DNS
+//	│   └── dpi          DNSPod.com 国际版
 //	├── list     [provider] 列出 DNS 记录
 //	└── clean   [provider] 删除 DNS 记录
 //
@@ -87,10 +92,11 @@ var rootCmd = &cobra.Command{
   Linux   通过 Netlink 监听内核地址变化事件，实时触发（10 秒防抖）
   其他    定时轮询（默认间隔 5 分钟，可通过 --interval 调整）
 
-支持的 DNS 服务商（18 个）:
+支持的 DNS 服务商（23 个）:
   tencent, cloudflare, alicloud, godaddy, huaweicloud,
   duckdns, noip, he, dynv6, porkbun, digitalocean, baiducloud, dnspod,
-  desec, linode, namesilo, ionos, hetzner
+  desec, linode, namesilo, ionos, hetzner,
+  aws, gcloud, azure, namecheap, dpi
 
 快速开始:
   1. 临时测试:  ddns6 run tencent --domain example.com --subdomain www --secret-id xxx --secret-key yyy
