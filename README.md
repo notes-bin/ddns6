@@ -3,7 +3,7 @@
 [![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go)](go.mod)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-自动检测本机 IPv6 地址变化，实时更新到 DNS 服务商的 AAAA 记录。支持 **18 个 DNS 运营商**；Linux 通过 Netlink 事件驱动，其他平台定时轮询。
+自动检测本机 IPv6 地址变化，实时更新到 DNS 服务商的 AAAA 记录。支持 **23 个 DNS 运营商**；Linux 通过 Netlink 事件驱动，其他平台定时轮询。
 
 ---
 
@@ -229,6 +229,13 @@ yum install bash-completion -y
 | NameSilo | `namesilo` | `--api-key` | `api_key` | |
 | IONOS | `ionos` | `--prefix` `--secret` | `prefix` `secret` | |
 | Hetzner Cloud | `hetzner` | `--token` | `token` | |
+| AWS Route 53 | `aws` | `--access-key-id` `--secret-access-key` | `access_key_id` `secret_access_key` | acme: `dns_aws` |
+| Google Cloud DNS | `gcloud` | `--project` `--access-token` | `project` `access_token` | acme: `dns_gcloud` |
+| Azure DNS | `azure` | `--subscription-id` `--tenant-id` `--client-id` `--client-secret` | 同左 snake_case | acme: `dns_azure` |
+| Namecheap | `namecheap` | `--api-key` `--username` `--client-ip` | `api_key` `username` `client_ip` | acme: `dns_namecheap` |
+| DNSPod 国际版 | `dpi` | `--login-token` | `login_token` | acme: `dns_dpi`；格式 `ID,Key` |
+
+acme.sh 对照：`dns_dgon`→`digitalocean`，`dns_dp`→`tencent`/`dnspod`，`dns_duckdns`→`duckdns`，`dns_he`→`he`（均已支持）。
 
 各运营商详细参数运行 `ddns6 run <name> --help` 查看。新增供应商参考 [acme.sh dnsapi](https://github.com/acmesh-official/acme.sh/tree/master/dnsapi) 实现。
 
@@ -419,7 +426,7 @@ ddns6/
 ├── main.go                    # 程序入口
 ├── cmd/                       # CLI 命令定义
 │   ├── root.go                # 根命令、全局参数、环境变量
-│   ├── providers.go           # 18 个 provider 工厂注册
+│   ├── providers.go           # 23 个 provider 工厂注册
 │   ├── check.go / list.go / clean.go
 │   └── ...
 ├── internal/
