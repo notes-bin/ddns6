@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"testing"
 )
 
@@ -386,5 +387,71 @@ func TestSyncRecord_CtxCancelled(t *testing.T) {
 	err := SyncRecord(ctx, d, addr, m)
 	if err == nil {
 		t.Fatal("上下文取消时 SyncRecord 应返回错误")
+	}
+}
+
+// ============================================================
+// CollectMatchingRecords 测试
+// ============================================================
+
+func TestCollectMatchingRecords_FilterBySubdomain(t *testing.T) {
+	m := &mockProvider{records: []RecordInfo{
+		{ID: "1", Name: "www.example.com", Type: "AAAA", Value: "2001:db8::1"},
+		{ID: "2", Name: "api.example.com", Type: "AAAA", Value: "2001:db8::2"},
+		{ID: "3", Name: "www.example.com", Type: "A", Value: "1.2.3.4"},
+	}}
+	domains := []*Domain{
+		{Domain: "example.com", SubDomain: "www", Type: "AAAA"},
+	}
+
+	got, err := CollectMatchingRecords(t.Context(), m, domains, "AAAA", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "1" {
+		t.Fatalf("expected only www AAAA, got %+v", got)
+	}
+}
+
+func TestCollectMatchingRecords_NoSubdomainFilter(t *testing.T) {
+	m := &mockProvider{records: []RecordInfo{
+		{ID: "1", Name: "www.example.com", Type: "AAAA", Value: "2001:db8::1"},
+		{ID: "2", Name: "api.example.com", Type: "AAAA", Value: "2001:db8::2"},
+	}}
+	domains := []*Domain{{Domain: "example.com", SubDomain: "www"}}
+
+	got, err := CollectMatchingRecords(t.Context(), m, domains, "AAAA", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 records, got %d", len(got))
+	}
+}
+
+func TestCollectMatchingRecords_Dedup(t *testing.T) {
+	dup := RecordInfo{ID: "1", Name: "www.example.com", Type: "AAAA", Value: "2001:db8::1"}
+	m := &mockProvider{records: []RecordInfo{dup, dup}}
+	domains := []*Domain{{Domain: "example.com", SubDomain: "www"}}
+
+	got, err := CollectMatchingRecords(t.Context(), m, domains, "AAAA", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected deduped 1 record, got %d", len(got))
+	}
+}
+
+func TestCollectMatchingRecords_QueryError(t *testing.T) {
+	m := &mockProvider{getErr: fmt.Errorf("boom")}
+	domains := []*Domain{{Domain: "example.com", SubDomain: "www"}}
+
+	_, err := CollectMatchingRecords(t.Context(), m, domains, "AAAA", true)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "example.com") {
+		t.Errorf("error should include domain context: %v", err)
 	}
 }
