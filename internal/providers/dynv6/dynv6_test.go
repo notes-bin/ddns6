@@ -154,3 +154,16 @@ func TestClient_ZoneNotFound(t *testing.T) {
 		t.Fatal("expected error, got nil")
 	}
 }
+
+func TestClient_ApiError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+	}))
+	defer server.Close()
+
+	client := NewClient("test-token", WithBaseURL(server.URL))
+	_, err := client.GetRecords(t.Context(), "www.example.com", "AAAA")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
