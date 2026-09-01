@@ -283,7 +283,7 @@ subdomains:                  # 必填：子域名列表
 
 ## Docker 部署
 
-镜像为多阶段构建，默认以非 root 用户 `ddns6` 运行。Linux 上使用 Netlink 时需要主机网络命名空间。
+镜像为多阶段构建：固定 `alpine:3.21`，以非 root 用户 `ddns6`（uid 10001）运行，支持 `TARGETARCH` 多架构。Linux 上使用 Netlink 时需要主机网络命名空间。
 
 ### 前置条件
 
@@ -291,6 +291,8 @@ subdomains:                  # 必填：子域名列表
 - 已安装 Docker 与 Compose
 
 ### 方式一：配置文件挂载（推荐）
+
+密钥留在 `~/.ddns6/config.yaml`，不会出现在 `docker inspect` / 进程参数中。
 
 ```bash
 ddns6 init tencent --domain example.com --subdomain www \
@@ -302,7 +304,6 @@ chmod 600 ~/.ddns6/config.yaml
 
 ```bash
 make docker-build
-# 或
 docker compose up -d ddns6-config
 ```
 
@@ -312,6 +313,7 @@ docker compose up -d ddns6-config
 cp .env.example .env
 # 编辑 .env：填写 DOMAIN、SUBDOMAIN 以及所选运营商的凭证
 # 默认启用 ddns6-tencent；其他运营商服务需在 docker-compose.yml 中取消注释
+# 注意：CLI 模式会把密钥放进容器命令行，仅适合受控环境
 
 make docker-up      # docker compose up -d
 make docker-logs    # 跟踪日志
@@ -323,16 +325,21 @@ make docker-down    # 停止并删除
 | 项 | 说明 |
 |----|------|
 | `network_mode: host` | 与主机共用网络栈，Netlink 才能感知地址变化 |
-| `cap_add: NET_ADMIN` | 部分环境下订阅路由/地址事件需要的能力 |
-| 配置挂载 | `~/.ddns6` → `/home/ddns6/.ddns6`（与镜像用户一致） |
+| `cap_drop: ALL` + `cap_add: NET_ADMIN` | 仅保留订阅地址事件所需能力 |
+| `read_only` + `tmpfs /tmp` | 只读根文件系统，降低容器被篡改风险 |
+| `no-new-privileges` | 禁止提权 |
+| 配置挂载 | `~/.ddns6` → `/home/ddns6/.ddns6:ro`（与镜像用户一致） |
 | 多子域名 | Compose 命令行模式通常只传单个 `--subdomain`；多子域名请用配置文件模式 |
 
 ### 直接 `docker run`
 
 ```bash
 make docker-build
-docker run -d --name ddns6 --restart always \
-  --network host --cap-add=NET_ADMIN \
+# 或 make docker-run（等价于下方，依赖已有 ~/.ddns6）
+docker run -d --name ddns6 --restart unless-stopped \
+  --network host --read-only --tmpfs /tmp:size=16m,mode=1777 \
+  --security-opt no-new-privileges:true \
+  --cap-drop ALL --cap-add NET_ADMIN \
   -v ~/.ddns6:/home/ddns6/.ddns6:ro \
   ddns6 run
 ```
