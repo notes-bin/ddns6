@@ -16,7 +16,7 @@
 //	    {Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600},
 //	}
 //	p := tencent.NewDNSPod("your-secret-id", "your-secret-key")
-//	err := ddns.RunService(domains, p, 5*time.Minute, ddns.DefaultIPv6Fetchers, "")
+//	err := ddns.RunService(domains, p, 5*time.Minute, ddns.DefaultIPv6Fetchers(), "")
 //
 // 新增运营商需实现 DNSProvider（4 个方法），并在 cmd/providers.go 注册。
 package ddns

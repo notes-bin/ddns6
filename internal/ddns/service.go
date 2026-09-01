@@ -14,18 +14,20 @@ import (
 	"github.com/notes-bin/ddns6/pkg/ipaddr"
 )
 
-// DefaultIPv6Fetchers 默认的 IPv6 地址获取器列表。
+// DefaultIPv6Fetchers 返回默认的 IPv6 地址获取器列表（每次调用返回新切片，避免调用方污染全局状态）。
 //
 // 每次触发同步时随机打乱顺序后并发竞速，取第一个成功结果。
 // 包含 HTTP 与 DNS 两种来源，互为备份。
-var DefaultIPv6Fetchers = []ipaddr.IPv6Fetcher{
-	ipaddr.NewHttpIPv6Fetcher("https://6.ipw.cn"),
-	ipaddr.NewHttpIPv6Fetcher("https://ifconfig.co"),
-	ipaddr.NewHttpIPv6Fetcher("https://v6.ident.me"),
-	ipaddr.NewDnsFetcher("2402:4e00::"),
-	ipaddr.NewDnsFetcher("2400:3200:baba::1"),
-	ipaddr.NewDnsFetcher("2001:4860:4860::8888"),
-	ipaddr.NewDnsFetcher("2606:4700:4700::1111"),
+func DefaultIPv6Fetchers() []ipaddr.IPv6Fetcher {
+	return []ipaddr.IPv6Fetcher{
+		ipaddr.NewHttpIPv6Fetcher("https://6.ipw.cn"),
+		ipaddr.NewHttpIPv6Fetcher("https://ifconfig.co"),
+		ipaddr.NewHttpIPv6Fetcher("https://v6.ident.me"),
+		ipaddr.NewDnsFetcher("2402:4e00::"),
+		ipaddr.NewDnsFetcher("2400:3200:baba::1"),
+		ipaddr.NewDnsFetcher("2001:4860:4860::8888"),
+		ipaddr.NewDnsFetcher("2606:4700:4700::1111"),
+	}
 }
 
 // RunService 启动 DDNS 服务，持续监听 IPv6 地址变化并更新 DNS 记录。

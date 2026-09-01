@@ -8,7 +8,7 @@
 //	    ipaddr.NewDnsFetcher("2001:4860:4860::8888"),
 //	)
 //
-// 库使用者也可直接传入 ddns.DefaultIPv6Fetchers。
+// 库使用者也可直接传入 ddns.DefaultIPv6Fetchers()。
 //
 // 获取策略（每次调用随机排序后并发竞速）：
 //  1. 随机打乱所有 fetcher 的顺序
