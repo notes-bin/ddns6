@@ -66,6 +66,43 @@ func TestClient(t *testing.T) {
 			},
 		},
 		{
+			name: "ModifyRecord",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/rrsets/www/AAAA/"):
+					json.NewEncoder(w).Encode(rrset{
+						Subname: "www", Type: "AAAA", TTL: 3600, Records: []string{"2001:db8::1"},
+					})
+				case r.Method == http.MethodPut:
+					w.WriteHeader(http.StatusOK)
+					json.NewEncoder(w).Encode([]rrset{{Subname: "www", Type: "AAAA", Records: []string{"2001:db8::2"}}})
+				default:
+					http.NotFound(w, r)
+				}
+			},
+			run: func(t *testing.T, c *Client) {
+				err := c.ModifyRecord(t.Context(), ddns.RecordInfo{
+					Name: "www.example.com", Zone: "example.com", ID: "www|2001:db8::1",
+					Type: "AAAA", Value: "2001:db8::2", TTL: 600,
+				})
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+			},
+		},
+		{
+			name: "ApiError",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				http.Error(w, "forbidden", http.StatusForbidden)
+			},
+			run: func(t *testing.T, c *Client) {
+				_, err := c.GetRecords(t.Context(), "www.example.com", "AAAA")
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+			},
+		},
+		{
 			name: "DeleteRecord",
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodGet {
