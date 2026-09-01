@@ -23,7 +23,6 @@ import (
 )
 
 const (
-	loginURL   = "https://login.microsoftonline.com/%s/oauth2/v2.0/token"
 	management = "https://management.azure.com"
 	apiVersion = "2018-05-01"
 	tokenScope = "https://management.azure.com/.default"
@@ -67,6 +66,13 @@ func NewClient(subscriptionID, tenantID, clientID, clientSecret string, options 
 func WithManagementBase(base string) Option {
 	return func(c *Client) {
 		c.managementBase = strings.TrimSuffix(base, "/")
+	}
+}
+
+// WithLoginBase 设置 OAuth2 登录基址（测试用）。
+func WithLoginBase(base string) Option {
+	return func(c *Client) {
+		c.loginBase = strings.TrimSuffix(base, "/")
 	}
 }
 
@@ -242,7 +248,7 @@ func (c *Client) accessToken(ctx context.Context) (string, error) {
 		"client_secret": {c.clientSecret},
 		"scope":         {tokenScope},
 	}
-	endpoint := fmt.Sprintf(loginURL, c.tenantID)
+	endpoint := fmt.Sprintf("%s/%s/oauth2/v2.0/token", c.loginBase, c.tenantID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
 		return "", err
