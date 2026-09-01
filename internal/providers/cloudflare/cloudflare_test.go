@@ -149,8 +149,9 @@ func TestApiError(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"success": false, "errors": [{"code": 9109, "message": "Invalid access token"}]}`))
 	}))
-	t.Cleanup(ts.Close)
+	defer ts.Close()
 
+	// makeRequest 直接校验业务错误文案；GetRecords 经 getZoneID 会吞掉原始 API 消息。
 	client := NewClient(WithAPIToken("bad-token"), WithBaseURL(ts.URL))
 	var result map[string]any
 	err := client.makeRequest(t.Context(), "GET", ts.URL+"/zones", nil, &result)

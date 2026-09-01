@@ -90,6 +90,10 @@ func TestClient(t *testing.T) {
 				if err == nil {
 					t.Fatal("expected error, got nil")
 				}
+				// 区域探测遇到 403 时吞掉原始状态码，对外返回 not found。
+				if !strings.Contains(err.Error(), "not found") {
+					t.Errorf("expected zone not found error, got: %v", err)
+				}
 			},
 		},
 		{

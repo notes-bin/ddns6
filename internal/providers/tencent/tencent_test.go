@@ -3,10 +3,10 @@ package tencent_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
-
 	"github.com/notes-bin/ddns6/internal/providers/tencent"
 )
 
@@ -119,67 +119,66 @@ func TestGetDomainRecord(t *testing.T) {
 	}
 }
 
-func TestAddRecord_AlreadyExistsSameValue(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Header.Get("X-TC-Action") {
-		case "DescribeDomainList":
-			w.Write([]byte(domainListResponse))
-		case "CreateRecord":
-			w.Write([]byte(`{"Response":{"Error":{"Code":"InvalidParameter.DomainRecordExist","Message":"record exists"}}}`))
-		case "DescribeRecordList":
-			w.Write([]byte(`{"Response":{"RecordList":[{"RecordId":1,"Domain":"example.com","SubDomain":"@","RecordType":"AAAA","Value":"2001:db8::1","TTL":600}]}}`))
-		default:
-			w.Write([]byte(`{"Response":{}}`))
-		}
-	}))
-	defer ts.Close()
-
-	client := tencent.NewDNSPod("testId", "testKey", tencent.WithBaseURL(ts.URL))
-	err := client.AddRecord(t.Context(), ddns.RecordInfo{
-		Name: "example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600,
-	})
-	if err != nil {
-		t.Fatalf("AddRecord should skip same-value duplicate: %v", err)
+func TestAddRecord_AlreadyExists(t *testing.T) {
+	const existErr = `{"Response":{"Error":{"Code":"InvalidParameter.DomainRecordExist","Message":"record exists"}}}`
+	tests := []struct {
+		name         string
+		listBody     string
+		wantModified bool
+	}{
+		{
+			name:     "同值跳过",
+			listBody: `{"Response":{"RecordList":[{"RecordId":1,"Domain":"example.com","SubDomain":"@","RecordType":"AAAA","Value":"2001:db8::1","TTL":600}]}}`,
+		},
+		{
+			name:         "异值更新",
+			listBody:     `{"Response":{"RecordList":[{"RecordId":99,"Domain":"example.com","SubDomain":"@","RecordType":"AAAA","Value":"2001:db8::old","TTL":600}]}}`,
+			wantModified: true,
+		},
 	}
-}
 
-func TestAddRecord_AlreadyExistsUpdate(t *testing.T) {
-	var modified bool
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Header.Get("X-TC-Action") {
-		case "DescribeDomainList":
-			w.Write([]byte(domainListResponse))
-		case "CreateRecord":
-			w.Write([]byte(`{"Response":{"Error":{"Code":"InvalidParameter.DomainRecordExist","Message":"record exists"}}}`))
-		case "DescribeRecordList":
-			w.Write([]byte(`{"Response":{"RecordList":[{"RecordId":99,"Domain":"example.com","SubDomain":"@","RecordType":"AAAA","Value":"2001:db8::old","TTL":600}]}}`))
-		case "ModifyRecord":
-			modified = true
-			w.Write([]byte(`{"Response":{"RequestId":"req-1"}}`))
-		default:
-			w.Write([]byte(`{"Response":{}}`))
-		}
-	}))
-	defer ts.Close()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var modified bool
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.Header.Get("X-TC-Action") {
+				case "DescribeDomainList":
+					w.Write([]byte(domainListResponse))
+				case "CreateRecord":
+					w.Write([]byte(existErr))
+				case "DescribeRecordList":
+					w.Write([]byte(tt.listBody))
+				case "ModifyRecord":
+					modified = true
+					w.Write([]byte(`{"Response":{"RequestId":"req-1"}}`))
+				default:
+					w.Write([]byte(`{"Response":{}}`))
+				}
+			}))
+			defer ts.Close()
 
-	client := tencent.NewDNSPod("testId", "testKey", tencent.WithBaseURL(ts.URL))
-	err := client.AddRecord(t.Context(), ddns.RecordInfo{
-		Name: "example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600,
-	})
-	if err != nil {
-		t.Fatalf("AddRecord should update different-value duplicate: %v", err)
-	}
-	if !modified {
-		t.Error("expected ModifyRecord to be called")
+			client := tencent.NewDNSPod("testId", "testKey", tencent.WithBaseURL(ts.URL))
+			err := client.AddRecord(t.Context(), ddns.RecordInfo{
+				Name: "example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600,
+			})
+			if err != nil {
+				t.Fatalf("AddRecord: %v", err)
+			}
+			if modified != tt.wantModified {
+				t.Errorf("ModifyRecord called=%v, want %v", modified, tt.wantModified)
+			}
+		})
 	}
 }
 
 func TestGetRootDomain_ProbeFallback(t *testing.T) {
+	var listCalls int
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Header.Get("X-TC-Action") {
 		case "DescribeDomainList":
 			w.Write([]byte(`{"Response":{"Error":{"Code":"AuthFailure","Message":"fail"}}}`))
 		case "DescribeRecordList":
+			listCalls++
 			w.Write([]byte(`{"Response":{"RecordList":[]}}`))
 		default:
 			w.Write([]byte(`{"Response":{}}`))
@@ -192,8 +191,11 @@ func TestGetRootDomain_ProbeFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("probe fallback GetRecords failed: %v", err)
 	}
-	if records == nil {
-		t.Fatal("expected non-nil records slice")
+	if listCalls == 0 {
+		t.Fatal("expected DescribeRecordList probe calls after domain list failure")
+	}
+	if len(records) != 0 {
+		t.Fatalf("expected empty records, got %+v", records)
 	}
 }
 
@@ -212,5 +214,8 @@ func TestApiError(t *testing.T) {
 	_, err := client.GetRecords(t.Context(), "www.example.com", "AAAA")
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "403") {
+		t.Errorf("expected status 403 in error, got: %v", err)
 	}
 }

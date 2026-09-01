@@ -129,14 +129,12 @@ func TestGetIPv6Addr_RaceCancel(t *testing.T) {
 	}
 }
 
-// failFetcher 始终返回错误的 fetcher。
 type failFetcher struct{ err error }
 
 func (f *failFetcher) Fetch(context.Context) (net.IP, error) {
 	return nil, f.err
 }
 
-// TestGetIPv6Addr_AllFail 测试所有 fetcher 失败时返回错误。
 func TestGetIPv6Addr_AllFail(t *testing.T) {
 	f1 := &failFetcher{err: errors.New("upstream down")}
 	f2 := &failFetcher{err: errors.New("dns fail")}

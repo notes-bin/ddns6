@@ -390,68 +390,72 @@ func TestSyncRecord_CtxCancelled(t *testing.T) {
 	}
 }
 
-// ============================================================
-// CollectMatchingRecords 测试
-// ============================================================
-
-func TestCollectMatchingRecords_FilterBySubdomain(t *testing.T) {
-	m := &mockProvider{records: []RecordInfo{
-		{ID: "1", Name: "www.example.com", Type: "AAAA", Value: "2001:db8::1"},
-		{ID: "2", Name: "api.example.com", Type: "AAAA", Value: "2001:db8::2"},
-		{ID: "3", Name: "www.example.com", Type: "A", Value: "1.2.3.4"},
-	}}
-	domains := []*Domain{
-		{Domain: "example.com", SubDomain: "www", Type: "AAAA"},
-	}
-
-	got, err := CollectMatchingRecords(t.Context(), m, domains, "AAAA", true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(got) != 1 || got[0].ID != "1" {
-		t.Fatalf("expected only www AAAA, got %+v", got)
-	}
-}
-
-func TestCollectMatchingRecords_NoSubdomainFilter(t *testing.T) {
-	m := &mockProvider{records: []RecordInfo{
-		{ID: "1", Name: "www.example.com", Type: "AAAA", Value: "2001:db8::1"},
-		{ID: "2", Name: "api.example.com", Type: "AAAA", Value: "2001:db8::2"},
-	}}
-	domains := []*Domain{{Domain: "example.com", SubDomain: "www"}}
-
-	got, err := CollectMatchingRecords(t.Context(), m, domains, "AAAA", false)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(got) != 2 {
-		t.Fatalf("expected 2 records, got %d", len(got))
-	}
-}
-
-func TestCollectMatchingRecords_Dedup(t *testing.T) {
+func TestCollectMatchingRecords(t *testing.T) {
 	dup := RecordInfo{ID: "1", Name: "www.example.com", Type: "AAAA", Value: "2001:db8::1"}
-	m := &mockProvider{records: []RecordInfo{dup, dup}}
-	domains := []*Domain{{Domain: "example.com", SubDomain: "www"}}
+	domains := []*Domain{{Domain: "example.com", SubDomain: "www", Type: "AAAA"}}
 
-	got, err := CollectMatchingRecords(t.Context(), m, domains, "AAAA", false)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	tests := []struct {
+		name        string
+		records     []RecordInfo
+		getErr      error
+		filter      bool
+		wantIDs     []string
+		errContains string
+	}{
+		{
+			name: "按子域名过滤",
+			records: []RecordInfo{
+				{ID: "1", Name: "www.example.com", Type: "AAAA", Value: "2001:db8::1"},
+				{ID: "2", Name: "api.example.com", Type: "AAAA", Value: "2001:db8::2"},
+				{ID: "3", Name: "www.example.com", Type: "A", Value: "1.2.3.4"},
+			},
+			filter:  true,
+			wantIDs: []string{"1"},
+		},
+		{
+			name: "不过滤子域名",
+			records: []RecordInfo{
+				{ID: "1", Name: "www.example.com", Type: "AAAA", Value: "2001:db8::1"},
+				{ID: "2", Name: "api.example.com", Type: "AAAA", Value: "2001:db8::2"},
+			},
+			wantIDs: []string{"1", "2"},
+		},
+		{
+			name:    "去重",
+			records: []RecordInfo{dup, dup},
+			wantIDs: []string{"1"},
+		},
+		{
+			name:        "查询错误",
+			getErr:      fmt.Errorf("boom"),
+			filter:      true,
+			errContains: "example.com",
+		},
 	}
-	if len(got) != 1 {
-		t.Fatalf("expected deduped 1 record, got %d", len(got))
-	}
-}
 
-func TestCollectMatchingRecords_QueryError(t *testing.T) {
-	m := &mockProvider{getErr: fmt.Errorf("boom")}
-	domains := []*Domain{{Domain: "example.com", SubDomain: "www"}}
-
-	_, err := CollectMatchingRecords(t.Context(), m, domains, "AAAA", true)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-	if !strings.Contains(err.Error(), "example.com") {
-		t.Errorf("error should include domain context: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := CollectMatchingRecords(t.Context(), &mockProvider{records: tt.records, getErr: tt.getErr}, domains, "AAAA", tt.filter)
+			if tt.errContains != "" {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("error should include %q: %v", tt.errContains, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(got) != len(tt.wantIDs) {
+				t.Fatalf("got %d records %+v, want IDs %v", len(got), got, tt.wantIDs)
+			}
+			for i, id := range tt.wantIDs {
+				if got[i].ID != id {
+					t.Errorf("got[%d].ID = %q, want %q", i, got[i].ID, id)
+				}
+			}
+		})
 	}
 }

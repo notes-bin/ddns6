@@ -152,10 +152,10 @@ func TestClient_AccessToken(t *testing.T) {
 		if !strings.Contains(r.URL.Path, "/tenant/oauth2/v2.0/token") {
 			t.Errorf("unexpected token path: %s", r.URL.Path)
 		}
-		json.NewEncoder(w).Encode(map[string]any{
-			"access_token": "fresh-token",
-			"expires_in":   3600,
-		})
+		json.NewEncoder(w).Encode(struct {
+			AccessToken string `json:"access_token"`
+			ExpiresIn   int    `json:"expires_in"`
+		}{AccessToken: "fresh-token", ExpiresIn: 3600})
 	}))
 	t.Cleanup(login.Close)
 
@@ -166,7 +166,6 @@ func TestClient_AccessToken(t *testing.T) {
 		WithLoginBase(login.URL),
 		WithManagementBase(mgmt.URL),
 	)
-	// 不预置 token，强制走 OAuth
 	records, err := c.GetRecords(t.Context(), "www.example.com", "AAAA")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
