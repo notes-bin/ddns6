@@ -1,4 +1,7 @@
-// Package cmd 提供 ddns6 CLI 的命令定义和注册。
+// Package cmd 提供 ddns6 CLI 的命令定义与注册。
+//
+// 入口为 Execute；子命令覆盖配置初始化、连通性检查、DDNS 运行、记录查询/删除，
+// 以及 23 家 DNS 运营商的认证参数工厂（见 providers.go）。
 //
 // 命令结构：
 //
@@ -56,13 +59,16 @@ import (
 	"github.com/notes-bin/ddns6/internal/config"
 )
 
-var (
-	Version = "dev"
-	Commit  = "none"
-	buildAt = "unknown"
-)
+// Version 为构建时 -ldflags 注入的版本号，未注入时为 "dev"。
+var Version = "dev"
 
-// usageTemplate 中文版 cobra 使用信息模板。
+// Commit 为构建时 -ldflags 注入的 Git 提交标识，未注入时为 "none"。
+var Commit = "none"
+
+// buildAt 为构建时注入的构建时间，未注入时为 "unknown"。
+var buildAt = "unknown"
+
+// usageTemplate 为中文版 cobra 使用信息模板，替代默认英文 Usage。
 const usageTemplate = `使用方式:
   {{.UseLine}}
 
@@ -78,12 +84,12 @@ const usageTemplate = `使用方式:
 使用 "{{.CommandPath}} [command] --help" 查看子命令详细帮助。{{end}}
 `
 
-// rootCmd 根命令，设置全局参数和子命令结构。
+// rootCmd 为根命令，挂载全局 flag 与全部子命令。
 var rootCmd = &cobra.Command{
 	Use:           "ddns6",
 	Short:         "IPv6 动态域名解析（DDNS）工具",
-	SilenceErrors: true, // 未知命令等错误由 Execute 统一处理，不打印双重日志
-	SilenceUsage:  true, // 不重复打印用法提示，由 Execute 自行决定
+	SilenceErrors: true, // 未知命令等错误由 Execute 统一处理，避免双重日志
+	SilenceUsage:  true, // 用法提示由 Execute 自行决定，避免重复输出
 	Long: `DDNS6 - 动态域名解析工具，自动将本机 IPv6 地址更新到 DNS 记录。
 
 自动检测本地 IPv6 地址变化，实时更新到 DNS 服务商的 AAAA 记录。
@@ -103,23 +109,22 @@ var rootCmd = &cobra.Command{
   2. 配置文件:  ddns6 init tencent --domain example.com --secret-id xxx --secret-key yyy -> ddns6 run
   3. 查看详情:  ddns6 run --help`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// -V / --version 参数显示版本信息后立即退出（在任何命令或日志初始化之前）
+		// -V/--version 须在日志初始化之前拦截并退出
 		if showV, _ := cmd.Flags().GetBool("version"); showV {
 			printVersion()
 			os.Exit(0)
 		}
 
-		// 根命令无子命令时（如 ddns6），无需初始化日志即可显示帮助
+		// 根命令无子命令时无需初始化日志即可显示帮助
 		if cmd.Parent() == nil {
 			return
 		}
 
-		// version 和 init 命令不需要初始化日志
+		// version / init 不写日志文件，跳过 slog 初始化
 		if cmd.Name() == "version" || cmd.Name() == "init" {
 			return
 		}
 
-		// 读取日志文件路径（支持空字符串仅输出到 stderr）
 		logFile := getString(cmd, "log-file")
 
 		var writers []io.Writer
@@ -150,14 +155,14 @@ var rootCmd = &cobra.Command{
 		}
 		slog.SetDefault(slog.New(slog.NewJSONHandler(io.MultiWriter(writers...), opts)))
 	},
-	// Run 使根命令可运行，否则 cobra 跳过 PersistentPreRun，-V 无法响应。
-	// -V 在 PersistentPreRun 中被拦截并退出，这里仅负责无参时显示帮助。
+	// Run 使根命令可执行，否则 cobra 会跳过 PersistentPreRun，导致 -V 无法响应；
+	// -V 已在 PersistentPreRun 中退出，此处仅在无参时显示帮助。
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},
 }
 
-// initCmd 生成 ~/.ddns6/config.yaml 配置文件模板。
+// initCmd 生成 ~/.ddns6/config.yaml 配置文件模板，可选用 provider 与 flag 预填。
 var initCmd = &cobra.Command{
 	Use:   "init [provider]",
 	Short: "生成 ~/.ddns6/config.yaml 配置文件模板",
@@ -182,7 +187,7 @@ var initCmd = &cobra.Command{
   ddns6 run                           从配置文件读取并运行`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Println("Generating DDNS6 configuration file...")
+		fmt.Println("generating DDNS6 configuration file...")
 
 		domain, err := cmd.Flags().GetString("domain")
 		if err != nil {
@@ -213,12 +218,11 @@ var initCmd = &cobra.Command{
 			Interface:  iface,
 		}
 
-		// 如果指定了 provider 名称，收集对应的认证参数
+		// 指定 provider 时收集其非空认证 flag，写入 Auth（key 中 '-' 转为 '_'）
 		if len(args) > 0 {
 			provider := args[0]
 			params.Provider = provider
 
-			// 查找该 provider 的 flags 定义，收集非空的认证值
 			auth := make(map[string]string)
 			for _, p := range providerFactories {
 				if p.name == provider {
@@ -242,7 +246,7 @@ var initCmd = &cobra.Command{
 	},
 }
 
-// runCmd 运行 DDNS 服务（父命令，子命令为各运营商）。
+// runCmd 为 DDNS 服务父命令；无 provider 子命令时走配置文件模式。
 var runCmd = &cobra.Command{
 	Use:   "run [provider]",
 	Short: "运行 DDNS 更新服务",
@@ -300,9 +304,8 @@ var runCmd = &cobra.Command{
   ddns6 init
   vim ~/.ddns6/config.yaml
   ddns6 run`,
-	// 不指定 provider 子命令时走配置文件模式
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// ddns6 run help - 用户意图是查帮助，显示帮助内容
+		// 用户写 "run help" 时按帮助意图处理，而非配置文件模式
 		if len(args) > 0 && args[0] == "help" {
 			cmd.Help()
 			return nil
@@ -315,7 +318,7 @@ var runCmd = &cobra.Command{
 	},
 }
 
-// versionCmd 显示版本信息。
+// versionCmd 打印 Version / Commit / BuildAt。
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "显示版本信息",
@@ -325,18 +328,18 @@ var versionCmd = &cobra.Command{
 	},
 }
 
-// printVersion 输出版本、Git 提交和构建时间信息。
+// printVersion 向标准输出打印版本、提交与构建时间三行信息。
 func printVersion() {
 	fmt.Printf("Version: %s\nCommit:  %s\nBuildAt: %s\n", Version, Commit, buildAt)
 }
 
-// persistentFlag 持久化 flag 定义
+// persistentFlags 定义根命令持久化 flag：名称、类型、默认值、用法文案及对应环境变量。
 var persistentFlags = []struct {
 	name         string
 	flagType     string
 	defaultValue any
 	usage        string
-	envName      string // 对应的环境变量名（空表示不支持）
+	envName      string // 空表示不支持环境变量覆盖
 }{
 	{"debug", "bool", false, "启用调试日志（含源码位置）", "DDNS6_DEBUG"},
 	{"interval", "duration", 5 * time.Minute, "非 Linux 平台的轮询间隔（默认 5m，如 --interval 10m）", "DDNS6_INTERVAL"},
@@ -347,14 +350,12 @@ var persistentFlags = []struct {
 	{"log-file", "string", "ddns6.log", "日志文件路径，设为空字符串仅输出到 stderr", "DDNS6_LOG_FILE"},
 }
 
-// initRootCmd 初始化根命令，注册所有 flag 和子命令。
+// initRootCmd 注册 usage 模板、全局 flag、子命令及全部运营商命令。
 func initRootCmd() {
 	rootCmd.SetUsageTemplate(usageTemplate)
 	rootCmd.SetHelpTemplate(usageTemplate)
 
-	// 取消隐藏 completion 命令，允许用户生成自动补全脚本
 	rootCmd.CompletionOptions.HiddenDefaultCmd = false
-	// 自定义 help flag 中文描述
 	f := rootCmd.PersistentFlags().Lookup("help")
 	if f != nil {
 		f.Usage = "显示帮助信息"
@@ -365,10 +366,8 @@ func initRootCmd() {
 		Long:  "查看 ddns6 及其子命令的帮助信息。",
 	})
 
-	// 注册 -V / --version 版本信息参数
 	rootCmd.PersistentFlags().BoolP("version", "V", false, "显示版本信息（版本号、Git 提交、构建时间）")
 
-	// 注册全局持久化参数
 	for _, f := range persistentFlags {
 		switch f.name {
 		case "debug":
@@ -388,10 +387,9 @@ func initRootCmd() {
 		}
 	}
 
-	// 用环境变量覆盖默认值，实现 DDNS6_* 环境变量支持
+	// 环境变量覆盖须在用户显式命令行参数之后注册默认值时生效
 	applyEnvOverrides()
 
-	// 为 completion 命令添加中文帮助文本
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   "completion [bash|zsh|fish|powershell]",
 		Short: "生成 Shell 自动补全脚本",
@@ -427,16 +425,14 @@ func initRootCmd() {
 		},
 	})
 
-	// 注册子命令
-	// init 子命令的本地参数（预填值到配置文件）
+	// init 本地 flag 与全局 persistent 同名但独立，仅用于预填配置文件
 	initCmd.Flags().String("domain", "", "根域名, 预填入配置文件")
 	initCmd.Flags().StringArray("subdomain", nil, "子域名列表, 可多次指定, 预填入配置文件")
 	initCmd.Flags().Int("ttl", 0, "DNS 记录 TTL, 单位秒, 预填入配置文件")
 	initCmd.Flags().String("interval", "", "轮询间隔, 如 10m, 预填入配置文件")
 	initCmd.Flags().String("interface", "", "网络接口, 预填入配置文件")
 
-	// 注册所有 provider 的认证参数到 init 命令（如 --secret-id、--api-token）
-	// 使用 map 去重，确保同一 flag 名只注册一次
+	// 各 provider 认证 flag 合并注册到 init，同名只注册一次
 	seenInitFlag := make(map[string]bool)
 	for _, p := range providerFactories {
 		for _, f := range p.flags {
@@ -454,14 +450,12 @@ func initRootCmd() {
 	rootCmd.AddCommand(cleanCmd)
 	rootCmd.AddCommand(checkCmd)
 
-	// 数据驱动注册所有运营商命令
 	registerProviders()
 	registerListCommands()
 	registerCleanCommands()
 }
 
-// applyEnvOverrides 检查 DDNS6_* 环境变量并覆盖持久化 flag 的默认值。
-// 当对应 flag 未被用户在命令行显式设置时生效。
+// applyEnvOverrides 在 flag 未被命令行显式设置时，用 DDNS6_* 环境变量覆盖默认值。
 func applyEnvOverrides() {
 	for _, f := range persistentFlags {
 		if f.envName == "" {
@@ -471,12 +465,10 @@ func applyEnvOverrides() {
 		if !ok {
 			continue
 		}
-		// 检查 flag 是否已被用户通过命令行设置
 		flag := rootCmd.PersistentFlags().Lookup(f.name)
 		if flag == nil || flag.Changed {
 			continue
 		}
-		// 根据类型覆盖默认值
 		switch f.flagType {
 		case "string", "duration", "stringArray":
 			rootCmd.PersistentFlags().Set(f.name, val)
@@ -494,12 +486,12 @@ func applyEnvOverrides() {
 	}
 }
 
-// Execute 是 CLI 入口，由 main.go 调用。
+// Execute 是 CLI 入口，由 main 调用；对未知命令/无效 flag 打印帮助后返回 nil。
 func Execute() error {
 	initRootCmd()
 	if err := rootCmd.Execute(); err != nil {
 		errStr := err.Error()
-		// 未知命令、无效 flag、参数错误等用户侧错误，显示帮助后优雅退出
+		// 用户侧输入错误：展示帮助后优雅退出（返回 nil，避免 main 再记一遍错误）
 		if strings.Contains(errStr, "unknown") || strings.Contains(errStr, "flag") {
 			fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
 			rootCmd.Help()
