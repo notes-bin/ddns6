@@ -63,12 +63,14 @@ func WithHTTPClient(httpClient *http.Client) Option {
 	}
 }
 
+// zone 表示 IONOS DNS Zone。
 type zone struct {
 	ID      string   `json:"id"`
 	Name    string   `json:"name"`
 	Records []record `json:"records"`
 }
 
+// record 表示 IONOS DNS 记录。
 type record struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
@@ -178,6 +180,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return result, nil
 }
 
+// resolveZone 解析 zone ID 与 FQDN。
 func (c *Client) resolveZone(ctx context.Context, name, zoneHint string) (zoneID, fqdn string, err error) {
 	root, sub := domainutil.SplitDomain(name, zoneHint)
 	id, _, err := c.findZone(ctx, name)
@@ -191,6 +194,7 @@ func (c *Client) resolveZone(ctx context.Context, name, zoneHint string) (zoneID
 	return id, fqdn, nil
 }
 
+// findZone 查找 fulldomain 对应的 IONOS zone。
 func (c *Client) findZone(ctx context.Context, fulldomain string) (zoneID, zoneName string, err error) {
 	body, err := c.doRequest(ctx, http.MethodGet, "/zones", nil)
 	if err != nil {
@@ -215,6 +219,7 @@ func (c *Client) findZone(ctx context.Context, fulldomain string) (zoneID, zoneN
 	return "", "", fmt.Errorf("IONOS zone not found for %s", fulldomain)
 }
 
+// doRequest 执行 IONOS DNS HTTP 请求。
 func (c *Client) doRequest(ctx context.Context, method, path string, body []byte) ([]byte, error) {
 	var req *http.Request
 	var err error

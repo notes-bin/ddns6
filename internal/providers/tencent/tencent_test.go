@@ -10,11 +10,11 @@ import (
 	"github.com/notes-bin/ddns6/internal/providers/tencent"
 )
 
-// domainListResponse 用于 DescribeDomainList 的 mock 响应
+// domainListResponse 用于 DescribeDomainList 的 mock 响应。
 const domainListResponse = `{"Response": {"DomainList": [{"DomainId": 1, "Name": "example.com"}]}}`
 
+// TestAddRecord 验证 CreateRecord 成功路径。
 func TestAddRecord(t *testing.T) {
-	// 创建测试服务器
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-TC-Action") == "DescribeDomainList" {
 			w.Write([]byte(domainListResponse))
@@ -25,16 +25,15 @@ func TestAddRecord(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	// 创建客户端
 	client := tencent.NewDNSPod("testId", "testKey", tencent.WithBaseURL(ts.URL))
 
-	// 测试添加记录
 	err := client.AddRecord(t.Context(), ddns.RecordInfo{Name: "test.example.com", Type: "A", Value: "192.168.1.1", TTL: 600})
 	if err != nil {
 		t.Errorf("AddRecord failed: %v", err)
 	}
 }
 
+// TestModifyRecord 验证 ModifyRecord 成功路径。
 func TestModifyRecord(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-TC-Action") == "DescribeDomainList" {
@@ -54,6 +53,7 @@ func TestModifyRecord(t *testing.T) {
 	}
 }
 
+// TestDeleteRecord 验证 DeleteRecord 成功路径。
 func TestDeleteRecord(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-TC-Action") == "DescribeDomainList" {
@@ -73,6 +73,7 @@ func TestDeleteRecord(t *testing.T) {
 	}
 }
 
+// TestGetRecords 验证 DescribeRecordList 解析与过滤。
 func TestGetRecords(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-TC-Action") == "DescribeDomainList" {
@@ -96,6 +97,7 @@ func TestGetRecords(t *testing.T) {
 	}
 }
 
+// TestGetDomainRecord 验证 DescribeRecord 单条查询。
 func TestGetDomainRecord(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-TC-Action") == "DescribeDomainList" {
@@ -119,6 +121,7 @@ func TestGetDomainRecord(t *testing.T) {
 	}
 }
 
+// TestAddRecord_AlreadyExists 验证记录已存在时同值跳过、异值改写。
 func TestAddRecord_AlreadyExists(t *testing.T) {
 	const existErr = `{"Response":{"Error":{"Code":"InvalidParameter.DomainRecordExist","Message":"record exists"}}}`
 	tests := []struct {
@@ -171,6 +174,7 @@ func TestAddRecord_AlreadyExists(t *testing.T) {
 	}
 }
 
+// TestGetRootDomain_ProbeFallback 验证域名列表失败时回退探测逻辑。
 func TestGetRootDomain_ProbeFallback(t *testing.T) {
 	var listCalls int
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -199,6 +203,7 @@ func TestGetRootDomain_ProbeFallback(t *testing.T) {
 	}
 }
 
+// TestApiError 验证非 2xx HTTP 状态被正确返回。
 func TestApiError(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-TC-Action") == "DescribeDomainList" {

@@ -62,6 +62,7 @@ func WithHTTPClient(httpClient *http.Client) Option {
 	}
 }
 
+// namesiloReply 为 NameSilo API 通用 XML 响应。
 type namesiloReply struct {
 	Reply struct {
 		Code    int      `xml:"code"`
@@ -70,6 +71,7 @@ type namesiloReply struct {
 	} `xml:"reply"`
 }
 
+// listDomainsReply 为 listDomains API 响应。
 type listDomainsReply struct {
 	Reply struct {
 		Code    int    `xml:"code"`
@@ -80,6 +82,7 @@ type listDomainsReply struct {
 	} `xml:"reply"`
 }
 
+// record 表示 NameSilo DNS 记录。
 type record struct {
 	ID    string `xml:"record_id"`
 	Type  string `xml:"type"`
@@ -202,6 +205,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return result, nil
 }
 
+// findZone 查找 fulldomain 对应的 NameSilo zone 与子名。
 func (c *Client) findZone(ctx context.Context, fulldomain string) (zone, sub string, err error) {
 	params := url.Values{
 		"version": {"1"},
@@ -237,6 +241,7 @@ func (c *Client) findZone(ctx context.Context, fulldomain string) (zone, sub str
 	return "", "", fmt.Errorf("NameSilo zone not found for %s", fulldomain)
 }
 
+// get 调用 NameSilo API 并解析 XML 响应。
 func (c *Client) get(ctx context.Context, action string, params url.Values) (*namesiloReply, error) {
 	body, err := c.fetch(ctx, action, params)
 	if err != nil {
@@ -249,6 +254,7 @@ func (c *Client) get(ctx context.Context, action string, params url.Values) (*na
 	return &reply, nil
 }
 
+// fetch 执行 NameSilo HTTP GET 请求。
 func (c *Client) fetch(ctx context.Context, action string, params url.Values) ([]byte, error) {
 	endpoint := fmt.Sprintf("%s/%s?%s", c.baseURL, action, params.Encode())
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)

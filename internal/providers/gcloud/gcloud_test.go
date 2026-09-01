@@ -11,6 +11,7 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
+// newTestClient 创建带 mock handler 的测试客户端。
 func newTestClient(t *testing.T, handler http.HandlerFunc) *Client {
 	t.Helper()
 	server := httptest.NewServer(handler)
@@ -18,6 +19,7 @@ func newTestClient(t *testing.T, handler http.HandlerFunc) *Client {
 	return NewClient("proj", "test-token", WithBaseURL(server.URL))
 }
 
+// defaultHandler 提供 Cloud DNS 常见 API 的默认 mock 响应。
 func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Authorization") != "Bearer test-token" {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -39,6 +41,7 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// TestClient_GetRecords 验证 GetRecords 解析 rrsets。
 func TestClient_GetRecords(t *testing.T) {
 	client := newTestClient(t, defaultHandler)
 	records, err := client.GetRecords(t.Context(), "www.example.com", "AAAA")
@@ -50,6 +53,7 @@ func TestClient_GetRecords(t *testing.T) {
 	}
 }
 
+// TestClient_AddRecord 验证 AddRecord 提交 additions 变更。
 func TestClient_AddRecord(t *testing.T) {
 	var hasAddition bool
 	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
@@ -72,6 +76,7 @@ func TestClient_AddRecord(t *testing.T) {
 	}
 }
 
+// TestClient_ModifyRecord 验证 ModifyRecord 先删后增。
 func TestClient_ModifyRecord(t *testing.T) {
 	var changeCount int
 	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
@@ -93,6 +98,7 @@ func TestClient_ModifyRecord(t *testing.T) {
 	}
 }
 
+// TestClient_DeleteRecord 验证 DeleteRecord 提交 deletions 变更。
 func TestClient_DeleteRecord(t *testing.T) {
 	var hasDeletion bool
 	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
@@ -115,6 +121,7 @@ func TestClient_DeleteRecord(t *testing.T) {
 	}
 }
 
+// TestClient_ApiError 验证非 2xx 响应的错误透传。
 func TestClient_ApiError(t *testing.T) {
 	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/managedZones") {

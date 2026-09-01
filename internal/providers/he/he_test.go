@@ -10,6 +10,7 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
+// TestClient_AddRecord 验证 HE DDNS 的 Basic Auth 与 hostname 参数。
 func TestClient_AddRecord(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -38,6 +39,7 @@ func TestClient_AddRecord(t *testing.T) {
 	}
 }
 
+// TestClient_ModifyRecord 验证 ModifyRecord 成功更新 IPv6。
 func TestClient_ModifyRecord(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("good 2001:db8::2"))
@@ -51,6 +53,7 @@ func TestClient_ModifyRecord(t *testing.T) {
 	}
 }
 
+// TestClient_Nochg 验证 API 返回 nochg 时 AddRecord 视为成功。
 func TestClient_Nochg(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("nochg 2001:db8::1"))
@@ -64,6 +67,7 @@ func TestClient_Nochg(t *testing.T) {
 	}
 }
 
+// TestClient_GetRecords_Empty 验证受限 API 下 GetRecords 恒返回空列表。
 func TestClient_GetRecords_Empty(t *testing.T) {
 	client := NewClient("ddns-key")
 	records, err := client.GetRecords(t.Context(), "myhost.example.com", "AAAA")
@@ -75,6 +79,7 @@ func TestClient_GetRecords_Empty(t *testing.T) {
 	}
 }
 
+// TestClient_AuthError 验证 badauth 响应时 AddRecord 报错。
 func TestClient_AuthError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("badauth"))
@@ -88,6 +93,7 @@ func TestClient_AuthError(t *testing.T) {
 	}
 }
 
+// TestClient_DeleteRecord_NoOp 验证 DeleteRecord 为有意空操作且不报错。
 func TestClient_DeleteRecord_NoOp(t *testing.T) {
 	client := NewClient("ddns-key")
 	err := client.DeleteRecord(t.Context(), ddns.RecordInfo{Name: "myhost.example.com", Type: "AAAA", Value: "2001:db8::1"})

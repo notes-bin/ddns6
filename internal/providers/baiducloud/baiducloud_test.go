@@ -10,6 +10,7 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
+// TestClient_GetRecords 验证 resolve/list 解析与 BCE 签名头。
 func TestClient_GetRecords(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") == "" {
@@ -48,6 +49,7 @@ func TestClient_GetRecords(t *testing.T) {
 	}
 }
 
+// TestClient_AddRecord 验证 resolve/add 成功路径。
 func TestClient_AddRecord(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasSuffix(r.URL.Path, "/v1/domain/resolve/add") {
@@ -65,6 +67,7 @@ func TestClient_AddRecord(t *testing.T) {
 	}
 }
 
+// TestClient_ModifyRecord 验证修改前会查询 view 字段。
 func TestClient_ModifyRecord(t *testing.T) {
 	var listCalled bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -104,6 +107,7 @@ func TestClient_ModifyRecord(t *testing.T) {
 	}
 }
 
+// TestClient_DeleteRecord 验证 resolve/delete 成功路径。
 func TestClient_DeleteRecord(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasSuffix(r.URL.Path, "/v1/domain/resolve/delete") {

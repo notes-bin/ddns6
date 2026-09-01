@@ -10,6 +10,7 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
+// TestClient_GetRecords 验证 GetRecords 解析与请求认证。
 func TestClient_GetRecords(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -46,6 +47,7 @@ func TestClient_GetRecords(t *testing.T) {
 	}
 }
 
+// TestClient_AddRecord 验证 AddRecord 调用 create 接口。
 func TestClient_AddRecord(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasSuffix(r.URL.Path, "/create/example.com") {
@@ -62,6 +64,7 @@ func TestClient_AddRecord(t *testing.T) {
 	}
 }
 
+// TestClient_ModifyRecord 验证 ModifyRecord 调用 editByNameType 接口。
 func TestClient_ModifyRecord(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasSuffix(r.URL.Path, "/editByNameType/example.com/AAAA/www") {
@@ -78,6 +81,7 @@ func TestClient_ModifyRecord(t *testing.T) {
 	}
 }
 
+// TestClient_DeleteRecord 验证 DeleteRecord 调用 deleteByNameType 接口。
 func TestClient_DeleteRecord(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasSuffix(r.URL.Path, "/deleteByNameType/example.com/AAAA/www") {
@@ -94,6 +98,7 @@ func TestClient_DeleteRecord(t *testing.T) {
 	}
 }
 
+// TestClient_ApiError 验证 API 业务错误状态的处理。
 func TestClient_ApiError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(apiResponse{Status: "ERROR"})

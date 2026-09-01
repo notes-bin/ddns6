@@ -62,11 +62,13 @@ func WithHTTPClient(httpClient *http.Client) Option {
 	}
 }
 
+// domain 表示 Linode DNS 域名。
 type domain struct {
 	ID     int    `json:"id"`
 	Domain string `json:"domain"`
 }
 
+// domainRecord 表示 Linode DNS 记录。
 type domainRecord struct {
 	ID     int    `json:"id"`
 	Type   string `json:"type"`
@@ -75,6 +77,7 @@ type domainRecord struct {
 	TTL    int    `json:"ttl_sec"`
 }
 
+// listResponse 为 Linode 分页列表响应。
 type listResponse struct {
 	Data []json.RawMessage `json:"data"`
 }
@@ -169,6 +172,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return c.filterRecords(records, zone, recordType), nil
 }
 
+// filterRecords 按类型过滤并转换为 RecordInfo。
 func (c *Client) filterRecords(records []domainRecord, zone, recordType string) []ddns.RecordInfo {
 	result := make([]ddns.RecordInfo, 0, len(records))
 	for _, r := range records {
@@ -191,6 +195,7 @@ func (c *Client) filterRecords(records []domainRecord, zone, recordType string) 
 	return result
 }
 
+// resolveDomain 解析 domain ID 与子域名。
 func (c *Client) resolveDomain(ctx context.Context, name, zone string) (domainID int, sub string, err error) {
 	_, sub = domainutil.SplitDomain(name, zone)
 	id, _, err := c.findDomainID(ctx, name)
@@ -203,6 +208,7 @@ func (c *Client) resolveDomain(ctx context.Context, name, zone string) (domainID
 	return id, sub, nil
 }
 
+// findDomainID 查找 fulldomain 对应的 Linode domain ID。
 func (c *Client) findDomainID(ctx context.Context, fulldomain string) (int, string, error) {
 	parts := strings.Split(strings.TrimSuffix(fulldomain, "."), ".")
 	for i := range len(parts) - 1 {
@@ -240,6 +246,7 @@ func (c *Client) findDomainID(ctx context.Context, fulldomain string) (int, stri
 	return 0, "", fmt.Errorf("Linode domain not found for %s", fulldomain)
 }
 
+// doRequestWithFilter 带 X-Filter 的域名列表查询。
 func (c *Client) doRequestWithFilter(ctx context.Context, filter string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"?page_size=500", nil)
 	if err != nil {
@@ -264,6 +271,7 @@ func (c *Client) doRequestWithFilter(ctx context.Context, filter string) ([]byte
 	return body, nil
 }
 
+// doRequest 执行 Linode DNS HTTP 请求。
 func (c *Client) doRequest(ctx context.Context, method, path string, body []byte) ([]byte, error) {
 	var req *http.Request
 	var err error

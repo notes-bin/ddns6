@@ -1,6 +1,7 @@
 // Package azure 实现 Azure DNS API 服务。
 //
 // 对应 acme.sh dns_azure，使用 Service Principal 认证。
+// 必填参数：--subscription-id、--tenant-id、--client-id、--client-secret
 package azure
 
 import (
@@ -83,19 +84,23 @@ func WithHTTPClient(httpClient *http.Client) Option {
 	}
 }
 
+// dnsZone 表示 Azure DNS Zone。
 type dnsZone struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
+// zoneList 为 DNS Zone 列表响应。
 type zoneList struct {
 	Value []dnsZone `json:"value"`
 }
 
+// aaaaRecord 表示 AAAA 记录内容。
 type aaaaRecord struct {
 	IPv6Address string `json:"ipv6Address"`
 }
 
+// recordSet 表示 Azure DNS 记录集。
 type recordSet struct {
 	Properties struct {
 		TTL         int          `json:"ttl"`
@@ -160,6 +165,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return result, nil
 }
 
+// upsert 创建或更新 DNS 记录。
 func (c *Client) upsert(ctx context.Context, info ddns.RecordInfo) error {
 	path, _, _, err := c.recordPath(ctx, info.Name, info.Zone, info.Type)
 	if err != nil {
@@ -187,6 +193,7 @@ func (c *Client) upsert(ctx context.Context, info ddns.RecordInfo) error {
 	return err
 }
 
+// recordPath 构建记录 API 路径并返回 zone 与显示名。
 func (c *Client) recordPath(ctx context.Context, name, zoneHint, recordType string) (path, zone, displayName string, err error) {
 	zoneID, zoneName, sub, err := c.findZone(ctx, name, zoneHint)
 	if err != nil {
@@ -205,6 +212,7 @@ func (c *Client) recordPath(ctx context.Context, name, zoneHint, recordType stri
 	return path, zoneName, displayName, nil
 }
 
+// extractResourceGroup 从 Zone ARM ID 提取资源组名。
 func extractResourceGroup(zoneID string) string {
 	const marker = "/resourcegroups/"
 	lower := strings.ToLower(zoneID)
@@ -216,6 +224,7 @@ func extractResourceGroup(zoneID string) string {
 	return rg
 }
 
+// findZone 查找 fulldomain 对应的 DNS Zone。
 func (c *Client) findZone(ctx context.Context, fulldomain, zoneHint string) (zoneID, zoneName, sub string, err error) {
 	root, sub := domainutil.SplitDomain(fulldomain, zoneHint)
 	candidate := strings.ToLower(strings.TrimSuffix(root, "."))
@@ -236,6 +245,7 @@ func (c *Client) findZone(ctx context.Context, fulldomain, zoneHint string) (zon
 	return "", "", "", fmt.Errorf("Azure DNS zone not found for %s", fulldomain)
 }
 
+// accessToken 获取或刷新 OAuth2 访问令牌。
 func (c *Client) accessToken(ctx context.Context) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -278,6 +288,7 @@ func (c *Client) accessToken(ctx context.Context) (string, error) {
 	return c.token, nil
 }
 
+// doJSON 向 Azure Management API 发送 JSON 请求。
 func (c *Client) doJSON(ctx context.Context, method, path string, body []byte) ([]byte, error) {
 	token, err := c.accessToken(ctx)
 	if err != nil {
@@ -322,6 +333,7 @@ func (e *httpStatusError) Error() string {
 	return fmt.Sprintf("Azure DNS API error: status %d, body: %s", e.status, e.body)
 }
 
+// isNotFound 判断错误是否为 HTTP 404。
 func isNotFound(err error) bool {
 	var he *httpStatusError
 	return errors.As(err, &he) && he.status == http.StatusNotFound

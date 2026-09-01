@@ -1,5 +1,9 @@
 // Package porkbun 实现 Porkbun DNS API 服务。
-// Porkbun 是一个流行的域名注册商，提供 RESTful JSON API 管理 DNS 记录
+//
+// 认证方式：API Key + Secret API Key。
+// 必填参数：--api-key、--secret-api-key
+//
+// API 文档：https://porkbun.com/api/json/v3/documentation
 package porkbun
 
 import (
@@ -23,7 +27,7 @@ const (
 	defaultBaseURL = "https://api.porkbun.com/api/json/v3/dns"
 )
 
-// Client Porkbun DNS API 客户端
+// Client Porkbun DNS API 客户端。
 type Client struct {
 	apiKey       string
 	secretAPIKey string
@@ -31,10 +35,10 @@ type Client struct {
 	httpClient   *http.Client
 }
 
-// Option 客户端配置选项函数
+// Option 客户端配置选项。
 type Option func(*Client)
 
-// NewClient 创建 Porkbun 客户端
+// NewClient 创建 Porkbun DNS 客户端。
 func NewClient(apiKey, secretAPIKey string, options ...Option) *Client {
 	c := &Client{
 		apiKey:       apiKey,
@@ -48,22 +52,21 @@ func NewClient(apiKey, secretAPIKey string, options ...Option) *Client {
 	return c
 }
 
-// WithBaseURL 设置自定义 API 地址（测试用）
+// WithBaseURL 设置自定义 API 地址（测试用）。
 func WithBaseURL(baseURL string) Option {
 	return func(c *Client) {
 		c.baseURL = strings.TrimSuffix(baseURL, "/")
 	}
 }
 
-// WithHTTPClient 设置自定义 HTTP 客户端
+// WithHTTPClient 设置自定义 HTTP 客户端。
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
 		c.httpClient = httpClient
 	}
 }
 
-// DNSRecord Porkbun DNS 记录
-// 注意：Porkbun API 的 TTL 字段为字符串格式，如 "600"
+// DNSRecord 表示 Porkbun DNS 记录；API 的 TTL 字段为字符串（如 "600"）。
 type DNSRecord struct {
 	Name    string `json:"name,omitempty"`
 	Type    string `json:"type,omitempty"`
@@ -71,13 +74,13 @@ type DNSRecord struct {
 	TTL     string `json:"ttl,omitempty"`
 }
 
-// apiResponse Porkbun API 通用响应
+// apiResponse 表示 Porkbun API 通用响应。
 type apiResponse struct {
 	Status  string      `json:"status"`
 	Records []DNSRecord `json:"records,omitempty"`
 }
 
-// AddRecord 添加域名解析记录
+// AddRecord 添加 DNS 记录。
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	domain, subDomain := splitDomain(record.Name, record.Zone)
 
@@ -104,8 +107,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	return nil
 }
 
-// ModifyRecord 修改域名解析记录
-// Porkbun 使用 editByNameType 接口按名称和类型修改记录
+// ModifyRecord 修改 DNS 记录（使用 editByNameType 接口）。
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
 	domain, subDomain := splitDomain(record.Name, record.Zone)
 
@@ -130,8 +132,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	return nil
 }
 
-// DeleteRecord 删除域名解析记录
-// Porkbun 使用 deleteByNameType 接口
+// DeleteRecord 删除 DNS 记录（使用 deleteByNameType 接口）。
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
 	domain, subDomain := splitDomain(record.Name, record.Zone)
 
@@ -151,7 +152,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	return nil
 }
 
-// GetRecords 查询域名解析记录
+// GetRecords 查询 DNS 记录。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	domain, subDomain := splitDomain(fulldomain, "")
 
@@ -184,14 +185,14 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return result, nil
 }
 
-// apiRequest Porkbun API 请求体（自动注入 API Key + Secret Key）
+// apiRequest 表示 Porkbun API 请求体（自动注入 API Key 与 Secret Key）。
 type apiRequest struct {
 	APIKey       string `json:"apikey"`
 	SecretAPIKey string `json:"secretapikey"`
 	*DNSRecord
 }
 
-// post 执行 POST JSON 请求，自动注入认证信息
+// post 执行 POST JSON 请求并自动注入认证信息。
 func (c *Client) post(ctx context.Context, url string, record *DNSRecord, result any) error {
 	apiReq := apiRequest{
 		APIKey:       c.apiKey,
@@ -234,13 +235,12 @@ func (c *Client) post(ctx context.Context, url string, record *DNSRecord, result
 	return nil
 }
 
-// splitDomain 将完整域名分割为根域名和子域名
-// rootDomain 为已知根域名（来自 --domain），为空时回退到从 Name 推导
+// splitDomain 将完整域名拆分为根域名与子域名。
 func splitDomain(fulldomain, rootDomain string) (string, string) {
 	return domainutil.SplitDomain(fulldomain, rootDomain)
 }
 
-// parseTTL 将 Porkbun 的字符串 TTL 转换为 int，解析失败返回默认值
+// parseTTL 将 Porkbun 字符串 TTL 转为 int，失败时使用默认值。
 func parseTTL(s string) int {
 	if s == "" {
 		return ddns.DefaultTTL

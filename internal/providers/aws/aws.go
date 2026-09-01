@@ -82,19 +82,23 @@ func WithHTTPClient(httpClient *http.Client) Option {
 	}
 }
 
+// hostedZone 表示 Route 53 Hosted Zone。
 type hostedZone struct {
 	ID   string `xml:"Id"`
 	Name string `xml:"Name"`
 }
 
+// listHostedZonesResponse 为 ListHostedZones API 响应。
 type listHostedZonesResponse struct {
 	Zones []hostedZone `xml:"HostedZones>HostedZone"`
 }
 
+// resourceRecord 表示单条 ResourceRecord 值。
 type resourceRecord struct {
 	Value string `xml:"Value"`
 }
 
+// resourceRecordSet 表示 ResourceRecordSet。
 type resourceRecordSet struct {
 	Name            string           `xml:"Name"`
 	Type            string           `xml:"Type"`
@@ -102,6 +106,7 @@ type resourceRecordSet struct {
 	ResourceRecords []resourceRecord `xml:"ResourceRecords>ResourceRecord"`
 }
 
+// listRRSetsResponse 为 ListResourceRecordSets API 响应。
 type listRRSetsResponse struct {
 	Sets []resourceRecordSet `xml:"ResourceRecordSets>ResourceRecordSet"`
 }
@@ -162,6 +167,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return result, nil
 }
 
+// change 提交 ChangeResourceRecordSets 变更。
 func (c *Client) change(ctx context.Context, info ddns.RecordInfo, action string) error {
 	zoneID, _, rrName, err := c.resolveRecord(ctx, info.Name, info.Zone)
 	if err != nil {
@@ -182,6 +188,7 @@ func (c *Client) change(ctx context.Context, info ddns.RecordInfo, action string
 	return err
 }
 
+// resolveRecord 解析 Hosted Zone 与 ResourceRecord 名称。
 func (c *Client) resolveRecord(ctx context.Context, fulldomain, zoneHint string) (zoneID, zoneName, rrName string, err error) {
 	root, sub := domainutil.SplitDomain(fulldomain, zoneHint)
 	candidate := strings.ToLower(strings.TrimSuffix(root, "."))
@@ -204,6 +211,7 @@ func (c *Client) resolveRecord(ctx context.Context, fulldomain, zoneHint string)
 	return "", "", "", fmt.Errorf("Route53 hosted zone not found for %s", fulldomain)
 }
 
+// findHostedZone 按域名查找 Hosted Zone。
 func (c *Client) findHostedZone(ctx context.Context, zone string) (id, name string, err error) {
 	body, err := c.doRequest(ctx, http.MethodGet, "/2013-04-01/hostedzone", nil, nil)
 	if err != nil {
@@ -222,6 +230,7 @@ func (c *Client) findHostedZone(ctx context.Context, zone string) (id, name stri
 	return "", "", nil
 }
 
+// doRequest 执行已签名的 Route 53 HTTP 请求。
 func (c *Client) doRequest(ctx context.Context, method, path string, query url.Values, body []byte) ([]byte, error) {
 	endpoint := c.scheme + "://" + c.host + path
 	if len(query) > 0 {
@@ -266,6 +275,7 @@ func (e *httpStatusError) Error() string {
 	return fmt.Sprintf("Route53 API error: status %d, body: %s", e.status, e.body)
 }
 
+// isNotFound 判断错误是否为 HTTP 404。
 func isNotFound(err error) bool {
 	var he *httpStatusError
 	return errors.As(err, &he) && he.status == http.StatusNotFound

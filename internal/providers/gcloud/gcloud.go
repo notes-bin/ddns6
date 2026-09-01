@@ -65,15 +65,18 @@ func WithHTTPClient(httpClient *http.Client) Option {
 	}
 }
 
+// managedZone 表示 Google Cloud DNS 托管区域。
 type managedZone struct {
 	Name    string `json:"name"`
 	DNSName string `json:"dnsName"`
 }
 
+// zoneList 为托管区域列表响应。
 type zoneList struct {
 	ManagedZones []managedZone `json:"managedZones"`
 }
 
+// rrSet 表示 Resource Record Set。
 type rrSet struct {
 	Name    string   `json:"name"`
 	Type    string   `json:"type"`
@@ -81,6 +84,7 @@ type rrSet struct {
 	Rrdatas []string `json:"rrdatas"`
 }
 
+// changeRequest 为 Changes API 请求体。
 type changeRequest struct {
 	Additions []rrSet `json:"additions,omitempty"`
 	Deletions []rrSet `json:"deletions,omitempty"`
@@ -144,6 +148,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return result, nil
 }
 
+// applyChange 提交 additions 或 deletions 变更。
 func (c *Client) applyChange(ctx context.Context, info ddns.RecordInfo, action string) error {
 	zone, rrName, _, err := c.resolve(ctx, info.Name, info.Zone)
 	if err != nil {
@@ -174,6 +179,7 @@ func (c *Client) applyChange(ctx context.Context, info ddns.RecordInfo, action s
 	return err
 }
 
+// resolve 解析托管区域名与 RR 名称。
 func (c *Client) resolve(ctx context.Context, name, zoneHint string) (zoneName, rrName, zoneDNS string, err error) {
 	root, sub := domainutil.SplitDomain(name, zoneHint)
 	candidate := strings.ToLower(strings.TrimSuffix(root, ".")) + "."
@@ -197,6 +203,7 @@ func (c *Client) resolve(ctx context.Context, name, zoneHint string) (zoneName, 
 	return "", "", "", fmt.Errorf("Cloud DNS managed zone not found for %s", name)
 }
 
+// doRequest 执行 Cloud DNS HTTP 请求。
 func (c *Client) doRequest(ctx context.Context, method, path string, query url.Values, body []byte) ([]byte, error) {
 	endpoint := c.baseURL + path
 	if len(query) > 0 {
@@ -241,6 +248,7 @@ func (e *httpStatusError) Error() string {
 	return fmt.Sprintf("Cloud DNS API error: status %d, body: %s", e.status, e.body)
 }
 
+// isNotFound 判断错误是否为 HTTP 404。
 func isNotFound(err error) bool {
 	var he *httpStatusError
 	return errors.As(err, &he) && he.status == http.StatusNotFound

@@ -64,10 +64,12 @@ func WithHTTPClient(httpClient *http.Client) Option {
 	}
 }
 
+// domainInfo 表示 deSEC 域名信息。
 type domainInfo struct {
 	Name string `json:"name"`
 }
 
+// rrset 表示 deSEC RRset。
 type rrset struct {
 	Subname string   `json:"subname"`
 	Type    string   `json:"type"`
@@ -204,6 +206,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return result, nil
 }
 
+// getRRSet 获取指定 subname 与类型的 RRset 记录值。
 func (c *Client) getRRSet(ctx context.Context, zone, sub, recordType string) ([]string, error) {
 	body, err := c.doRequest(ctx, http.MethodGet, fmt.Sprintf("/domains/%s/rrsets/%s/%s/", zone, url.PathEscape(sub), recordType), nil)
 	if err != nil {
@@ -219,6 +222,7 @@ func (c *Client) getRRSet(ctx context.Context, zone, sub, recordType string) ([]
 	return rs.Records, nil
 }
 
+// putRRSets 批量 PUT 更新 RRset。
 func (c *Client) putRRSets(ctx context.Context, zone string, sets []rrset) error {
 	payload, err := json.Marshal(sets)
 	if err != nil {
@@ -229,6 +233,7 @@ func (c *Client) putRRSets(ctx context.Context, zone string, sets []rrset) error
 	return err
 }
 
+// findZone 查找 fulldomain 对应的 deSEC zone 与子名。
 func (c *Client) findZone(ctx context.Context, fulldomain string) (zone, sub string, err error) {
 	body, err := c.doRequest(ctx, http.MethodGet, "/domains/", nil)
 	if err != nil {
@@ -255,6 +260,7 @@ func (c *Client) findZone(ctx context.Context, fulldomain string) (zone, sub str
 	return "", "", fmt.Errorf("deSEC zone not found for %s", fulldomain)
 }
 
+// recordValueFromID 从 RecordInfo.ID 提取旧记录值。
 func recordValueFromID(record ddns.RecordInfo) string {
 	if _, value, ok := strings.Cut(record.ID, "|"); ok {
 		return value
@@ -262,6 +268,7 @@ func recordValueFromID(record ddns.RecordInfo) string {
 	return record.Value
 }
 
+// splitRecord 将 RecordInfo 拆分为 zone 与 deSEC subname。
 func splitRecord(record ddns.RecordInfo) (zone, sub string) {
 	zone, sub = domainutil.SplitDomain(record.Name, record.Zone)
 	sub = strings.ToLower(sub)
@@ -281,11 +288,13 @@ func (e *httpStatusError) Error() string {
 	return fmt.Sprintf("deSEC API error: status %d, body: %s", e.status, e.body)
 }
 
+// isNotFound 判断错误是否为 HTTP 404。
 func isNotFound(err error) bool {
 	var he *httpStatusError
 	return errors.As(err, &he) && he.status == http.StatusNotFound
 }
 
+// doRequest 执行 deSEC HTTP 请求。
 func (c *Client) doRequest(ctx context.Context, method, path string, body []byte) ([]byte, error) {
 	var req *http.Request
 	var err error

@@ -21,18 +21,19 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-// Client GoDaddy DNS API 客户端
+// Client GoDaddy DNS API 客户端。
 type Client struct {
 	APIKey     string
 	APISecret  string
 	BaseURL    string
 	httpClient *http.Client
-	mu         sync.Mutex // 保护 deleteRecordsByValue 的并发安全
+	mu         sync.Mutex // 保护 deleteRecordsByValue 并发安全
 }
 
+// Option 客户端配置选项。
 type Option func(*Client)
 
-// NewClient 创建 GoDaddy DNS 客户端
+// NewClient 创建 GoDaddy DNS 客户端。
 func NewClient(apiKey, apiSecret string, options ...Option) *Client {
 	client := &Client{
 		APIKey:     apiKey,
@@ -48,21 +49,21 @@ func NewClient(apiKey, apiSecret string, options ...Option) *Client {
 	return client
 }
 
-// WithBaseURL 设置自定义 API 地址（测试用）
+// WithBaseURL 设置自定义 API 地址（测试用）。
 func WithBaseURL(baseURL string) Option {
 	return func(c *Client) {
 		c.BaseURL = baseURL
 	}
 }
 
-// WithHTTPClient 设置自定义 HTTP 客户端
+// WithHTTPClient 设置自定义 HTTP 客户端。
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
 		c.httpClient = httpClient
 	}
 }
 
-// DNSRecord  a GoDaddy DNS record
+// DNSRecord 表示 GoDaddy DNS 记录。
 type DNSRecord struct {
 	Data string `json:"data"`
 	Name string `json:"name,omitempty"`
@@ -70,7 +71,7 @@ type DNSRecord struct {
 	TTL  int    `json:"ttl,omitzero"`
 }
 
-// AddRecord 添加域名解析记录
+// AddRecord 添加 DNS 记录。
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	subDomain, domain, err := c.getRootDomain(ctx, record.Name)
 	if err != nil {
@@ -99,7 +100,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	return c.updateRecords(ctx, domain, subDomain, record.Type, newRecords)
 }
 
-// ModifyRecord 修改域名解析记录
+// ModifyRecord 修改 DNS 记录。
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
 	subDomain, domain, err := c.getRootDomain(ctx, record.Name)
 	if err != nil {
@@ -111,7 +112,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 		return fmt.Errorf("failed to get existing records: %w", err)
 	}
 
-	// record.ID is used as the old value to match for GoDaddy (no record ID concept)
+	// record.ID 在 GoDaddy 中用作旧记录值匹配（无独立记录 ID）。
 	var modified bool
 	for i, r := range existingRecords {
 		if r.Data == record.ID {
@@ -129,7 +130,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	return c.updateRecords(ctx, domain, subDomain, record.Type, existingRecords)
 }
 
-// DeleteRecord 删除域名解析记录，record.ID 作为匹配值（GoDaddy 无 ID 概念）
+// DeleteRecord 删除 DNS 记录；record.ID 作为匹配值（GoDaddy 无 ID 概念）。
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
 	subDomain, domain, err := c.getRootDomain(ctx, record.Name)
 	if err != nil {
@@ -140,7 +141,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	return c.deleteRecordsByValue(ctx, domain, subDomain, "AAAA", record.ID)
 }
 
-// deleteRecordsByValue 根据值删除特定类型的记录
+// deleteRecordsByValue 按值删除指定类型的记录。
 func (c *Client) deleteRecordsByValue(ctx context.Context, domain, subDomain, rtype, value string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -171,7 +172,7 @@ func (c *Client) deleteRecordsByValue(ctx context.Context, domain, subDomain, rt
 	return c.updateRecords(ctx, domain, subDomain, rtype, newRecords)
 }
 
-// GetRecords 查询域名的解析记录，返回通用 RecordInfo 列表
+// GetRecords 查询 DNS 记录。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	subDomain, domain, err := c.getRootDomain(ctx, fulldomain)
 	if err != nil {
@@ -201,7 +202,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return result, nil
 }
 
-// getRecords 获取指定类型的记录
+// getRecords 获取指定类型的记录。
 func (c *Client) getRecords(ctx context.Context, domain, subDomain, rtype string) ([]DNSRecord, error) {
 	// subDomain 为 "@" 时表示根域名，不传入 name 路径段以获取该域名下所有记录
 	url := fmt.Sprintf("%s/domains/%s/records/%s", c.BaseURL, domain, rtype)
@@ -213,7 +214,7 @@ func (c *Client) getRecords(ctx context.Context, domain, subDomain, rtype string
 	return records, err
 }
 
-// updateRecords 更新记录
+// updateRecords 更新指定子域名的记录集。
 func (c *Client) updateRecords(ctx context.Context, domain, subDomain, rtype string, records []DNSRecord) error {
 	url := fmt.Sprintf("%s/domains/%s/records/%s/%s", c.BaseURL, domain, rtype, subDomain)
 	body, err := json.Marshal(records)
@@ -223,13 +224,13 @@ func (c *Client) updateRecords(ctx context.Context, domain, subDomain, rtype str
 	return c.makeRequest(ctx, "PUT", url, bytes.NewBuffer(body), nil)
 }
 
-// deleteRecords 删除所有记录
+// deleteRecords 删除指定子域名的全部记录。
 func (c *Client) deleteRecords(ctx context.Context, domain, subDomain, rtype string) error {
 	url := fmt.Sprintf("%s/domains/%s/records/%s/%s", c.BaseURL, domain, rtype, subDomain)
 	return c.makeRequest(ctx, "DELETE", url, nil, nil)
 }
 
-// getRootDomain finds the root domain and subdomain
+// getRootDomain 解析根域名与子域名。
 func (c *Client) getRootDomain(ctx context.Context, domain string) (string, string, error) {
 	parts := strings.Split(domain, ".")
 	for i := range len(parts) - 1 {
@@ -253,7 +254,7 @@ func (c *Client) getRootDomain(ctx context.Context, domain string) (string, stri
 	return "", "", fmt.Errorf("could not find root domain for %s", domain)
 }
 
-// getDomain checks if a domain exists in GoDaddy
+// getDomain 检查域名是否存在于 GoDaddy 账户。
 func (c *Client) getDomain(ctx context.Context, domain string) (map[string]any, error) {
 	url := fmt.Sprintf("%s/domains/%s", c.BaseURL, domain)
 	var result map[string]any
@@ -261,7 +262,7 @@ func (c *Client) getDomain(ctx context.Context, domain string) (map[string]any, 
 	return result, err
 }
 
-// makeRequest performs an HTTP request to the GoDaddy API
+// makeRequest 向 GoDaddy API 发送 HTTP 请求。
 func (c *Client) makeRequest(ctx context.Context, method, url string, body io.Reader, result any) error {
 	slog.Debug("GoDaddy API request", "module", "godaddy", "method", method, "url", url)
 

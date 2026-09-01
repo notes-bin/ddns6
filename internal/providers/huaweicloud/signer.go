@@ -26,7 +26,7 @@ const (
 	headerContentSha256 = "X-Sdk-Content-Sha256"
 )
 
-// hmacsha256 计算 HMAC-SHA256
+// hmacsha256 计算 HMAC-SHA256。
 func hmacsha256(key []byte, data string) ([]byte, error) {
 	h := hmac.New(sha256.New, key)
 	if _, err := h.Write([]byte(data)); err != nil {
@@ -35,7 +35,7 @@ func hmacsha256(key []byte, data string) ([]byte, error) {
 	return h.Sum(nil), nil
 }
 
-// canonicalRequest 构建规范化请求字符串
+// canonicalRequest 构建 SDK-HMAC-SHA256 所需的规范化请求字符串。
 //
 // CanonicalRequest =
 //
@@ -70,7 +70,7 @@ func canonicalRequest(r *http.Request, signedHeaders []string) (string, error) {
 	), err
 }
 
-// canonicalURI 返回规范化的 URI
+// canonicalURI 返回带尾斜杠的规范化 URI 路径。
 func canonicalURI(r *http.Request) string {
 	var uri []string
 	for v := range strings.SplitSeq(r.URL.Path, "/") {
@@ -83,7 +83,7 @@ func canonicalURI(r *http.Request) string {
 	return urlpath
 }
 
-// canonicalQueryString 返回规范化的查询字符串（按键排序）
+// canonicalQueryString 返回按键排序的规范化查询字符串，并回写 RawQuery。
 func canonicalQueryString(r *http.Request) string {
 	query := r.URL.Query()
 	var a []string
@@ -100,7 +100,7 @@ func canonicalQueryString(r *http.Request) string {
 	return queryStr
 }
 
-// canonicalHeaders 返回规范化请求头字符串
+// canonicalHeaders 返回参与签名的规范化请求头块。
 func canonicalHeaders(r *http.Request, signerHeaders []string) string {
 	var a []string
 	header := make(map[string][]string)
@@ -120,7 +120,7 @@ func canonicalHeaders(r *http.Request, signerHeaders []string) string {
 	return fmt.Sprintf("%s\n", strings.Join(a, "\n"))
 }
 
-// signedHeaders 返回排序后的签名头列表
+// signedHeaders 返回小写排序后的全部请求头名列表。
 func signedHeaders(r *http.Request) []string {
 	var a []string
 	for key := range r.Header {
@@ -130,7 +130,7 @@ func signedHeaders(r *http.Request) []string {
 	return a
 }
 
-// requestPayload 读取请求体并重置 Body
+// requestPayload 读取请求体并恢复 Body，供签名哈希使用。
 func requestPayload(r *http.Request) ([]byte, error) {
 	if r.Body == nil {
 		return []byte(""), nil
@@ -143,7 +143,7 @@ func requestPayload(r *http.Request) ([]byte, error) {
 	return b, nil
 }
 
-// stringToSign 构建待签名字符串
+// stringToSign 构建 SDK-HMAC-SHA256 待签名字符串。
 func stringToSign(canonicalRequest string, t time.Time) (string, error) {
 	hash := sha256.New()
 	_, err := hash.Write([]byte(canonicalRequest))
@@ -154,13 +154,13 @@ func stringToSign(canonicalRequest string, t time.Time) (string, error) {
 		sdkAlgorithm, t.UTC().Format(basicDateTimeFormat), hash.Sum(nil)), nil
 }
 
-// signStringToSign 签名待签名字符串
+// signStringToSign 使用签名密钥对待签名字符串做 HMAC-SHA256。
 func signStringToSign(stringToSign string, signingKey []byte) (string, error) {
 	hm, err := hmacsha256(signingKey, stringToSign)
 	return fmt.Sprintf("%x", hm), err
 }
 
-// hexEncodeSHA256Hash 计算 SHA256 并返回十六进制字符串
+// hexEncodeSHA256Hash 计算 SHA-256 并返回十六进制字符串。
 func hexEncodeSHA256Hash(body []byte) (string, error) {
 	if body == nil {
 		body = []byte("")
@@ -168,19 +168,19 @@ func hexEncodeSHA256Hash(body []byte) (string, error) {
 	return crypto.SHA256Hex(body), nil
 }
 
-// authHeaderValue 生成 Authorization 头的值
+// authHeaderValue 组装 Authorization 头值。
 func authHeaderValue(signature, accessKey string, signedHeaders []string) string {
 	return fmt.Sprintf("%s Access=%s, SignedHeaders=%s, Signature=%s",
 		sdkAlgorithm, accessKey, strings.Join(signedHeaders, ";"), signature)
 }
 
-// Signer 华为云 SDK-HMAC-SHA256 签名器
+// Signer 华为云 SDK-HMAC-SHA256 签名器。
 type Signer struct {
 	Key    string
 	Secret string
 }
 
-// Sign 为 HTTP 请求添加 SDK-HMAC-SHA256 签名
+// Sign 为 HTTP 请求添加 SDK-HMAC-SHA256 认证头。
 func (s *Signer) Sign(r *http.Request) error {
 	var t time.Time
 	var err error

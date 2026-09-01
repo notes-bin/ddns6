@@ -10,16 +10,15 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
+// TestClient_GetRecords_Zone 验证根域名 zone 的 AAAA 记录查询。
 func TestClient_GetRecords_Zone(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// 匹配 zone 列表请求
 		if r.URL.Path == "/api/v2/zones" && r.Method == http.MethodGet {
 			json.NewEncoder(w).Encode([]Zone{
 				{ID: "zone1", Name: "example.com", IPv6: "2001:db8::1"},
 			})
 			return
 		}
-		// 匹配 zone 详情请求
 		if r.URL.Path == "/api/v2/zones/zone1" && r.Method == http.MethodGet {
 			json.NewEncoder(w).Encode(Zone{ID: "zone1", Name: "example.com", IPv6: "2001:db8::1"})
 			return
@@ -41,6 +40,7 @@ func TestClient_GetRecords_Zone(t *testing.T) {
 	}
 }
 
+// TestClient_GetRecords_Subdomain 验证子域名通过 records 列表查询。
 func TestClient_GetRecords_Subdomain(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v2/zones" && r.Method == http.MethodGet {
@@ -72,6 +72,7 @@ func TestClient_GetRecords_Subdomain(t *testing.T) {
 	}
 }
 
+// TestClient_AddRecord 验证为子域名创建 AAAA 记录。
 func TestClient_AddRecord(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v2/zones" && r.Method == http.MethodGet {
@@ -96,6 +97,7 @@ func TestClient_AddRecord(t *testing.T) {
 	}
 }
 
+// TestClient_ModifyRecord 验证 PATCH 更新已有记录。
 func TestClient_ModifyRecord(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v2/zones" && r.Method == http.MethodGet {
@@ -120,6 +122,7 @@ func TestClient_ModifyRecord(t *testing.T) {
 	}
 }
 
+// TestClient_DeleteRecord 验证 DELETE 删除指定记录。
 func TestClient_DeleteRecord(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v2/zones" && r.Method == http.MethodGet {
@@ -143,6 +146,7 @@ func TestClient_DeleteRecord(t *testing.T) {
 	}
 }
 
+// TestClient_ZoneNotFound 验证 zone 不存在时 GetRecords 报错。
 func TestClient_ZoneNotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode([]Zone{})
@@ -156,6 +160,7 @@ func TestClient_ZoneNotFound(t *testing.T) {
 	}
 }
 
+// TestClient_ApiError 验证 HTTP 403 时 GetRecords 返回含状态码的错误。
 func TestClient_ApiError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "forbidden", http.StatusForbidden)

@@ -9,12 +9,10 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-// newHuaweiTestServer 创建测试服务器，处理 zone 查询、recordsets 操作
-// 使用 SDK-HMAC-SHA256 签名后请求都会携带 Authorization 头，mock server 验证签名格式
+// newHuaweiTestServer 创建 mock 服务器，校验 SDK-HMAC-SHA256 签名头。
 func newHuaweiTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// 验证 Authorization 头存在（签名已由 Signer 添加）
 		if r.Header.Get("Authorization") == "" {
 			t.Error("missing Authorization header")
 		}
@@ -38,6 +36,7 @@ func newHuaweiTestServer(t *testing.T) *httptest.Server {
 	}))
 }
 
+// TestAddRecord 验证创建 recordset 成功路径。
 func TestAddRecord(t *testing.T) {
 	ts := newHuaweiTestServer(t)
 	defer ts.Close()
@@ -50,6 +49,7 @@ func TestAddRecord(t *testing.T) {
 	}
 }
 
+// TestModifyRecord 验证更新 recordset 成功路径。
 func TestModifyRecord(t *testing.T) {
 	ts := newHuaweiTestServer(t)
 	defer ts.Close()
@@ -62,6 +62,7 @@ func TestModifyRecord(t *testing.T) {
 	}
 }
 
+// TestDeleteRecord 验证删除 recordset 成功路径。
 func TestDeleteRecord(t *testing.T) {
 	ts := newHuaweiTestServer(t)
 	defer ts.Close()
@@ -74,6 +75,7 @@ func TestDeleteRecord(t *testing.T) {
 	}
 }
 
+// TestGetRecords 验证分页查询 recordsets 解析。
 func TestGetRecords(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") == "" {

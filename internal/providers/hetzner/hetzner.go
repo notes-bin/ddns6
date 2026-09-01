@@ -63,23 +63,28 @@ func WithHTTPClient(httpClient *http.Client) Option {
 	}
 }
 
+// zone 表示 Hetzner DNS Zone。
 type zone struct {
 	ID   int64  `json:"id"`
 	Name string `json:"name"`
 }
 
+// zoneResponse 为单 Zone API 响应。
 type zoneResponse struct {
 	Zone zone `json:"zone"`
 }
 
+// zonesResponse 为 Zone 列表 API 响应。
 type zonesResponse struct {
 	Zones []zone `json:"zones"`
 }
 
+// rrRecord 表示 RRset 中的单条记录值。
 type rrRecord struct {
 	Value string `json:"value"`
 }
 
+// rrset 表示 Hetzner RRset。
 type rrset struct {
 	ID      string     `json:"id"`
 	Name    string     `json:"name"`
@@ -88,6 +93,7 @@ type rrset struct {
 	Records []rrRecord `json:"records"`
 }
 
+// rrsetResponse 为 RRset API 响应。
 type rrsetResponse struct {
 	RRSet rrset `json:"rrset"`
 }
@@ -205,15 +211,18 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return result, nil
 }
 
+// resolveRRName 解析 zone ID 与 RR 名称。
 func (c *Client) resolveRRName(ctx context.Context, name, zoneHint string) (zoneID int64, rrName string, err error) {
 	id, _, rr, err := c.resolveRRNameWithZoneFromRecord(ctx, name, zoneHint)
 	return id, rr, err
 }
 
+// resolveRRNameWithZone 解析 zone ID、zone 名与 RR 名称。
 func (c *Client) resolveRRNameWithZone(ctx context.Context, fulldomain string) (zoneID int64, zoneName, rrName string, err error) {
 	return c.resolveRRNameWithZoneFromRecord(ctx, fulldomain, "")
 }
 
+// resolveRRNameWithZoneFromRecord 从 RecordInfo 解析 zone 与 RR 名称。
 func (c *Client) resolveRRNameWithZoneFromRecord(ctx context.Context, name, zoneHint string) (zoneID int64, zoneName, rrName string, err error) {
 	_, sub := domainutil.SplitDomain(name, zoneHint)
 	id, zone, err := c.findZone(ctx, name)
@@ -227,6 +236,7 @@ func (c *Client) resolveRRNameWithZoneFromRecord(ctx context.Context, name, zone
 	return id, zone, rr, nil
 }
 
+// recordValueFromID 从 RecordInfo.ID 提取旧记录值。
 func recordValueFromID(record ddns.RecordInfo) string {
 	if _, value, ok := strings.Cut(record.ID, "|"); ok {
 		return value
@@ -244,11 +254,13 @@ func (e *httpStatusError) Error() string {
 	return fmt.Sprintf("Hetzner API error: status %d, body: %s", e.status, e.body)
 }
 
+// isNotFound 判断错误是否为 HTTP 404。
 func isNotFound(err error) bool {
 	var he *httpStatusError
 	return errors.As(err, &he) && he.status == http.StatusNotFound
 }
 
+// findZone 查找 fulldomain 对应的 Hetzner zone。
 func (c *Client) findZone(ctx context.Context, fulldomain string) (int64, string, error) {
 	candidate := strings.ToLower(strings.TrimSuffix(fulldomain, "."))
 	parts := strings.Split(candidate, ".")
@@ -279,6 +291,7 @@ func (c *Client) findZone(ctx context.Context, fulldomain string) (int64, string
 	return 0, "", fmt.Errorf("Hetzner zone not found for %s", fulldomain)
 }
 
+// doRequest 执行 Hetzner DNS HTTP 请求。
 func (c *Client) doRequest(ctx context.Context, method, path string, body []byte) ([]byte, error) {
 	var req *http.Request
 	var err error

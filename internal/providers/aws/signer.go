@@ -1,6 +1,3 @@
-// Package aws 实现 Amazon Route 53 DNS API 服务。
-//
-// 对应 acme.sh dns_aws，使用 AWS Signature Version 4 认证。
 package aws
 
 import (
@@ -88,6 +85,7 @@ func signRequest(req *http.Request, accessKey, secretKey, sessionToken string, b
 	return nil
 }
 
+// deriveSigningKey 派生 SigV4 签名密钥。
 func deriveSigningKey(secret, dateStamp, region, service string) []byte {
 	kDate := hmacSHA256([]byte("AWS4"+secret), dateStamp)
 	kRegion := hmacSHA256(kDate, region)
@@ -95,17 +93,20 @@ func deriveSigningKey(secret, dateStamp, region, service string) []byte {
 	return hmacSHA256(kService, "aws4_request")
 }
 
+// hmacSHA256 计算 HMAC-SHA256。
 func hmacSHA256(key []byte, data string) []byte {
 	h := hmac.New(sha256.New, key)
 	_, _ = h.Write([]byte(data))
 	return h.Sum(nil)
 }
 
+// hexSHA256 计算 SHA256 十六进制摘要。
 func hexSHA256(data []byte) string {
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
 }
 
+// requestPayload 读取并重置请求体以便签名。
 func requestPayload(r *http.Request) ([]byte, error) {
 	if r.Body == nil {
 		return nil, nil

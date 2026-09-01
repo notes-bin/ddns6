@@ -8,6 +8,7 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
+// TestClient_AddRecord 验证 DuckDNS 更新请求的 query 参数与成功响应。
 func TestClient_AddRecord(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -30,6 +31,7 @@ func TestClient_AddRecord(t *testing.T) {
 	}
 }
 
+// TestClient_ModifyRecord 验证 ModifyRecord 通过 ipv6 参数更新地址。
 func TestClient_ModifyRecord(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("ipv6") != "2001:db8::2" {
@@ -46,6 +48,7 @@ func TestClient_ModifyRecord(t *testing.T) {
 	}
 }
 
+// TestClient_DeleteRecord 验证 DeleteRecord 发送空 ipv6 清除记录。
 func TestClient_DeleteRecord(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("ipv6") != "" {
@@ -62,6 +65,7 @@ func TestClient_DeleteRecord(t *testing.T) {
 	}
 }
 
+// TestClient_GetRecords_Empty 验证受限 API 下 GetRecords 恒返回空列表。
 func TestClient_GetRecords_Empty(t *testing.T) {
 	client := NewClient("test-token")
 	records, err := client.GetRecords(t.Context(), "myhost.duckdns.org", "AAAA")
@@ -73,6 +77,7 @@ func TestClient_GetRecords_Empty(t *testing.T) {
 	}
 }
 
+// TestClient_APIError 验证 API 返回 KO 时 AddRecord 报错。
 func TestClient_APIError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("KO"))

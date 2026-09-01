@@ -1,5 +1,9 @@
 // Package duckdns 实现 DuckDNS 免费 DDNS 服务。
-// DuckDNS 是一个简单的免费 DDNS 服务，通过 HTTP GET 请求更新域名解析记录
+//
+// 认证方式：API Token（从 DuckDNS 控制台获取）。
+// 必填参数：--token
+//
+// 注意：仅支持 *.duckdns.org 域名；通过 HTTP GET 更新 IPv6 地址，无记录查询 API。
 package duckdns
 
 import (
@@ -20,17 +24,17 @@ const (
 	updatePath     = "/update"
 )
 
-// Client DuckDNS API 客户端
+// Client DuckDNS API 客户端。
 type Client struct {
 	token      string
 	baseURL    string
 	httpClient *http.Client
 }
 
-// Option 客户端配置选项函数
+// Option 客户端配置选项。
 type Option func(*Client)
 
-// NewClient 创建 DuckDNS 客户端
+// NewClient 创建 DuckDNS 客户端。
 func NewClient(token string, options ...Option) *Client {
 	c := &Client{
 		token:      token,
@@ -43,40 +47,40 @@ func NewClient(token string, options ...Option) *Client {
 	return c
 }
 
-// WithBaseURL 设置自定义 API 地址（测试用）
+// WithBaseURL 设置自定义 API 地址（测试用）。
 func WithBaseURL(baseURL string) Option {
 	return func(c *Client) {
 		c.baseURL = strings.TrimSuffix(baseURL, "/")
 	}
 }
 
-// WithHTTPClient 设置自定义 HTTP 客户端
+// WithHTTPClient 设置自定义 HTTP 客户端。
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
 		c.httpClient = httpClient
 	}
 }
 
-// AddRecord 添加或更新域名解析记录
-// DuckDNS 无独立添加接口，调用 update 覆盖设置
+// AddRecord 添加或更新 DNS 记录。
+// DuckDNS 无独立添加接口，调用 update 覆盖设置。
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	return c.update(ctx, record.Name, record.Value)
 }
 
-// ModifyRecord 修改域名解析记录
-// DuckDNS 无独立修改接口，调用 update 覆盖设置
+// ModifyRecord 修改 DNS 记录。
+// DuckDNS 无独立修改接口，调用 update 覆盖设置。
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
 	return c.update(ctx, record.Name, record.Value)
 }
 
-// DeleteRecord 删除域名解析记录
-// DuckDNS 不支持删除记录，更新为空 IP 以清除
+// DeleteRecord 删除 DNS 记录。
+// DuckDNS 不支持删除记录，通过更新为空 IP 来清除解析。
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
 	return c.update(ctx, record.Name, "")
 }
 
-// GetRecords 查询域名解析记录
-// DuckDNS 不提供记录查询 API，返回空列表
+// GetRecords 查询 DNS 记录。
+// DuckDNS 不提供记录查询 API，返回空列表。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	slog.Debug("DuckDNS does not support querying records, returning empty list",
 		"module", "duckdns",
@@ -84,7 +88,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return []ddns.RecordInfo{}, nil
 }
 
-// update 执行 DuckDNS 的 API 更新请求
+// update 执行 DuckDNS 更新请求。
 func (c *Client) update(ctx context.Context, domain, ip string) error {
 	// 验证域名格式：必须为 *.duckdns.org
 	if !strings.HasSuffix(domain, ".duckdns.org") {
