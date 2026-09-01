@@ -7,13 +7,13 @@ import (
 	"net"
 )
 
-// SyncRecord 同步 DNS 记录与当前 IPv6 地址一致。
+// SyncRecord 将 DNS 记录同步为当前 IPv6 地址。
 //
-// 先检查地址是否变化，若无变化则跳过更新。变化则调用 syncDNSRecord 执行同步。
-// 使用 d.lock()/d.unlock() 保护 Domain 的并发访问。
+// 地址未变化则跳过；变化则调用 syncDNSRecord。
+// 通过 d.lock()/d.unlock() 保护 Domain 的并发访问。
 //
 // 参数:
-//   - ctx: 上下文，取消时中止操作
+//   - ctx: 取消时中止操作
 //   - d: 域名配置（含子域名、记录类型等）
 //   - ipv6: 当前本机 IPv6 地址
 //   - p: DNS 服务商实现
@@ -21,7 +21,6 @@ func SyncRecord(ctx context.Context, d *Domain, ipv6 net.IP, p DNSProvider) erro
 	d.lock()
 	defer d.unlock()
 
-	// 检查 context 是否已取消
 	select {
 	case <-ctx.Done():
 		slog.Info("sync task cancelled", "module", "ddns", "domain", d.Domain, "subdomain", d.SubDomain)
@@ -29,7 +28,7 @@ func SyncRecord(ctx context.Context, d *Domain, ipv6 net.IP, p DNSProvider) erro
 	default:
 	}
 
-	// 地址未变化则跳过，避免无效的 API 调用
+	// 未变化则跳过，避免无效 API 调用
 	if !hasAddressChanged(d.Addr, ipv6) {
 		slog.Info("IPv6 address unchanged, skipping update", "module", "ddns",
 			"domain", d.Domain, "subdomain", d.SubDomain)
@@ -42,12 +41,12 @@ func SyncRecord(ctx context.Context, d *Domain, ipv6 net.IP, p DNSProvider) erro
 // syncDNSRecord 执行实际的 DNS 记录同步。
 //
 // 工作流程：
-//  1. 通过 p.GetRecords() 查询目标子域名下所有记录
-//  2. 遍历记录，只处理匹配当前子域名且类型为 AAAA 的记录
+//  1. 通过 p.GetRecords 查询记录
+//  2. 只处理匹配当前子域名且类型相符的记录
 //  3. 同 IP 则跳过，不同 IP 则修改
-//  4. 目标子域名下无 AAAA 记录则新增
+//  4. 目标子域名下无匹配记录则新增
 //
-// 同一个子域名下存在多个 AAAA 记录时全部处理（continue 而非 return）。
+// 同一子域名存在多条匹配记录时全部处理（continue 而非 return）。
 func syncDNSRecord(ctx context.Context, d *Domain, p DNSProvider, addr net.IP) error {
 	fqdn := d.FullDomain()
 	ipv6Str := addr.String()
@@ -56,8 +55,7 @@ func syncDNSRecord(ctx context.Context, d *Domain, p DNSProvider, addr net.IP) e
 		"domain", d.Domain, "subdomain", d.SubDomain,
 		"fqdn", fqdn, "type", d.Type)
 
-	// 查询当前 DNS 记录（各服务商在 API 层可能已按 fqdn 过滤，
-	// 但有些服务商会返回整个 zone 的记录）
+	// 部分服务商已在 API 层按 fqdn 过滤，另一些会返回整个 zone
 	records, err := p.GetRecords(ctx, fqdn, d.Type)
 	if err != nil {
 		slog.Error("failed to query records", "module", "ddns",
@@ -70,11 +68,10 @@ func syncDNSRecord(ctx context.Context, d *Domain, p DNSProvider, addr net.IP) e
 		"domain", d.Domain, "subdomain", d.SubDomain,
 		"record_count", len(records))
 
-	found := false // 是否找到匹配的子域名 AAAA 记录
+	found := false
 
 	for _, r := range records {
-		// 过滤：只处理匹配目标子域名 + 目标类型的记录。
-		// RecordNameMatches 处理不同服务商返回的记录名格式差异。
+		// RecordNameMatches 抹平各服务商记录名格式差异
 		if !RecordNameMatches(r.Name, fqdn, d.SubDomain) || r.Type != d.Type {
 			continue
 		}
@@ -85,7 +82,7 @@ func syncDNSRecord(ctx context.Context, d *Domain, p DNSProvider, addr net.IP) e
 			"existing_value", r.Value, "new_value", ipv6Str,
 			"record_id", r.ID, "record_type", r.Type)
 
-		// IP 相同则更新缓存后跳过（多个 AAAA 记录时继续处理下一条）
+		// IP 相同：仍更新本地缓存，并继续处理同名其他记录
 		if ipv6Equal(addr, r.Value) {
 			copyAddrToDomain(d, addr)
 			slog.Debug("IPv6 record already matches, no update needed", "module", "ddns",
@@ -94,7 +91,6 @@ func syncDNSRecord(ctx context.Context, d *Domain, p DNSProvider, addr net.IP) e
 			continue
 		}
 
-		// IP 不同 -> 修改记录
 		err = p.ModifyRecord(ctx, RecordInfo{
 			ID: r.ID, Name: fqdn, Zone: d.Domain, Type: d.Type, Value: ipv6Str, TTL: d.TTL,
 		})
@@ -110,7 +106,6 @@ func syncDNSRecord(ctx context.Context, d *Domain, p DNSProvider, addr net.IP) e
 			"ipv6", ipv6Str, "record_id", r.ID)
 	}
 
-	// 目标子域名下无 AAAA 记录 -> 新增
 	if !found {
 		slog.Debug("no AAAA record found, adding new record", "module", "ddns",
 			"domain", d.Domain, "subdomain", d.SubDomain,
@@ -133,7 +128,7 @@ func syncDNSRecord(ctx context.Context, d *Domain, p DNSProvider, addr net.IP) e
 	return nil
 }
 
-// copyAddrToDomain 将 IP 地址拷贝到 Domain 的缓存字段（调用方必须持有 d 的锁）。
+// copyAddrToDomain 将 IP 拷贝到 Domain.Addr（调用方必须已持有 d 的锁）。
 func copyAddrToDomain(d *Domain, addr net.IP) {
 	d.Addr = make(net.IP, len(addr))
 	copy(d.Addr, addr)

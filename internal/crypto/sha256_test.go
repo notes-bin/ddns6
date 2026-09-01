@@ -1,4 +1,3 @@
-// Package crypto 密码学工具函数测试
 package crypto
 
 import (
@@ -6,7 +5,7 @@ import (
 	"testing"
 )
 
-// h 辅助函数，将十六进制字符串解码为 []byte，测试中用。
+// h 将十六进制字符串解码为字节切片，解码失败则使测试失败。
 func h(t *testing.T, s string) []byte {
 	t.Helper()
 	b, err := hex.DecodeString(s)
@@ -16,12 +15,8 @@ func h(t *testing.T, s string) []byte {
 	return b
 }
 
-// ============================================================
-// HMACSHA256 / HMACSHA256Hex 测试 - RFC 4231 Test Vectors
-// ============================================================
-
+// TestHMACSHA256_RFC4231_Test1 对照 RFC 4231 用例 1 校验 HMAC-SHA256。
 func TestHMACSHA256_RFC4231_Test1(t *testing.T) {
-	// Test Case 1: key=20 bytes of 0x0b, data="Hi There"
 	key := h(t, "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b")
 	data := []byte("Hi There")
 	expected := "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"
@@ -37,8 +32,8 @@ func TestHMACSHA256_RFC4231_Test1(t *testing.T) {
 	}
 }
 
+// TestHMACSHA256_RFC4231_Test2 对照 RFC 4231 用例 2 校验 HMAC-SHA256。
 func TestHMACSHA256_RFC4231_Test2(t *testing.T) {
-	// Test Case 2: key="Jefe", data="what do ya want for nothing?"
 	key := []byte("Jefe")
 	data := []byte("what do ya want for nothing?")
 	expected := "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
@@ -49,10 +44,8 @@ func TestHMACSHA256_RFC4231_Test2(t *testing.T) {
 	}
 }
 
+// TestHMACSHA256_RFC4231_Test3 对照 RFC 4231 用例 3 校验 HMAC-SHA256。
 func TestHMACSHA256_RFC4231_Test3(t *testing.T) {
-	// RFC 4231 Test Case 3:
-	// key = 20 bytes of 0xaa
-	// data = 50 bytes of 0xdd
 	key := h(t, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	data := h(t, "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd")
 	expected := "773ea91e36800e46854db8ebd09181a72959098b3ef8c122d9635514ced565fe"
@@ -63,8 +56,8 @@ func TestHMACSHA256_RFC4231_Test3(t *testing.T) {
 	}
 }
 
+// TestSHA256Hex_Simple 对照已知摘要校验 "hello world"。
 func TestSHA256Hex_Simple(t *testing.T) {
-	// 与 openssl dgst -sha256 输出对照
 	data := []byte("hello world")
 	expected := "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
 	got := SHA256Hex(data)
@@ -73,10 +66,7 @@ func TestSHA256Hex_Simple(t *testing.T) {
 	}
 }
 
-// ============================================================
-// SHA256Hex 测试
-// ============================================================
-
+// TestSHA256Hex_Basic 用表驱动覆盖空串与普通字符串摘要。
 func TestSHA256Hex_Basic(t *testing.T) {
 	tests := []struct {
 		name string

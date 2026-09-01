@@ -20,7 +20,6 @@ func FormatRecords(records []RecordInfo) string {
 	var b strings.Builder
 	w := tabwriter.NewWriter(&b, 0, 0, 3, ' ', 0)
 
-	// 表头
 	fmt.Fprintln(w, "ID\tName\tType\tValue\tTTL")
 
 	for _, r := range records {

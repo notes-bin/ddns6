@@ -1,6 +1,6 @@
-// Package crypto 提供密码学工具函数，统一各 DNS 运营商的签名计算。
+// Package crypto 提供密码学工具函数，供各 DNS 运营商计算签名与摘要。
 //
-// 所有函数均接收标准 Go 类型（[]byte），调用方需按需转换。
+// 函数均接收标准 Go 类型（[]byte），调用方按需转换编码。
 package crypto
 
 import (
@@ -16,8 +16,6 @@ func SHA256Hex(data []byte) string {
 }
 
 // HMACSHA256 计算 HMAC-SHA256 并返回原始字节。
-//
-// key 和 data 均为原始字节切片。
 func HMACSHA256(key, data []byte) []byte {
 	mac := hmac.New(sha256.New, key)
 	mac.Write(data)

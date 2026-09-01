@@ -5,20 +5,20 @@ import (
 	"fmt"
 )
 
-// CollectMatchingRecords 查询 DNS 记录并收集匹配的记录。
+// CollectMatchingRecords 查询 DNS 记录并收集匹配结果，供 list/clean 使用。
 //
-// 模板方法：按根域名分组 -> 逐组查询 -> 去重 -> 匹配子域名 -> 收集结果。
+// 流程：按根域名分组（每组只查一次 API）-> 匹配子域名 -> 去重 -> 汇总。
 //
 // 参数:
 //   - p: DNS 记录查询器
 //   - domains: 域名配置列表（含子域名）
 //   - recordType: 记录类型过滤（如 "AAAA"），空字符串表示不按类型过滤
-//   - filterBySubdomain: 是否按子域名过滤。为 true 时只保留匹配指定子域名的记录；
+//   - filterBySubdomain: 为 true 时只保留匹配指定子域名的记录；
 //     为 false 时返回该根域名下所有指定类型的记录
 //
 // 去重规则：同一记录（ID+Name+Type+Value 相同）只保留第一条。
 func CollectMatchingRecords(ctx context.Context, p DNSProvider, domains []*Domain, recordType string, filterBySubdomain bool) ([]RecordInfo, error) {
-	// 按根域名分组，每个根域名只查一次 API
+	// 按根域名分组，避免对同一 zone 重复调用 GetRecords
 	rootGroups := make(map[string][]*Domain)
 	for _, d := range domains {
 		rootGroups[d.Domain] = append(rootGroups[d.Domain], d)
@@ -34,7 +34,6 @@ func CollectMatchingRecords(ctx context.Context, p DNSProvider, domains []*Domai
 		}
 
 		for _, r := range records {
-			// 按子域名过滤
 			if filterBySubdomain {
 				matched := false
 				for _, d := range group {
@@ -48,12 +47,10 @@ func CollectMatchingRecords(ctx context.Context, p DNSProvider, domains []*Domai
 				}
 			}
 
-			// 按记录类型过滤
 			if recordType != "" && r.Type != recordType {
 				continue
 			}
 
-			// 去重
 			if seen[r.Key()] {
 				continue
 			}

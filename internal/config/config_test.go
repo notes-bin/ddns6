@@ -1,4 +1,3 @@
-// Package config 配置文件管理测试
 package config
 
 import (
@@ -8,7 +7,7 @@ import (
 	"testing"
 )
 
-// configDirForTest 在测试中临时替换 HOME 来获取配置目录。
+// configDirForTest 临时替换 HOME，使配置路径落在测试目录下。
 func configDirForTest(t *testing.T, dir string) string {
 	t.Helper()
 	oldHome := os.Getenv("HOME")
@@ -17,7 +16,7 @@ func configDirForTest(t *testing.T, dir string) string {
 	return filepath.Join(dir, ".ddns6")
 }
 
-// writeConfig 在测试目录中写入 config.yaml。
+// writeConfig 在测试目录写入 config.yaml。
 func writeConfig(t *testing.T, dir, content string) {
 	t.Helper()
 	cfgDir := filepath.Join(dir, ".ddns6")
@@ -29,16 +28,12 @@ func writeConfig(t *testing.T, dir, content string) {
 	}
 }
 
-// yamlLines 将多行字符串拼接为 YAML 内容。
-// 使用 strings.Join 避免 Go 原始字符串中的缩进问题。
+// yamlLines 将多行拼接为 YAML，避免原始字符串缩进干扰。
 func yamlLines(lines ...string) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-// ============================================================
-// ConfigDir / ConfigPath 测试
-// ============================================================
-
+// TestConfigDir 验证返回非空绝对路径。
 func TestConfigDir(t *testing.T) {
 	dir, err := ConfigDir()
 	if err != nil {
@@ -52,6 +47,7 @@ func TestConfigDir(t *testing.T) {
 	}
 }
 
+// TestConfigPath 验证路径为绝对路径且文件名为 config.yaml。
 func TestConfigPath(t *testing.T) {
 	path, err := ConfigPath()
 	if err != nil {
@@ -65,10 +61,7 @@ func TestConfigPath(t *testing.T) {
 	}
 }
 
-// ============================================================
-// Load 测试
-// ============================================================
-
+// TestLoad_FileNotFound 验证配置文件缺失时返回明确错误。
 func TestLoad_FileNotFound(t *testing.T) {
 	tmpDir := t.TempDir()
 	configDirForTest(t, tmpDir)
@@ -82,6 +75,7 @@ func TestLoad_FileNotFound(t *testing.T) {
 	}
 }
 
+// TestLoad_InvalidYAML 验证 YAML 损坏时返回解析错误。
 func TestLoad_InvalidYAML(t *testing.T) {
 	tmpDir := t.TempDir()
 	configDirForTest(t, tmpDir)
@@ -96,6 +90,7 @@ func TestLoad_InvalidYAML(t *testing.T) {
 	}
 }
 
+// TestLoad_MissingProvider 验证缺少 provider 时失败。
 func TestLoad_MissingProvider(t *testing.T) {
 	tmpDir := t.TempDir()
 	configDirForTest(t, tmpDir)
@@ -110,6 +105,7 @@ func TestLoad_MissingProvider(t *testing.T) {
 	}
 }
 
+// TestLoad_MissingDomain 验证缺少 domain 时失败。
 func TestLoad_MissingDomain(t *testing.T) {
 	tmpDir := t.TempDir()
 	configDirForTest(t, tmpDir)
@@ -124,6 +120,7 @@ func TestLoad_MissingDomain(t *testing.T) {
 	}
 }
 
+// TestLoad_Success 验证合法配置可完整解析。
 func TestLoad_Success(t *testing.T) {
 	tmpDir := t.TempDir()
 	configDirForTest(t, tmpDir)
@@ -159,6 +156,7 @@ func TestLoad_Success(t *testing.T) {
 	}
 }
 
+// TestLoad_DefaultSubdomains 验证未配置子域名时默认为根域名 "@"。
 func TestLoad_DefaultSubdomains(t *testing.T) {
 	tmpDir := t.TempDir()
 	configDirForTest(t, tmpDir)
@@ -173,6 +171,7 @@ func TestLoad_DefaultSubdomains(t *testing.T) {
 	}
 }
 
+// TestLoad_DefaultAuth 验证缺失 auth 时初始化为空 map。
 func TestLoad_DefaultAuth(t *testing.T) {
 	tmpDir := t.TempDir()
 	configDirForTest(t, tmpDir)
@@ -190,9 +189,8 @@ func TestLoad_DefaultAuth(t *testing.T) {
 	}
 }
 
+// TestLoad_ConfigDirPermissions 验证权限警告不导致 Load 失败。
 func TestLoad_ConfigDirPermissions(t *testing.T) {
-	// 验证权限检查逻辑不会导致 Load 失败
-	// （权限警告写入 stderr 而非返回错误）
 	tmpDir := t.TempDir()
 	configDirForTest(t, tmpDir)
 	writeConfig(t, tmpDir, "provider: tencent\ndomain: example.com\n")
@@ -206,10 +204,7 @@ func TestLoad_ConfigDirPermissions(t *testing.T) {
 	}
 }
 
-// ============================================================
-// GetInterval / GetTTL 测试
-// ============================================================
-
+// TestGetInterval_Default 验证零值 Config 的间隔默认为 5m。
 func TestGetInterval_Default(t *testing.T) {
 	c := &Config{}
 	d, err := c.GetInterval()
@@ -221,6 +216,7 @@ func TestGetInterval_Default(t *testing.T) {
 	}
 }
 
+// TestGetInterval_Empty 验证空字符串间隔回退到 5m。
 func TestGetInterval_Empty(t *testing.T) {
 	c := &Config{Interval: ""}
 	d, err := c.GetInterval()
@@ -232,6 +228,7 @@ func TestGetInterval_Empty(t *testing.T) {
 	}
 }
 
+// TestGetInterval_Custom 验证自定义间隔字符串可正确解析。
 func TestGetInterval_Custom(t *testing.T) {
 	c := &Config{Interval: "10m"}
 	d, err := c.GetInterval()
@@ -243,6 +240,7 @@ func TestGetInterval_Custom(t *testing.T) {
 	}
 }
 
+// TestGetInterval_Invalid 验证非法间隔回退 5m 并返回错误。
 func TestGetInterval_Invalid(t *testing.T) {
 	c := &Config{Interval: "invalid"}
 	d, err := c.GetInterval()
@@ -254,6 +252,7 @@ func TestGetInterval_Invalid(t *testing.T) {
 	}
 }
 
+// TestGetTTL_Default 验证未设置 TTL 时使用默认值 600。
 func TestGetTTL_Default(t *testing.T) {
 	c := &Config{}
 	ttl := c.GetTTL()
@@ -262,6 +261,7 @@ func TestGetTTL_Default(t *testing.T) {
 	}
 }
 
+// TestGetTTL_Zero 验证 TTL 为 0 时回退默认值。
 func TestGetTTL_Zero(t *testing.T) {
 	c := &Config{TTL: 0}
 	ttl := c.GetTTL()
@@ -270,6 +270,7 @@ func TestGetTTL_Zero(t *testing.T) {
 	}
 }
 
+// TestGetTTL_Custom 验证自定义正数 TTL 原样返回。
 func TestGetTTL_Custom(t *testing.T) {
 	c := &Config{TTL: 300}
 	ttl := c.GetTTL()
@@ -278,6 +279,7 @@ func TestGetTTL_Custom(t *testing.T) {
 	}
 }
 
+// TestGetTTL_Negative 验证负 TTL 回退默认值。
 func TestGetTTL_Negative(t *testing.T) {
 	c := &Config{TTL: -1}
 	ttl := c.GetTTL()
@@ -286,10 +288,7 @@ func TestGetTTL_Negative(t *testing.T) {
 	}
 }
 
-// ============================================================
-// Generate 测试
-// ============================================================
-
+// TestGenerate_Success 验证 Generate 可创建配置文件。
 func TestGenerate_Success(t *testing.T) {
 	tmpDir := t.TempDir()
 	configDirForTest(t, tmpDir)
@@ -303,23 +302,21 @@ func TestGenerate_Success(t *testing.T) {
 		t.Fatalf("Generate() 不应返回错误: %v", err)
 	}
 
-	// 验证文件已创建
 	path := filepath.Join(tmpDir, ".ddns6", "config.yaml")
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		t.Fatal("Generate() 应创建 config.yaml")
 	}
 }
 
+// TestGenerate_AlreadyExists 验证已存在配置时拒绝覆盖。
 func TestGenerate_AlreadyExists(t *testing.T) {
 	tmpDir := t.TempDir()
 	configDirForTest(t, tmpDir)
 
-	// 先创建一次
 	if err := Generate(InitParams{Domain: "example.com"}); err != nil {
 		t.Fatalf("首次 Generate() 不应返回错误: %v", err)
 	}
 
-	// 再次创建应返回错误
 	err := Generate(InitParams{Domain: "example.com"})
 	if err == nil {
 		t.Fatal("重复 Generate() 应返回错误")
@@ -329,6 +326,7 @@ func TestGenerate_AlreadyExists(t *testing.T) {
 	}
 }
 
+// TestGenerate_DefaultParams 验证预填字段写入生成内容。
 func TestGenerate_DefaultParams(t *testing.T) {
 	tmpDir := t.TempDir()
 	configDirForTest(t, tmpDir)
@@ -341,7 +339,6 @@ func TestGenerate_DefaultParams(t *testing.T) {
 		t.Fatalf("Generate() 不应返回错误: %v", err)
 	}
 
-	// 读取并验证内容
 	data, err := os.ReadFile(filepath.Join(tmpDir, ".ddns6", "config.yaml"))
 	if err != nil {
 		t.Fatal(err)

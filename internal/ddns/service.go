@@ -16,7 +16,7 @@ import (
 
 // DefaultIPv6Fetchers 返回默认的 IPv6 地址获取器列表（每次调用返回新切片，避免调用方污染全局状态）。
 //
-// 每次触发同步时随机打乱顺序后并发竞速，取第一个成功结果。
+// 每次触发同步时由 GetIPv6Addr 随机打乱顺序后并发竞速，取第一个成功结果。
 // 包含 HTTP 与 DNS 两种来源，互为备份。
 func DefaultIPv6Fetchers() []ipaddr.IPv6Fetcher {
 	return []ipaddr.IPv6Fetcher{
@@ -35,8 +35,8 @@ func DefaultIPv6Fetchers() []ipaddr.IPv6Fetcher {
 // 参数:
 //   - domains: 要更新的域名列表（支持同一根域名下多个子域名）
 //   - p: DNS 服务商实现
-//   - interval: 非 Linux 平台的轮询间隔（Linux 下由 Netlink 事件驱动，此参数无效）
-//   - fetchers: IPv6 地址获取器列表，每次触发时随机顺序逐个尝试
+//   - interval: 非 Linux 平台的轮询间隔（Linux 下由 Netlink 事件驱动，此参数仅作回退）
+//   - fetchers: IPv6 地址获取器列表，每次触发时随机顺序并发竞速
 //   - iface: 指定监听的网络接口（空字符串表示监听所有接口，仅 Linux Netlink 模式有效）
 //
 // 返回 error 仅在以下情况返回：
@@ -56,16 +56,11 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 		"interval", interval,
 		"interface", iface)
 
-	// 创建一个可取消的 context 用于优雅关闭
-	// 收到 SIGTERM 时 cancel 会传播到所有正在进行的操作
+	// 可取消 context：SIGTERM 时 cancel 会传播到进行中的获取与同步
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// ============================================================
-	// 首次同步
-	// 启动时就进行一次完整的 IPv6 获取 + DNS 同步。
-	// 这样用户无需等待第一次 Netlink 事件或轮询周期。
-	// ============================================================
+	// 启动时立即做一次完整同步，避免等待首次 Netlink 事件或轮询周期
 	slog.Info("performing initial IPv6 address fetch", "module", "ddns")
 	ip, err := ipaddr.GetIPv6Addr(ctx, fetchers...)
 	if err != nil {
@@ -73,22 +68,14 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 	}
 	slog.Info("initial IPv6 address obtained", "module", "ddns", "ipv6", ip.String())
 
-	// 并发同步所有子域名，任一失败则终止并返回第一个错误
+	// 首次同步 fail-fast：任一子域名失败则终止启动
 	if err := syncAllDomains(ctx, domains, ip, p, true); err != nil {
 		return err
 	}
 
-	// ============================================================
-	// 启动地址变化触发源
-	// Linux: Netlink 事件监听（实时）
-	// 其他: 定时轮询（简单可靠）
-	// ============================================================
+	// Linux: Netlink 事件；其他平台: 定时轮询
 	triggerCh := startTrigger(ctx, interval, iface)
 
-	// ============================================================
-	// 信号处理
-	// 监听 SIGINT (Ctrl+C) 和 SIGTERM (kill) 实现优雅关闭
-	// ============================================================
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
@@ -98,17 +85,12 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 		"domain_count", len(domains),
 		"mode", platformTriggerMode())
 
-	// ============================================================
-	// 主事件循环
-	// 等待触发器事件或退出信号。
-	// 同步操作通过 goroutine 解耦，确保 sigCh 始终可达。
-	// ============================================================
+	// 同步在独立 goroutine 中执行，保证 sigCh 始终可达
 	syncDoneCh := make(chan struct{}, 1)
 
 	for {
 		select {
 		case <-triggerCh:
-			// 触发器事件：异步获取 IPv6 并同步，不阻塞信号接收
 			go func() {
 				ip, err := ipaddr.GetIPv6Addr(ctx, fetchers...)
 				if err != nil {
@@ -121,14 +103,12 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 			}()
 
 		case <-syncDoneCh:
-			// 同步完成，继续等待下一个事件
+			// 本轮同步结束，继续等待下一事件
 
 		case <-sigCh:
-			// 收到退出信号，开始优雅关闭
 			slog.Info("shutdown signal received, initiating graceful shutdown...", "module", "ddns")
-			cancel() // 取消正在进行的操作
+			cancel()
 
-			// 等待最多 5 秒让进行中的同步操作完成
 			select {
 			case <-time.After(5 * time.Second):
 				slog.Warn("graceful shutdown timed out", "module", "ddns")
@@ -144,7 +124,7 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 
 // syncAllDomains 并发同步所有域名的 DNS 记录。
 //
-// failFast=true 时遇错立即返回第一个错误；failFast=false 时遇错只记日志继续处理剩余域名。
+// failFast=true 时遇错立即返回第一个错误；failFast=false 时遇错只记日志并继续处理剩余域名。
 func syncAllDomains(ctx context.Context, domains []*Domain, ip net.IP, p DNSProvider, failFast bool) error {
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(domains))
@@ -174,10 +154,9 @@ func syncAllDomains(ctx context.Context, domains []*Domain, ip net.IP, p DNSProv
 	return nil
 }
 
-// pollingLoop 定时轮询，向 triggerCh 发送信号。
+// pollingLoop 按 interval 向 triggerCh 发送非阻塞触发信号。
 //
-// Linux 平台下 Netlink 不可用时回退到此模式。
-// 非 Linux 平台默认使用此模式。
+// Linux 上 Netlink 不可用时回退至此；非 Linux 默认使用此模式。
 func pollingLoop(ctx context.Context, triggerCh chan<- struct{}, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
