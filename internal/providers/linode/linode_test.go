@@ -96,6 +96,9 @@ func TestClient(t *testing.T) {
 				if err == nil {
 					t.Fatal("expected error, got nil")
 				}
+				if !strings.Contains(err.Error(), "403") {
+					t.Errorf("expected status 403 in error, got: %v", err)
+				}
 			},
 		},
 		{
