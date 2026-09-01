@@ -87,3 +87,11 @@ func TestClient_AuthError(t *testing.T) {
 		t.Fatal("expected error, got nil")
 	}
 }
+
+func TestClient_DeleteRecord_NoOp(t *testing.T) {
+	client := NewClient("ddns-key")
+	err := client.DeleteRecord(t.Context(), ddns.RecordInfo{Name: "myhost.example.com", Type: "AAAA", Value: "2001:db8::1"})
+	if err != nil {
+		t.Fatalf("DeleteRecord should be no-op, got: %v", err)
+	}
+}
