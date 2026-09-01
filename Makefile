@@ -54,15 +54,17 @@ release: clean cross-build
 docker-build:
 	docker build -t ddns6 .
 
-# Docker 直接运行（以腾讯云为例）
+# Docker 直接运行（推荐挂载配置文件，避免密钥进 argv）
 docker-run:
-	docker run -d --name ddns6 --restart always \
+	docker run -d --name ddns6 --restart unless-stopped \
 	  --network host \
-	  --cap-add=NET_ADMIN \
-	  ddns6 run tencent \
-	  --secret-id ${TENCENT_SECRET_ID} \
-	  --secret-key ${TENCENT_SECRET_KEY} \
-	  --domain ${DOMAIN} --subdomain ${SUBDOMAIN:-@}
+	  --read-only \
+	  --tmpfs /tmp:size=16m,mode=1777 \
+	  --security-opt no-new-privileges:true \
+	  --cap-drop ALL \
+	  --cap-add NET_ADMIN \
+	  -v $${HOME}/.ddns6:/home/ddns6/.ddns6:ro \
+	  ddns6 run
 
 # Docker 运行（以腾讯云为例，需先在 .env 中配置凭证）
 docker-up:

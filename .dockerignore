@@ -1,11 +1,32 @@
-bin/
-ddns6*
-*.tar.gz
-*.log
+# Git / IDE
 .git
 .gitignore
+.cursor
+.claude
+.idea
+.vscode
+
+# 密钥与本地环境（切勿打入镜像）
 .env
+.env.*
+!.env.example
+
+# 构建产物与日志
+bin/
+ddns6
+ddns6_*
+*.tar.gz
+*.log
+coverage.out
+coverage.html
+
+# 文档与 CI（运行镜像不需要）
+*.md
+LICENSE
+.github/
 Makefile
-docker-compose.yml
-Dockerfile
+
+# Docker 自身（不必进入 build context）
+Dockerfile*
+docker-compose*.yml
 .dockerignore
