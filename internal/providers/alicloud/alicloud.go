@@ -26,7 +26,7 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-// Client 阿里云 DNS API 客户端
+// Client 阿里云 DNS API 客户端。
 type Client struct {
 	AccessKeyId     string
 	AccessKeySecret string
@@ -35,6 +35,7 @@ type Client struct {
 	SignVersion     string // 签名版本："v1"（默认，HMAC-SHA1）或 "v3"（ACS3-HMAC-SHA256）
 }
 
+// Option 客户端配置选项。
 type Option func(*Client)
 
 // NewClient 创建阿里云 DNS 客户端。
@@ -54,28 +55,28 @@ func NewClient(accessKeyId, accessKeySecret string, options ...Option) *Client {
 	return client
 }
 
-// WithBaseURL 设置自定义 API 地址（测试用）
+// WithBaseURL 设置自定义 API 地址（测试用）。
 func WithBaseURL(baseURL string) Option {
 	return func(c *Client) {
 		c.BaseURL = baseURL
 	}
 }
 
-// WithHTTPClient 设置自定义 HTTP 客户端
+// WithHTTPClient 设置自定义 HTTP 客户端。
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
 		c.httpClient = httpClient
 	}
 }
 
-// WithSignVersion 设置签名版本："v1"（默认，HMAC-SHA1）或 "v3"（ACS3-HMAC-SHA256）
+// WithSignVersion 设置签名版本："v1"（默认，HMAC-SHA1）或 "v3"（ACS3-HMAC-SHA256）。
 func WithSignVersion(version string) Option {
 	return func(c *Client) {
 		c.SignVersion = version
 	}
 }
 
-// DNSRecord  an Alibaba Cloud DNS record
+// DNSRecord 表示阿里云 DNS 记录。
 type DNSRecord struct {
 	RecordId string `json:"RecordId"`
 	Domain   string `json:"DomainName"`
@@ -85,7 +86,7 @@ type DNSRecord struct {
 	TTL      int    `json:"TTL"`
 }
 
-// AddRecord 添加域名解析记录
+// AddRecord 添加 DNS 记录。
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	domain, subDomain, err := c.getRootDomain(ctx, record.Name)
 	if err != nil {
@@ -106,7 +107,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	return err
 }
 
-// ModifyRecord 修改域名解析记录
+// ModifyRecord 修改 DNS 记录。
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
 	_, subDomain, err := c.getRootDomain(ctx, record.Name)
 	if err != nil {
@@ -126,7 +127,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	return err
 }
 
-// DeleteRecord 删除域名解析记录
+// DeleteRecord 删除 DNS 记录。
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
 	params := map[string]string{
 		"Action":   "DeleteDomainRecord",
@@ -137,7 +138,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	return err
 }
 
-// GetRecords 查询域名的解析记录，返回通用 RecordInfo 列表
+// GetRecords 查询 DNS 记录，返回通用 RecordInfo 列表。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	domain, subDomain, err := c.getRootDomain(ctx, fulldomain)
 	if err != nil {
@@ -189,7 +190,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return records, nil
 }
 
-// GetDomainRecord 查询单条解析记录详情
+// GetDomainRecord 查询单条 DNS 记录详情。
 func (c *Client) GetDomainRecord(ctx context.Context, fulldomain, recordID string) (*DNSRecord, error) {
 	params := map[string]string{
 		"Action":   "DescribeDomainRecordInfo",
@@ -209,7 +210,7 @@ func (c *Client) GetDomainRecord(ctx context.Context, fulldomain, recordID strin
 	return &record, nil
 }
 
-// getRootDomain finds the root domain and subdomain
+// getRootDomain 逐级探测账户内根域名，返回根域名与主机记录（RR）。
 func (c *Client) getRootDomain(ctx context.Context, domain string) (string, string, error) {
 	parts := strings.Split(domain, ".")
 	for i := range len(parts) - 1 {
@@ -276,31 +277,27 @@ func (c *Client) makeV1Request(ctx context.Context, params map[string]string) ([
 	reqParams["SignatureVersion"] = "1.0"
 	reqParams["SignatureNonce"] = fmt.Sprintf("%d", time.Now().UnixNano())
 
-	// 参数排序
 	var keys []string
 	for k := range reqParams {
 		keys = append(keys, k)
 	}
 	slices.Sort(keys)
 
-	// 构建查询字符串
 	var queryParts []string
 	for _, k := range keys {
 		queryParts = append(queryParts, fmt.Sprintf("%s=%s", k, url.QueryEscape(reqParams[k])))
 	}
 	queryString := strings.Join(queryParts, "&")
 
-	// 计算签名
 	stringToSign := fmt.Sprintf("GET&%%2F&%s", url.QueryEscape(queryString))
 	mac := hmac.New(sha1.New, []byte(c.AccessKeySecret+"&"))
 	mac.Write([]byte(stringToSign))
 	signature := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 	signature = url.QueryEscape(signature)
 
-	// Build final URL (注意：不记录完整 URL 以免泄露签名和 AccessKeyId)
+	// 不记录完整 URL，以免泄露签名与 AccessKeyId
 	fullURL := fmt.Sprintf("%s?%s&Signature=%s", c.BaseURL, queryString, signature)
 
-	// 发起请求
 	req, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)
 	if err != nil {
 		return nil, err
@@ -326,7 +323,6 @@ func (c *Client) makeV1Request(ctx context.Context, params map[string]string) ([
 		return nil, err
 	}
 
-	// Check for API errors
 	var apiError struct {
 		Message string `json:"Message"`
 	}
@@ -352,24 +348,21 @@ func (c *Client) makeV3Request(ctx context.Context, params map[string]string) ([
 	}
 	slog.Debug("Alibaba Cloud API V3 request", "module", "alicloud", "action", action)
 
-	// 从 BaseURL 解析主机名
 	u, err := url.Parse(c.BaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid base URL: %w", err)
 	}
 
-	// 构建 V3 请求头
 	headers := map[string]string{
 		"x-acs-action":  action,
 		"x-acs-version": "2015-01-09",
 	}
 
-	// 分离 Action 和 Version 参数，其余作为查询参数
+	// Action/Version 走请求头，其余参数进查询串
 	queryParams := make(map[string]string, len(params))
 	for k, v := range params {
 		switch k {
 		case "Action":
-		// 已在 headers 中设置
 		case "Version":
 			headers["x-acs-version"] = v
 		default:
@@ -393,7 +386,6 @@ func (c *Client) makeV3Request(ctx context.Context, params map[string]string) ([
 		return nil, fmt.Errorf("failed to sign request: %w", err)
 	}
 
-	// 发起请求
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		slog.Error("Alibaba Cloud API V3 request failed", "module", "alicloud", "action", action, "err", err)

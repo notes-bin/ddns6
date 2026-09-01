@@ -10,13 +10,12 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-// newGoDaddyTestServer creates a test server that handles both domain lookup and record operations
+// newGoDaddyTestServer 创建同时处理域名查询与记录操作的 mock 服务器。
 func newGoDaddyTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if strings.Contains(r.URL.Path, "/domains/") && !strings.Contains(r.URL.Path, "/records/") {
-			// Domain lookup - return valid JSON
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"domain": "example.com"}`))
 		} else {
@@ -26,6 +25,7 @@ func newGoDaddyTestServer(t *testing.T) *httptest.Server {
 	}))
 }
 
+// TestAddRecord 验证 AddRecord 成功路径。
 func TestAddRecord(t *testing.T) {
 	ts := newGoDaddyTestServer(t)
 	defer ts.Close()
@@ -38,6 +38,7 @@ func TestAddRecord(t *testing.T) {
 	}
 }
 
+// TestModifyRecord 验证 ModifyRecord 按旧值匹配更新。
 func TestModifyRecord(t *testing.T) {
 	ts := newGoDaddyTestServer(t)
 	defer ts.Close()
@@ -50,6 +51,7 @@ func TestModifyRecord(t *testing.T) {
 	}
 }
 
+// TestDeleteRecord 验证 DeleteRecord 按值删除。
 func TestDeleteRecord(t *testing.T) {
 	ts := newGoDaddyTestServer(t)
 	defer ts.Close()
@@ -62,6 +64,7 @@ func TestDeleteRecord(t *testing.T) {
 	}
 }
 
+// TestGetRecords 验证 GetRecords 列表解析。
 func TestGetRecords(t *testing.T) {
 	ts := newGoDaddyTestServer(t)
 	defer ts.Close()
@@ -78,6 +81,7 @@ func TestGetRecords(t *testing.T) {
 	}
 }
 
+// TestGetRootDomain 验证 getRootDomain 根域解析。
 func TestGetRootDomain(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -98,6 +102,7 @@ func TestGetRootDomain(t *testing.T) {
 	}
 }
 
+// TestMakeRequest 验证 makeRequest 响应解码。
 func TestMakeRequest(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

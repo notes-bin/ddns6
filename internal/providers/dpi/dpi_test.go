@@ -10,6 +10,7 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
+// newTestClient 创建指向 mock 服务器的客户端，并自动 ParseForm。
 func newTestClient(t *testing.T, handler http.HandlerFunc) *Client {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -22,6 +23,7 @@ func newTestClient(t *testing.T, handler http.HandlerFunc) *Client {
 	return NewClient("id,key", WithBaseURL(server.URL))
 }
 
+// TestClient_GetRecords 验证 Record.List 解析与认证参数。
 func TestClient_GetRecords(t *testing.T) {
 	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if !strings.Contains(r.PostFormValue("login_token"), "id,key") {
@@ -44,6 +46,7 @@ func TestClient_GetRecords(t *testing.T) {
 	}
 }
 
+// TestClient_AddRecord 验证 Record.Create 成功路径。
 func TestClient_AddRecord(t *testing.T) {
 	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasSuffix(r.URL.Path, "/Record.Create") {
@@ -59,6 +62,7 @@ func TestClient_AddRecord(t *testing.T) {
 	}
 }
 
+// TestClient_ModifyRecord 验证 Record.Modify 携带 record_id。
 func TestClient_ModifyRecord(t *testing.T) {
 	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasSuffix(r.URL.Path, "/Record.Modify") {
@@ -77,6 +81,7 @@ func TestClient_ModifyRecord(t *testing.T) {
 	}
 }
 
+// TestClient_DeleteRecord 验证 Record.Remove 携带 record_id。
 func TestClient_DeleteRecord(t *testing.T) {
 	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasSuffix(r.URL.Path, "/Record.Remove") {
@@ -95,6 +100,7 @@ func TestClient_DeleteRecord(t *testing.T) {
 	}
 }
 
+// TestClient_ApiError 验证业务错误码被正确返回。
 func TestClient_ApiError(t *testing.T) {
 	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(recordListResponse{

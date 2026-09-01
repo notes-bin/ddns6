@@ -25,17 +25,17 @@ const (
 	defaultBaseURL = "https://api.digitalocean.com/v2"
 )
 
-// Client DigitalOcean DNS API 客户端
+// Client DigitalOcean DNS API 客户端。
 type Client struct {
 	token      string
 	baseURL    string
 	httpClient *http.Client
 }
 
-// Option 客户端配置选项函数
+// Option 客户端配置选项。
 type Option func(*Client)
 
-// NewClient 创建 DigitalOcean DNS 客户端
+// NewClient 创建 DigitalOcean DNS 客户端。
 func NewClient(token string, options ...Option) *Client {
 	c := &Client{
 		token:      token,
@@ -48,21 +48,21 @@ func NewClient(token string, options ...Option) *Client {
 	return c
 }
 
-// WithBaseURL 设置自定义 API 地址（测试用）
+// WithBaseURL 设置自定义 API 地址（测试用）。
 func WithBaseURL(baseURL string) Option {
 	return func(c *Client) {
 		c.baseURL = strings.TrimSuffix(baseURL, "/")
 	}
 }
 
-// WithHTTPClient 设置自定义 HTTP 客户端
+// WithHTTPClient 设置自定义 HTTP 客户端。
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
 		c.httpClient = httpClient
 	}
 }
 
-// DomainRecord DigitalOcean DNS 记录
+// DomainRecord 表示 DigitalOcean DNS 记录。
 type DomainRecord struct {
 	ID       int    `json:"id"`
 	Type     string `json:"type"`
@@ -73,7 +73,7 @@ type DomainRecord struct {
 	TTL      int    `json:"ttl"`
 }
 
-// AddRecord 添加域名解析记录
+// AddRecord 添加 DNS 记录。
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	domain, subDomain := domainutil.SplitDomain(record.Name, record.Zone)
 
@@ -101,7 +101,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	return nil
 }
 
-// ModifyRecord 修改域名解析记录
+// ModifyRecord 修改 DNS 记录。
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
 	domain, _ := domainutil.SplitDomain(record.Name, record.Zone)
 
@@ -128,7 +128,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	return nil
 }
 
-// DeleteRecord 删除域名解析记录
+// DeleteRecord 删除 DNS 记录。
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
 	domain, _ := domainutil.SplitDomain(record.Name, record.Zone)
 
@@ -144,7 +144,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	return nil
 }
 
-// GetRecords 查询域名解析记录
+// GetRecords 查询 DNS 记录。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	domain, _ := domainutil.SplitDomain(fulldomain, "")
 

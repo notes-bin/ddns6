@@ -66,6 +66,7 @@ func WithHTTPClient(httpClient *http.Client) Option {
 	}
 }
 
+// apiReply 为 Namecheap XML API 通用响应结构。
 type apiReply struct {
 	Status string `xml:"Status,attr"`
 	Errors struct {
@@ -80,6 +81,7 @@ type apiReply struct {
 	} `xml:"CommandResponse"`
 }
 
+// hostEntry 为 getHosts/setHosts 使用的单条主机记录。
 type hostEntry struct {
 	Name    string `xml:"Name,attr"`
 	Type    string `xml:"Type,attr"`
@@ -155,6 +157,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return result, nil
 }
 
+// upsert 通过 setHosts 全量重写主机列表以添加或替换记录。
 func (c *Client) upsert(ctx context.Context, info ddns.RecordInfo, replace bool) error {
 	sld, tld, sub, err := c.splitDomain(info.Name, info.Zone)
 	if err != nil {
@@ -188,6 +191,7 @@ func (c *Client) upsert(ctx context.Context, info ddns.RecordInfo, replace bool)
 	return c.setHosts(ctx, sld, tld, newHosts)
 }
 
+// getHosts 调用 namecheap.domains.dns.getHosts 获取当前主机列表。
 func (c *Client) getHosts(ctx context.Context, sld, tld string) ([]hostEntry, error) {
 	reply, err := c.call(ctx, "namecheap.domains.dns.getHosts", url.Values{
 		"SLD": {sld},
@@ -199,6 +203,7 @@ func (c *Client) getHosts(ctx context.Context, sld, tld string) ([]hostEntry, er
 	return reply.CommandResponse.DomainDNSGetHostsResult.Hosts, nil
 }
 
+// setHosts 调用 namecheap.domains.dns.setHosts 提交完整主机列表。
 func (c *Client) setHosts(ctx context.Context, sld, tld string, hosts []hostEntry) error {
 	params := url.Values{
 		"SLD": {sld},
@@ -217,6 +222,7 @@ func (c *Client) setHosts(ctx context.Context, sld, tld string, hosts []hostEntr
 	return err
 }
 
+// call 发起 Namecheap XML API GET 请求并解析响应。
 func (c *Client) call(ctx context.Context, command string, extra url.Values) (*apiReply, error) {
 	params := url.Values{
 		"ApiUser":  {c.username},
@@ -259,6 +265,7 @@ func (c *Client) call(ctx context.Context, command string, extra url.Values) (*a
 	return &reply, nil
 }
 
+// splitDomain 将域名拆为 SLD、TLD 与主机标签（Namecheap API 要求）。
 func (c *Client) splitDomain(name, zoneHint string) (sld, tld, sub string, err error) {
 	root, sub := domainutil.SplitDomain(name, zoneHint)
 	parts := strings.Split(strings.ToLower(strings.TrimSuffix(root, ".")), ".")

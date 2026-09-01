@@ -26,7 +26,7 @@ const (
 	defaultBaseURL = "https://dns.myhuaweicloud.com"
 )
 
-// Client 华为云 DNS API 客户端
+// Client 华为云 DNS API 客户端。
 type Client struct {
 	accessKey  string
 	secretKey  string
@@ -34,10 +34,10 @@ type Client struct {
 	httpClient *http.Client
 }
 
-// Option 客户端配置选项函数
+// Option 客户端配置选项。
 type Option func(*Client)
 
-// NewClient 创建华为云 DNS 客户端
+// NewClient 创建华为云 DNS 客户端。
 func NewClient(accessKey, secretKey string, options ...Option) *Client {
 	c := &Client{
 		accessKey:  accessKey,
@@ -51,21 +51,21 @@ func NewClient(accessKey, secretKey string, options ...Option) *Client {
 	return c
 }
 
-// WithBaseURL 设置自定义 API 地址（测试用）
+// WithBaseURL 设置自定义 API 地址（测试用）。
 func WithBaseURL(baseURL string) Option {
 	return func(c *Client) {
 		c.baseURL = strings.TrimSuffix(baseURL, "/")
 	}
 }
 
-// WithHTTPClient 设置自定义 HTTP 客户端
+// WithHTTPClient 设置自定义 HTTP 客户端。
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
 		c.httpClient = httpClient
 	}
 }
 
-// DNSRecord 华为云 DNS 记录集
+// DNSRecord 华为云 DNS 记录集。
 type DNSRecord struct {
 	ID      string   `json:"id,omitempty"`
 	Name    string   `json:"name"`
@@ -76,8 +76,7 @@ type DNSRecord struct {
 	ZoneID  string   `json:"zone_id,omitempty"`
 }
 
-// recordSetPayload 创建记录集时的请求体
-// weight 只在创建时需要，更新时不传
+// recordSetPayload 创建记录集请求体；weight 仅创建时需要，更新时不传。
 type recordSetPayload struct {
 	Name    string   `json:"name"`
 	Type    string   `json:"type"`
@@ -86,7 +85,7 @@ type recordSetPayload struct {
 	Weight  int      `json:"weight"`
 }
 
-// AddRecord 添加域名解析记录
+// AddRecord 添加 DNS 记录。
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	zoneID, err := c.getZoneID(ctx, record.Name)
 	if err != nil {
@@ -113,7 +112,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	return nil
 }
 
-// ModifyRecord 修改域名解析记录
+// ModifyRecord 修改 DNS 记录。
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
 	zoneID, err := c.getZoneID(ctx, record.Name)
 	if err != nil {
@@ -139,7 +138,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	return nil
 }
 
-// DeleteRecord 删除域名解析记录
+// DeleteRecord 删除 DNS 记录。
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
 	zoneID, err := c.getZoneID(ctx, record.Name)
 	if err != nil {
@@ -158,7 +157,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	return nil
 }
 
-// GetRecords 查询域名的解析记录，返回通用 RecordInfo 列表
+// GetRecords 查询 DNS 记录，支持分页拉取全部 recordsets。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	zoneID, err := c.getZoneID(ctx, fulldomain)
 	if err != nil {
@@ -222,7 +221,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return records, nil
 }
 
-// getZoneID 查找域名对应的 Zone ID
+// getZoneID 按域名后缀匹配华为云 DNS Zone。
 func (c *Client) getZoneID(ctx context.Context, domain string) (string, error) {
 	parts := strings.Split(domain, ".")
 	for i := range len(parts) - 1 {
@@ -274,7 +273,7 @@ func (c *Client) getZoneID(ctx context.Context, domain string) (string, error) {
 	return "", fmt.Errorf("zone not found for domain %s", domain)
 }
 
-// request 执行签名 HTTP 请求，自动解码响应
+// request 执行已签名 HTTP 请求并返回原始响应体。
 func (c *Client) request(ctx context.Context, method, url string, payload any) ([]byte, error) {
 	var bodyBytes []byte
 	var err error
@@ -292,7 +291,6 @@ func (c *Client) request(ctx context.Context, method, url string, payload any) (
 
 	req.Header.Set("Content-Type", "application/json")
 
-	// SDK-HMAC-SHA256 签名
 	signer := &Signer{Key: c.accessKey, Secret: c.secretKey}
 	if err := signer.Sign(req); err != nil {
 		return nil, fmt.Errorf("failed to sign request: %w", err)
@@ -316,7 +314,7 @@ func (c *Client) request(ctx context.Context, method, url string, payload any) (
 	return respBody, nil
 }
 
-// requestRaw 执行签名 HTTP 请求并解码到目标结构体（用于 GET 请求）
+// requestRaw 执行已签名 GET/写请求并将 JSON 解码到 result。
 func (c *Client) requestRaw(ctx context.Context, method, url string, result any) error {
 	req, err := http.NewRequestWithContext(ctx, method, url, http.NoBody)
 	if err != nil {
@@ -325,7 +323,6 @@ func (c *Client) requestRaw(ctx context.Context, method, url string, result any)
 
 	req.Header.Set("Content-Type", "application/json")
 
-	// SDK-HMAC-SHA256 签名
 	signer := &Signer{Key: c.accessKey, Secret: c.secretKey}
 	if err := signer.Sign(req); err != nil {
 		return fmt.Errorf("failed to sign request: %w", err)

@@ -9,17 +9,15 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-// newCloudflareTestServer creates a test server that handles both zone lookup and record operations
+// newCloudflareTestServer 创建同时处理 Zone 查询与记录操作的 mock 服务器。
 func newCloudflareTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if strings.Contains(r.URL.Path, "/zones") && !strings.Contains(r.URL.Path, "/dns_records") {
-			// Zone lookup
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"success": true, "result": [{"id": "zone123", "name": "example.com"}]}`))
 		} else if strings.Contains(r.URL.Path, "/dns_records") && r.Method == "GET" && !strings.Contains(r.URL.Path, "/dns_records/") {
-			// List records - array response
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"success": true, "result": [], "result_info": {"page": 1, "per_page": 100, "total_pages": 1, "total_count": 0}}`))
 		} else {
@@ -29,6 +27,7 @@ func newCloudflareTestServer(t *testing.T) *httptest.Server {
 	}))
 }
 
+// TestAddRecord 验证 AddRecord 成功路径。
 func TestAddRecord(t *testing.T) {
 	ts := newCloudflareTestServer(t)
 	defer ts.Close()
@@ -41,6 +40,7 @@ func TestAddRecord(t *testing.T) {
 	}
 }
 
+// TestModifyRecord 验证 ModifyRecord 成功路径。
 func TestModifyRecord(t *testing.T) {
 	ts := newCloudflareTestServer(t)
 	defer ts.Close()
@@ -53,6 +53,7 @@ func TestModifyRecord(t *testing.T) {
 	}
 }
 
+// TestDeleteRecord 验证 DeleteRecord 成功路径。
 func TestDeleteRecord(t *testing.T) {
 	ts := newCloudflareTestServer(t)
 	defer ts.Close()
@@ -65,6 +66,7 @@ func TestDeleteRecord(t *testing.T) {
 	}
 }
 
+// TestGetRecords 验证 GetRecords 列表解析。
 func TestGetRecords(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -90,6 +92,7 @@ func TestGetRecords(t *testing.T) {
 	}
 }
 
+// TestGetDomainRecord 验证 GetDomainRecord 单条查询。
 func TestGetDomainRecord(t *testing.T) {
 	ts := newCloudflareTestServer(t)
 	defer ts.Close()
@@ -106,6 +109,7 @@ func TestGetDomainRecord(t *testing.T) {
 	}
 }
 
+// TestGetZoneID 验证 getZoneID 区域解析。
 func TestGetZoneID(t *testing.T) {
 	ts := newCloudflareTestServer(t)
 	defer ts.Close()
@@ -122,6 +126,7 @@ func TestGetZoneID(t *testing.T) {
 	}
 }
 
+// TestMakeRequest 验证 makeRequest 响应解码。
 func TestMakeRequest(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -143,6 +148,7 @@ func TestMakeRequest(t *testing.T) {
 	}
 }
 
+// TestApiError 验证 makeRequest 对 API 业务错误的透传。
 func TestApiError(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -151,7 +157,6 @@ func TestApiError(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	// makeRequest 直接校验业务错误文案；GetRecords 经 getZoneID 会吞掉原始 API 消息。
 	client := NewClient(WithAPIToken("bad-token"), WithBaseURL(ts.URL))
 	var result map[string]any
 	err := client.makeRequest(t.Context(), "GET", ts.URL+"/zones", nil, &result)

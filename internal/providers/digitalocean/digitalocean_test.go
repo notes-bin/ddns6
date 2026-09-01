@@ -10,6 +10,7 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
+// TestClient_GetRecords 验证 GetRecords 解析与 Bearer 认证。
 func TestClient_GetRecords(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer test-token" {
@@ -42,6 +43,7 @@ func TestClient_GetRecords(t *testing.T) {
 	}
 }
 
+// TestClient_AddRecord 验证 AddRecord 发送 POST 请求。
 func TestClient_AddRecord(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -59,6 +61,7 @@ func TestClient_AddRecord(t *testing.T) {
 	}
 }
 
+// TestClient_ModifyRecord 验证 ModifyRecord 发送 PUT 请求。
 func TestClient_ModifyRecord(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPut {
@@ -79,6 +82,7 @@ func TestClient_ModifyRecord(t *testing.T) {
 	}
 }
 
+// TestClient_DeleteRecord 验证 DeleteRecord 发送 DELETE 请求。
 func TestClient_DeleteRecord(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete {
@@ -95,6 +99,7 @@ func TestClient_DeleteRecord(t *testing.T) {
 	}
 }
 
+// TestClient_APIError 验证非 2xx 响应的错误透传。
 func TestClient_APIError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)

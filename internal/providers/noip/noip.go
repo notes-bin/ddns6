@@ -1,5 +1,9 @@
 // Package noip 实现 No-IP 免费 DDNS 服务。
-// No-IP 是一个经典的动态 DNS 服务商，通过 HTTP Basic Auth 和 GET 请求更新域名解析记录
+//
+// 认证方式：HTTP Basic Auth（用户名 + 密码）。
+// 必填参数：--username、--password
+//
+// 注意：经典 DDNS 更新接口，仅支持 GET 更新，无记录查询与删除 API。
 package noip
 
 import (
@@ -19,7 +23,7 @@ const (
 	updatePath     = "/nic/update"
 )
 
-// Client No-IP DDNS API 客户端
+// Client No-IP DDNS API 客户端。
 type Client struct {
 	username   string
 	password   string
@@ -27,10 +31,10 @@ type Client struct {
 	httpClient *http.Client
 }
 
-// Option 客户端配置选项函数
+// Option 客户端配置选项。
 type Option func(*Client)
 
-// NewClient 创建 No-IP 客户端
+// NewClient 创建 No-IP 客户端。
 func NewClient(username, password string, options ...Option) *Client {
 	c := &Client{
 		username:   username,
@@ -44,34 +48,34 @@ func NewClient(username, password string, options ...Option) *Client {
 	return c
 }
 
-// WithBaseURL 设置自定义 API 地址（测试用）
+// WithBaseURL 设置自定义 API 地址（测试用）。
 func WithBaseURL(baseURL string) Option {
 	return func(c *Client) {
 		c.baseURL = strings.TrimSuffix(baseURL, "/")
 	}
 }
 
-// WithHTTPClient 设置自定义 HTTP 客户端
+// WithHTTPClient 设置自定义 HTTP 客户端。
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
 		c.httpClient = httpClient
 	}
 }
 
-// AddRecord 添加或更新域名解析记录
-// No-IP 无独立添加接口，调用 update 覆盖设置
+// AddRecord 添加或更新 DNS 记录。
+// No-IP 无独立添加接口，调用 update 覆盖设置。
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	return c.update(ctx, record.Name, record.Value)
 }
 
-// ModifyRecord 修改域名解析记录
-// No-IP 无独立修改接口，调用 update 覆盖设置
+// ModifyRecord 修改 DNS 记录。
+// No-IP 无独立修改接口，调用 update 覆盖设置。
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
 	return c.update(ctx, record.Name, record.Value)
 }
 
-// DeleteRecord 删除域名解析记录
-// No-IP 不支持删除记录，设为空操作
+// DeleteRecord 删除 DNS 记录。
+// No-IP 不支持通过 DDNS API 删除记录；此处为有意空操作（no-op），直接返回 nil。
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
 	slog.Debug("No-IP does not support deleting records, skipping",
 		"module", "noip",
@@ -79,8 +83,8 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	return nil
 }
 
-// GetRecords 查询域名解析记录
-// No-IP 不提供记录查询 API，返回空列表
+// GetRecords 查询 DNS 记录。
+// No-IP 不提供记录查询 API，返回空列表。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	slog.Debug("No-IP does not support querying records, returning empty list",
 		"module", "noip",
@@ -88,9 +92,8 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return []ddns.RecordInfo{}, nil
 }
 
-// update 执行 No-IP 的 API 更新请求
+// update 执行 No-IP DDNS 更新请求。
 func (c *Client) update(ctx context.Context, hostname, ip string) error {
-	// 构建请求 URL
 	reqURL := fmt.Sprintf("%s%s?hostname=%s", c.baseURL, updatePath, hostname)
 	if ip != "" {
 		reqURL += "&myip=" + ip
@@ -119,7 +122,7 @@ func (c *Client) update(ctx context.Context, hostname, ip string) error {
 
 	response := strings.TrimSpace(string(body))
 
-	// 解析响应
+	// 解析 No-IP DDNS 响应码
 	switch {
 	case strings.HasPrefix(response, "good"):
 		slog.Info("No-IP record updated successfully", "module", "noip", "hostname", hostname, "ipv6", ip)

@@ -10,6 +10,7 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
+// TestClient 表驱动验证 Client CRUD 与错误路径。
 func TestClient(t *testing.T) {
 	tests := []struct {
 		name    string

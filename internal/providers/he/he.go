@@ -1,5 +1,9 @@
 // Package he 实现 Hurricane Electric DNS 服务。
-// HE DNS 提供免费的 DNS 托管服务，支持通过 DDNS API 更新 IPv6 解析记录
+//
+// 认证方式：DDNS Key（固定用户名 hosted_dns_editapi + DDNS 密钥）。
+// 必填参数：--password（从 dns.he.net 获取的 DDNS Key）
+//
+// 注意：HE DDNS API 仅支持更新记录，不支持查询与删除。
 package he
 
 import (
@@ -19,18 +23,18 @@ const (
 	updatePath     = "/nic/update"
 )
 
-// Client HE DNS API 客户端
+// Client HE DNS API 客户端。
 type Client struct {
 	password   string
 	baseURL    string
 	httpClient *http.Client
 }
 
-// Option 客户端配置选项函数
+// Option 客户端配置选项。
 type Option func(*Client)
 
-// NewClient 创建 HE DNS 客户端
-// HE DDNS 使用固定用户名 "hosted_dns_editapi"，只需传入 DDNS Key 作为 password
+// NewClient 创建 HE DNS 客户端。
+// HE DDNS 使用固定用户名 "hosted_dns_editapi"，只需传入 DDNS Key 作为 password。
 func NewClient(password string, options ...Option) *Client {
 	c := &Client{
 		password:   password,
@@ -43,33 +47,34 @@ func NewClient(password string, options ...Option) *Client {
 	return c
 }
 
-// WithBaseURL 设置自定义 API 地址（测试用）
+// WithBaseURL 设置自定义 API 地址（测试用）。
 func WithBaseURL(baseURL string) Option {
 	return func(c *Client) {
 		c.baseURL = strings.TrimSuffix(baseURL, "/")
 	}
 }
 
-// WithHTTPClient 设置自定义 HTTP 客户端
+// WithHTTPClient 设置自定义 HTTP 客户端。
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
 		c.httpClient = httpClient
 	}
 }
 
-// AddRecord 添加或更新域名解析记录
-// HE DDNS API 使用单次更新请求覆盖记录
+// AddRecord 添加或更新 DNS 记录。
+// HE DDNS API 使用单次更新请求覆盖记录。
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	return c.update(ctx, record.Name, record.Value)
 }
 
-// ModifyRecord 修改域名解析记录
+// ModifyRecord 修改 DNS 记录。
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
 	return c.update(ctx, record.Name, record.Value)
 }
 
-// DeleteRecord 删除域名解析记录
-// HE 不支持通过 DDNS API 删除记录
+// DeleteRecord 删除 DNS 记录。
+// HE DDNS API 不支持删除记录；此处为有意空操作（no-op），直接返回 nil 以避免上层报错。
+// 如需删除记录，请登录 dns.he.net 控制台手动操作。
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
 	slog.Debug("HE DNS does not support deleting records via DDNS API, skipping",
 		"module", "he",
@@ -77,8 +82,8 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	return nil
 }
 
-// GetRecords 查询域名解析记录
-// HE DDNS API 不提供记录查询接口，返回空列表
+// GetRecords 查询 DNS 记录。
+// HE DDNS API 不提供记录查询接口，返回空列表。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	slog.Debug("HE DNS does not support querying records via DDNS API, returning empty list",
 		"module", "he",
@@ -86,7 +91,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return []ddns.RecordInfo{}, nil
 }
 
-// update 执行 HE DNS DDNS 更新请求
+// update 执行 HE DNS DDNS 更新请求。
 func (c *Client) update(ctx context.Context, hostname, ip string) error {
 	reqURL := fmt.Sprintf("%s%s?hostname=%s", c.baseURL, updatePath, hostname)
 	if ip != "" {
@@ -117,7 +122,7 @@ func (c *Client) update(ctx context.Context, hostname, ip string) error {
 
 	response := strings.TrimSpace(string(body))
 
-	// 解析响应
+	// 解析 HE DDNS 响应码
 	switch {
 	case strings.HasPrefix(response, "good"):
 		slog.Info("HE DNS record updated successfully", "module", "he", "hostname", hostname, "ipv6", ip)

@@ -9,6 +9,7 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
+// TestAddRecord 验证 AddDomainRecord 成功路径。
 func TestAddRecord(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -24,6 +25,7 @@ func TestAddRecord(t *testing.T) {
 	}
 }
 
+// TestModifyRecord 验证 UpdateDomainRecord 成功路径。
 func TestModifyRecord(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -39,6 +41,7 @@ func TestModifyRecord(t *testing.T) {
 	}
 }
 
+// TestDeleteRecord 验证 DeleteDomainRecord 成功路径。
 func TestDeleteRecord(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -54,6 +57,7 @@ func TestDeleteRecord(t *testing.T) {
 	}
 }
 
+// TestGetRecords 验证 DescribeDomainRecords 解析。
 func TestGetRecords(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -73,6 +77,7 @@ func TestGetRecords(t *testing.T) {
 	}
 }
 
+// TestGetDomainRecord 验证 DescribeDomainRecordInfo 解析。
 func TestGetDomainRecord(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -92,6 +97,7 @@ func TestGetDomainRecord(t *testing.T) {
 	}
 }
 
+// TestGetRootDomain 验证根域名逐级探测逻辑。
 func TestGetRootDomain(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -107,6 +113,7 @@ func TestGetRootDomain(t *testing.T) {
 	}
 }
 
+// TestMakeRequest 验证 V1 签名请求成功路径。
 func TestMakeRequest(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -122,10 +129,10 @@ func TestMakeRequest(t *testing.T) {
 	}
 }
 
+// TestMakeV3Request 验证 V3 签名头与 ACS3-HMAC-SHA256 格式。
 func TestMakeV3Request(t *testing.T) {
 	var ts *httptest.Server
 	ts = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// 验证 V3 签名头存在
 		if r.Header.Get("Authorization") == "" {
 			t.Error("missing Authorization header")
 		}
@@ -147,7 +154,6 @@ func TestMakeV3Request(t *testing.T) {
 		if r.Header.Get("x-acs-signature-nonce") == "" {
 			t.Error("missing x-acs-signature-nonce header")
 		}
-		// 验证 Host 头与服务器监听地址一致
 		if r.Host != ts.Listener.Addr().String() {
 			t.Errorf("Host = %q, want %q", r.Host, ts.Listener.Addr().String())
 		}

@@ -63,11 +63,13 @@ func WithHTTPClient(httpClient *http.Client) Option {
 	}
 }
 
+// apiStatus 为国际版 API 响应 status 字段。
 type apiStatus struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 }
 
+// record 为列表接口返回的单条记录。
 type record struct {
 	ID    int    `json:"id"`
 	Name  string `json:"name"`
@@ -76,11 +78,13 @@ type record struct {
 	TTL   string `json:"ttl"`
 }
 
+// recordListResponse 为 Record.List 响应。
 type recordListResponse struct {
 	Status  apiStatus `json:"status"`
 	Records []record  `json:"records"`
 }
 
+// recordResponse 为写操作响应。
 type recordResponse struct {
 	Status apiStatus `json:"status"`
 	Record struct {
@@ -196,6 +200,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return result, nil
 }
 
+// post 以 form-urlencoded 发起 POST 并解码 JSON；会剥离响应 BOM。
 func (c *Client) post(ctx context.Context, path string, params url.Values, result any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, strings.NewReader(params.Encode()))
 	if err != nil {
