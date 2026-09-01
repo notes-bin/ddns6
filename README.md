@@ -2,8 +2,9 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go)](go.mod)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+[![Test](https://github.com/notes-bin/ddns6/actions/workflows/test.yml/badge.svg)](https://github.com/notes-bin/ddns6/actions/workflows/test.yml)
 
-自动检测本机 IPv6 地址变化，实时更新到 DNS 服务商的 AAAA 记录。支持 **23 个 DNS 运营商**；Linux 通过 Netlink 事件驱动，其他平台定时轮询。
+自动检测本机 IPv6 地址变化，实时更新到 DNS 服务商的 AAAA 记录。支持 **23 家 DNS 运营商**；Linux 通过 Netlink 事件驱动，其他平台定时轮询。
 
 ---
 
@@ -25,7 +26,7 @@ make build          # 输出到 bin/ddns6
 sudo make install   # 安装到 GOPATH/bin
 ```
 
-也可直接下载 [GitHub Releases](https://github.com/notes-bin/ddns6/releases) 的预编译二进制。
+也可直接下载 [GitHub Releases](https://github.com/notes-bin/ddns6/releases) 的预编译二进制（由 `release.yml` 在推送 `v*` tag 时自动构建）。
 
 ### 临时运行（单次测试）
 
@@ -136,7 +137,7 @@ ddns6 list tencent --domain example.com --type "" --secret-id xxx --secret-key y
 ddns6 list tencent --domain example.com --secret-id xxx --secret-key yyy
 ```
 
-> 注意：duckdns、he、noip 为受限 API（仅更新接口），不支持 `list`。
+**受限运营商**：`duckdns`、`he`、`noip` 的 API 仅提供更新端点，不支持记录查询。对上述运营商执行 `list` 会返回明确错误提示，请使用各服务商 Web 面板管理记录。
 
 ### `ddns6 clean [provider]`
 
@@ -166,7 +167,7 @@ ddns6 clean tencent --domain example.com --subdomain www --yes \
 
 安全特性：删除前列表确认、`--dry-run` 预览、`--yes` 跳过确认、并发限流（最多 5）。
 
-> 注意：duckdns、he、noip 不支持 `clean`。
+**受限运营商**：`duckdns`、`he`、`noip` 同样不支持 `clean`。
 
 ### `ddns6 init [provider]`
 
@@ -209,35 +210,65 @@ yum install bash-completion -y
 
 ## 支持的 DNS 运营商
 
-| 运营商 | CLI 名称 | 必填参数 | 配置文件字段 | 说明 |
-|--------|---------|---------|-------------|------|
-| 腾讯云 DNSPod | `tencent` | `--secret-id` `--secret-key` | `secret_id` `secret_key` | |
-| Cloudflare | `cloudflare` | `--api-token` | `api_token` | |
-| 阿里云 DNS | `alicloud` | `--access-key-id` `--access-key-secret` | `access_key_id` `access_key_secret` | 可选 `sign_version` |
-| GoDaddy | `godaddy` | `--api-key` `--api-secret` | `api_key` `api_secret` | |
-| 华为云 DNS | `huaweicloud` | `--access-key` `--secret-key` | `access_key` `secret_key` | |
-| 百度云 BCD | `baiducloud` | `--access-key` `--secret-key` | `access_key` `secret_key` | |
-| DigitalOcean | `digitalocean` | `--token` | `token` | |
-| DNSPod 旧版 | `dnspod` | `--login-token` | `login_token` | 格式：`ID,Token` |
-| Porkbun | `porkbun` | `--api-key` `--api-secret` | `api_key` `api_secret` | |
-| DuckDNS | `duckdns` | `--token` | `token` | 受限：不支持 list/clean |
-| HE | `he` | `--password` | `password` | 受限：不支持 list/clean |
-| No-IP | `noip` | `--username` `--password` | `username` `password` | 受限：不支持 list/clean |
-| Dynv6 | `dynv6` | `--token` | `token` | |
-| deSEC.io | `desec` | `--token` | `token` | |
-| Linode (Akamai) | `linode` | `--api-key` | `api_key` | |
-| NameSilo | `namesilo` | `--api-key` | `api_key` | |
-| IONOS | `ionos` | `--prefix` `--secret` | `prefix` `secret` | |
-| Hetzner Cloud | `hetzner` | `--token` | `token` | |
-| AWS Route 53 | `aws` | `--access-key-id` `--secret-access-key` | `access_key_id` `secret_access_key` | acme: `dns_aws` |
-| Google Cloud DNS | `gcloud` | `--project` `--access-token` | `project` `access_token` | acme: `dns_gcloud` |
-| Azure DNS | `azure` | `--subscription-id` `--tenant-id` `--client-id` `--client-secret` | 同左 snake_case | acme: `dns_azure` |
-| Namecheap | `namecheap` | `--api-key` `--username` `--client-ip` | `api_key` `username` `client_ip` | acme: `dns_namecheap` |
-| DNSPod 国际版 | `dpi` | `--login-token` | `login_token` | acme: `dns_dpi`；格式 `ID,Key` |
+共 **23 家**，注册于 `cmd/providers.go` 的 `providerFactories`。
 
-acme.sh 对照：`dns_dgon`→`digitalocean`，`dns_dp`→`tencent`/`dnspod`，`dns_duckdns`→`duckdns`，`dns_he`→`he`（均已支持）。
+| 运营商 | CLI 名称 | 必填参数 | 配置文件字段 (`auth`) | list/clean | 说明 |
+|--------|---------|---------|----------------------|------------|------|
+| 腾讯云 DNSPod | `tencent` | `--secret-id` `--secret-key` | `secret_id` `secret_key` | 支持 | API v3 |
+| Cloudflare | `cloudflare` | `--api-token` | `api_token` | 支持 | 需 DNS:Edit 权限 |
+| 阿里云 DNS | `alicloud` | `--access-key-id` `--access-key-secret` | `access_key_id` `access_key_secret` | 支持 | 可选 `sign_version`（见下文） |
+| GoDaddy | `godaddy` | `--api-key` `--api-secret` | `api_key` `api_secret` | 支持 | |
+| 华为云 DNS | `huaweicloud` | `--access-key` `--secret-key` | `access_key` `secret_key` | 支持 | |
+| 百度云 BCD | `baiducloud` | `--access-key` `--secret-key` | `access_key` `secret_key` | 支持 | |
+| DigitalOcean | `digitalocean` | `--token` | `token` | 支持 | |
+| DNSPod 旧版 | `dnspod` | `--login-token` | `login_token` | 支持 | 格式 `ID,Token` |
+| Porkbun | `porkbun` | `--api-key` `--api-secret` | `api_key` `api_secret` | 支持 | |
+| DuckDNS | `duckdns` | `--token` | `token` | **受限** | 仅更新端点 |
+| Hurricane Electric | `he` | `--password` | `password` | **受限** | DDNS Key，仅更新端点 |
+| No-IP | `noip` | `--username` `--password` | `username` `password` | **受限** | 经典 DDNS，仅更新端点 |
+| Dynv6 | `dynv6` | `--token` | `token` | 支持 | |
+| deSEC.io | `desec` | `--token` | `token` | 支持 | |
+| Linode (Akamai) | `linode` | `--api-key` | `api_key` | 支持 | DNS API v4 |
+| NameSilo | `namesilo` | `--api-key` | `api_key` | 支持 | |
+| IONOS | `ionos` | `--prefix` `--secret` | `prefix` `secret` | 支持 | |
+| Hetzner Cloud | `hetzner` | `--token` | `token` | 支持 | 需 DNS 权限 |
+| AWS Route 53 | `aws` | `--access-key-id` `--secret-access-key` | `access_key_id` `secret_access_key` | 支持 | 可选 `session_token` |
+| Google Cloud DNS | `gcloud` | `--project` `--access-token` | `project` `access_token` | 支持 | REST API，不依赖 gcloud CLI |
+| Azure DNS | `azure` | `--subscription-id` `--tenant-id` `--client-id` `--client-secret` | 同左 snake_case | 支持 | Service Principal |
+| Namecheap | `namecheap` | `--api-key` `--username` `--client-ip` | `api_key` `username` `client_ip` | 支持 | 需 API 白名单 IP |
+| DNSPod 国际版 | `dpi` | `--login-token` | `login_token` | 支持 | 格式 `ID,Key` |
 
-各运营商详细参数运行 `ddns6 run <name> --help` 查看。新增供应商参考 [acme.sh dnsapi](https://github.com/acmesh-official/acme.sh/tree/master/dnsapi) 实现。
+各运营商详细参数运行 `ddns6 run <name> --help` 查看。新增供应商可参考 [acme.sh dnsapi](https://github.com/acmesh-official/acme.sh/tree/master/dnsapi) 实现。
+
+### acme.sh 对照表
+
+以下对照 [acme.sh](https://github.com/acmesh-official/acme.sh) `dnsapi` 脚本名称，便于从 ACME 证书自动化迁移凭据理解：
+
+| ddns6 CLI | acme.sh 脚本 | 备注 |
+|-----------|-------------|------|
+| `tencent` | `dns_tencent` | 腾讯云 DNSPod API v3 |
+| `dnspod` | `dns_dp` | DNSPod 旧版（国内） |
+| `dpi` | `dns_dpi` | DNSPod.com 国际版 |
+| `cloudflare` | `dns_cf` | |
+| `alicloud` | `dns_ali` | |
+| `godaddy` | `dns_gd` | |
+| `huaweicloud` | `dns_huaweicloud` | |
+| `baiducloud` | `dns_baidu` | |
+| `digitalocean` | `dns_dgon` | |
+| `duckdns` | `dns_duckdns` | 受限：无 list/clean |
+| `he` | `dns_he` | 受限：无 list/clean |
+| `noip` | `dns_noip` | 受限：无 list/clean |
+| `dynv6` | `dns_dynv6` | |
+| `porkbun` | `dns_porkbun` | |
+| `desec` | `dns_desec` | |
+| `linode` | `dns_linode_v4` | |
+| `namesilo` | `dns_namesilo` | |
+| `ionos` | `dns_ionos` | |
+| `hetzner` | `dns_hetzner` | |
+| `aws` | `dns_aws` | AWS SigV4 |
+| `gcloud` | `dns_gcloud` | |
+| `azure` | `dns_azure` | |
+| `namecheap` | `dns_namecheap` | |
 
 ### 阿里云 V3 签名
 
@@ -261,10 +292,10 @@ auth:
 
 ## 配置文件格式
 
-`~/.ddns6/config.yaml`：
+默认路径：`~/.ddns6/config.yaml`。
 
 ```yaml
-provider: "tencent"          # 必填：运营商名称
+provider: "tencent"          # 必填：运营商名称（见上表 CLI 名称）
 auth:                        # 必填：认证凭据
   secret_id: "xxx"
   secret_key: "xxx"
@@ -283,7 +314,7 @@ subdomains:                  # 必填：子域名列表
 
 ## Docker 部署
 
-镜像为多阶段构建：固定 `alpine:3.21`，以非 root 用户 `ddns6`（uid 10001）运行，支持 `TARGETARCH` 多架构。Linux 上使用 Netlink 时需要主机网络命名空间。
+镜像为多阶段构建（`golang:1.25-alpine` → 固定 `alpine:3.21`），以非 root 用户 `ddns6`（uid 10001）运行，支持 `TARGETARCH` 多架构。Linux 上使用 Netlink 时需要主机网络命名空间。
 
 ### 前置条件
 
@@ -320,15 +351,16 @@ make docker-logs    # 跟踪日志
 make docker-down    # 停止并删除
 ```
 
-要点：
+### 安全要点
 
 | 项 | 说明 |
 |----|------|
+| 非 root 用户 | 镜像内 `ddns6:ddns6`（uid/gid 10001） |
 | `network_mode: host` | 与主机共用网络栈，Netlink 才能感知地址变化 |
 | `cap_drop: ALL` + `cap_add: NET_ADMIN` | 仅保留订阅地址事件所需能力 |
 | `read_only` + `tmpfs /tmp` | 只读根文件系统，降低容器被篡改风险 |
 | `no-new-privileges` | 禁止提权 |
-| 配置挂载 | `~/.ddns6` → `/home/ddns6/.ddns6:ro`（与镜像用户一致） |
+| 配置挂载 | `~/.ddns6` → `/home/ddns6/.ddns6:ro`（与镜像用户 HOME 一致） |
 | 多子域名 | Compose 命令行模式通常只传单个 `--subdomain`；多子域名请用配置文件模式 |
 
 ### 直接 `docker run`
@@ -383,6 +415,7 @@ sudo journalctl -u ddns6 -f
 - 运行 `check` / `run` 时若权限过松会输出警告
 - 日志不记录 secret key、token 等敏感信息
 - 建议为 DDNS 创建专用 API 令牌，仅授予 DNS 编辑权限
+- Docker CLI 模式会将凭据写入容器命令行，生产环境优先使用配置文件挂载
 
 ---
 
@@ -392,12 +425,13 @@ sudo journalctl -u ddns6 -f
 
 | 平台 | 模式 | 说明 |
 |------|------|------|
-| Linux | Netlink 事件驱动 | 实时监听内核地址变化；PPPoE 重拨后秒级触发 |
+| Linux | Netlink 事件驱动 | 实时监听内核 `RTM_NEWADDR`；PPPoE 重拨后秒级触发 |
 | macOS / Windows 等 | 定时轮询 | 默认每 5 分钟（`--interval` 可配） |
+| Linux（回退） | 定时轮询 | Netlink 不可用时自动回退 |
 
 ### 防抖（Debounce）
 
-PPPoE 重拨时地址可能短时间内多次变化。检测到新地址后等待 10 秒防抖窗口，窗口内每次新事件重置计时器，地址稳定后再执行 DNS 更新。
+PPPoE 重拨时地址可能短时间内多次变化。Linux Netlink 模式下检测到新地址后等待 **10 秒**防抖窗口，窗口内每次新事件重置计时器，地址稳定后再触发 DNS 同步。
 
 ### 同步流程
 
@@ -409,6 +443,8 @@ PPPoE 重拨时地址可能短时间内多次变化。检测到新地址后等�
         ├─ 遍历：IP 相同 → 跳过；不同 → ModifyRecord
         └─ 无记录 → AddRecord
 ```
+
+启动时会立即执行一次完整同步（fail-fast）；后续触发中的失败仅记日志，不终止服务。收到 SIGINT/SIGTERM 后优雅关闭（最多等待 5 秒）。
 
 ### IPv6 获取源
 
@@ -433,8 +469,8 @@ ddns6/
 ├── main.go                    # 程序入口
 ├── cmd/                       # CLI 命令定义
 │   ├── root.go                # 根命令、全局参数、环境变量
-│   ├── providers.go           # 23 个 provider 工厂注册
-│   ├── check.go / list.go / clean.go
+│   ├── providers.go           # 23 家 provider 工厂注册
+│   ├── check.go / list.go / clean.go / init.go
 │   └── ...
 ├── internal/
 │   ├── config/                # 配置加载与生成
@@ -442,13 +478,13 @@ ddns6/
 │   ├── ddns/                  # 核心服务编排
 │   │   ├── types.go           # RecordInfo、DNSProvider、Domain
 │   │   ├── service.go         # RunService 主循环
-│   │   ├── service_linux.go   # Netlink 触发（Linux）
+│   │   ├── service_linux.go   # Netlink 触发 + 防抖（Linux）
 │   │   ├── service_other.go   # 轮询触发（非 Linux）
 │   │   ├── record.go          # DNS 记录同步
 │   │   ├── match.go           # 记录名匹配、地址比较
 │   │   ├── processor.go       # CollectMatchingRecords
 │   │   └── display.go         # 表格输出
-│   └── providers/             # 各运营商实现
+│   └── providers/             # 各运营商实现（23 个子包）
 ├── pkg/
 │   ├── domainutil/            # SplitDomain
 │   ├── ipaddr/                # IPv6 获取（HTTP / DNS）
@@ -457,16 +493,22 @@ ddns6/
 ├── docker-compose.yml
 ├── .env.example
 ├── Makefile
-└── .github/workflows/release.yml
+└── .github/workflows/
+    ├── test.yml               # push/PR 到 main：vet + race + cover
+    └── release.yml            # 推送 v* tag：跨平台构建与 GitHub Release
 ```
 
 ---
 
 ## 开发
 
+要求 Go **1.25+**（见 `go.mod`，当前 `1.25.2`）。
+
+### 本地命令
+
 ```bash
 make build            # 编译到 bin/ddns6
-make test             # 测试
+make test             # go test -v ./...
 go vet ./...          # 静态分析
 make fmt              # go fmt
 make cross-build      # linux/darwin 交叉编译
@@ -474,14 +516,28 @@ make release          # 打包发布产物
 make help             # 查看全部目标
 ```
 
-要求 Go **1.25+**（见 `go.mod`）。
+带 race 与覆盖率（与 CI 一致）：
+
+```bash
+go vet ./...
+go test ./... -race -count=1 -coverprofile=coverage.out -covermode=atomic
+go tool cover -func=coverage.out | tail -n 1
+```
+
+### CI / Release
+
+| Workflow | 触发条件 | 内容 |
+|----------|---------|------|
+| [`test.yml`](.github/workflows/test.yml) | `push` / `pull_request` → `main` | `go vet ./...`；`go test ./... -race -count=1 -coverprofile=coverage.out -covermode=atomic` |
+| [`release.yml`](.github/workflows/release.yml) | 推送 `v*` tag | 测试 + vet；构建 `linux/amd64`、`darwin/amd64`、`darwin/arm64`；上传 tar.gz（含二进制、LICENSE、README）至 GitHub Release |
 
 ### 添加新运营商
 
-1. 在 `internal/providers/` 下创建新包，实现 `ddns.DNSProvider`
-2. 在 `cmd/providers.go` 的 `providerFactories` 注册；若仅支持更新，加入 `restrictedProviders`
-3. 同步更新 `docker-compose.yml`、`.env.example` 与本 README
-4. 运行 `go test ./...` 确认通过
+1. 在 `internal/providers/<name>/` 实现 `ddns.DNSProvider`
+2. 在 `cmd/providers.go` 的 `providerFactories` 追加一条（flags、run、fromConfig）
+3. 若 API 仅支持更新、不支持查询/删除，设置 `noListClean: true` 并加入 `restrictedProviders`
+4. 同步更新 `docker-compose.yml`、`.env.example` 与本 README
+5. 运行 `go test ./...` 确认通过
 
 ---
 
@@ -504,6 +560,9 @@ ddns6 check tencent --domain example.com --secret-id xxx --secret-key yyy
 
 **Q: 支持 A 记录（IPv4）吗？**  
 不支持。本项目专注 IPv6 DDNS（名称中的「6」即此意）。
+
+**Q: 为什么 duckdns / he / noip 不能 list 或 clean？**  
+这三家 API 仅提供 DDNS 更新端点，无记录查询/删除接口；CLI 会注册占位命令并返回明确错误。
 
 **Q: Docker 为什么要 `--network host`？**  
 Netlink 需要主机网络命名空间，才能感知本机 IPv6 变化。
