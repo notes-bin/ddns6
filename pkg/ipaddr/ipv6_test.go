@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -128,23 +129,24 @@ func TestGetIPv6Addr_RaceCancel(t *testing.T) {
 	}
 }
 
+// failFetcher 始终返回错误的 fetcher。
+type failFetcher struct{ err error }
+
+func (f *failFetcher) Fetch(context.Context) (net.IP, error) {
+	return nil, f.err
+}
+
 // TestGetIPv6Addr_AllFail 测试所有 fetcher 失败时返回错误。
 func TestGetIPv6Addr_AllFail(t *testing.T) {
-	failFetcher := &slowFetcher{
-		ip:    net.ParseIP("2001:db8::1"),
-		delay: 10 * time.Second, // 远超过总超时 5 秒
-	}
+	f1 := &failFetcher{err: errors.New("upstream down")}
+	f2 := &failFetcher{err: errors.New("dns fail")}
 
-	ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
-	defer cancel()
-
-	// 直接调用 Fetch 而非 GetIPv6Addr，避免受 5 秒总超时影响
-	_, err := failFetcher.Fetch(ctx)
+	_, err := ipaddr.GetIPv6Addr(t.Context(), f1, f2)
 	if err == nil {
-		t.Fatal("超时场景应返回错误")
+		t.Fatal("全部失败时应返回错误")
 	}
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Logf("超时场景错误应为 DeadlineExceeded, 得到: %v", err)
+	if !strings.Contains(err.Error(), "all 2 fetchers failed") {
+		t.Errorf("错误应包含失败汇总: %v", err)
 	}
 }
 
