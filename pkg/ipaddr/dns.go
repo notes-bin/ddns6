@@ -34,7 +34,6 @@ func (d *DnsFetcher) Fetch(ctx context.Context) (net.IP, error) {
 	}
 	defer conn.Close()
 
-	// 获取本地地址
 	localAddr, ok := conn.LocalAddr().(*net.UDPAddr)
 	if !ok {
 		return nil, fmt.Errorf("unexpected local address type from dial")

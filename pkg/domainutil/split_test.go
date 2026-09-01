@@ -2,6 +2,7 @@ package domainutil
 
 import "testing"
 
+// TestSplitDomain 覆盖无/有 rootDomain、多部分 TLD 及 apex（@）场景。
 func TestSplitDomain(t *testing.T) {
 	tests := []struct {
 		input      string
@@ -9,17 +10,14 @@ func TestSplitDomain(t *testing.T) {
 		wantRoot   string
 		wantSub    string
 	}{
-		// 无 rootDomain（旧逻辑向后兼容）
 		{"example.com", "", "example.com", "@"},
 		{"www.example.com", "", "example.com", "www"},
 		{"sub.www.example.com", "", "example.com", "sub.www"},
 
-		// 有已知 rootDomain
 		{"example.com", "example.com", "example.com", "@"},
 		{"www.example.com", "example.com", "example.com", "www"},
 		{"sub.www.example.com", "example.com", "example.com", "sub.www"},
 
-		// 多部分 TLD
 		{"example.co.uk", "example.co.uk", "example.co.uk", "@"},
 		{"www.example.co.uk", "example.co.uk", "example.co.uk", "www"},
 		{"sub.www.example.co.uk", "example.co.uk", "example.co.uk", "sub.www"},

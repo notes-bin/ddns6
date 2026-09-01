@@ -1,4 +1,3 @@
-// Package retry 重试机制测试
 package retry
 
 import (
@@ -10,16 +9,14 @@ import (
 	"time"
 )
 
-// ============================================================
-// Retryable / IsRetryable 测试
-// ============================================================
-
+// TestRetryable_NilReturnsNil 验证 Retryable(nil) 返回 nil。
 func TestRetryable_NilReturnsNil(t *testing.T) {
 	if err := Retryable(nil); err != nil {
 		t.Errorf("Retryable(nil) 应返回 nil, 得到 %v", err)
 	}
 }
 
+// TestRetryable_WrapsError 验证包装后的错误可被 IsRetryable 识别。
 func TestRetryable_WrapsError(t *testing.T) {
 	original := fmt.Errorf("some error")
 	wrapped := Retryable(original)
@@ -33,6 +30,7 @@ func TestRetryable_WrapsError(t *testing.T) {
 	}
 }
 
+// TestIsRetryable_NonRetryable 验证普通错误不被识别为可重试。
 func TestIsRetryable_NonRetryable(t *testing.T) {
 	err := fmt.Errorf("normal error")
 	if IsRetryable(err) {
@@ -40,12 +38,14 @@ func TestIsRetryable_NonRetryable(t *testing.T) {
 	}
 }
 
+// TestIsRetryable_Nil 验证 nil 不被识别为可重试。
 func TestIsRetryable_Nil(t *testing.T) {
 	if IsRetryable(nil) {
 		t.Error("nil 不应被识别为可重试")
 	}
 }
 
+// TestIsRetryable_WrappedInOther 验证经 fmt.Errorf %w 再包装后仍可识别。
 func TestIsRetryable_WrappedInOther(t *testing.T) {
 	original := Retryable(fmt.Errorf("inner"))
 	wrapped := fmt.Errorf("outer: %w", original)
@@ -55,6 +55,7 @@ func TestIsRetryable_WrappedInOther(t *testing.T) {
 	}
 }
 
+// TestRetryableError_Unwrap 验证 Unwrap 返回原始错误且可 errors.Is。
 func TestRetryableError_Unwrap(t *testing.T) {
 	original := fmt.Errorf("inner error")
 	wrapped := Retryable(original)
@@ -70,17 +71,14 @@ func TestRetryableError_Unwrap(t *testing.T) {
 	}
 }
 
-// ============================================================
-// Do 测试
-// ============================================================
-
+// TestDo_FirstAttemptSucceeds 验证首次成功时不重试。
 func TestDo_FirstAttemptSucceeds(t *testing.T) {
 	var count atomic.Int32
 	ctx := t.Context()
 
 	err := Do(ctx, 3, 10*time.Millisecond, func(ctx context.Context) error {
 		count.Add(1)
-		return nil // 首次成功
+		return nil
 	})
 
 	if err != nil {
@@ -91,6 +89,7 @@ func TestDo_FirstAttemptSucceeds(t *testing.T) {
 	}
 }
 
+// TestDo_SucceedsAfterRetries 验证前几次可重试失败后最终成功。
 func TestDo_SucceedsAfterRetries(t *testing.T) {
 	var count atomic.Int32
 	ctx := t.Context()
@@ -100,7 +99,7 @@ func TestDo_SucceedsAfterRetries(t *testing.T) {
 		if n < 3 {
 			return Retryable(fmt.Errorf("attempt %d failed", n))
 		}
-		return nil // 第 3 次成功
+		return nil
 	})
 
 	if err != nil {
@@ -111,6 +110,7 @@ func TestDo_SucceedsAfterRetries(t *testing.T) {
 	}
 }
 
+// TestDo_AllAttemptsFail 验证耗尽次数后返回原始可重试错误。
 func TestDo_AllAttemptsFail(t *testing.T) {
 	var count atomic.Int32
 	ctx := t.Context()
@@ -132,6 +132,7 @@ func TestDo_AllAttemptsFail(t *testing.T) {
 	}
 }
 
+// TestDo_NonRetryableError 验证非可重试错误立即返回且不重试。
 func TestDo_NonRetryableError(t *testing.T) {
 	var count atomic.Int32
 	ctx := t.Context()
@@ -139,7 +140,7 @@ func TestDo_NonRetryableError(t *testing.T) {
 
 	err := Do(ctx, 3, 10*time.Millisecond, func(ctx context.Context) error {
 		count.Add(1)
-		return expectedErr // 非 RetryableError
+		return expectedErr
 	})
 
 	if !errors.Is(err, expectedErr) {
@@ -150,6 +151,7 @@ func TestDo_NonRetryableError(t *testing.T) {
 	}
 }
 
+// TestDo_ZeroAttempts 验证 attempts=0 时不调用 fn（循环不执行）。
 func TestDo_ZeroAttempts(t *testing.T) {
 	var count atomic.Int32
 	ctx := t.Context()
@@ -160,11 +162,12 @@ func TestDo_ZeroAttempts(t *testing.T) {
 	})
 
 	if err != nil {
-		// 0 attempts 时的行为：可能返回 nil（循环不执行），取决于实现
-		// 我们接受任一结果
+		// 0 attempts：循环不执行，通常返回 nil；此处不强制断言返回值
 	}
+	_ = count
 }
 
+// TestDo_SingleAttempt 验证 attempts=1 失败时直接返回且无退避。
 func TestDo_SingleAttempt(t *testing.T) {
 	var count atomic.Int32
 	ctx := t.Context()
@@ -183,9 +186,10 @@ func TestDo_SingleAttempt(t *testing.T) {
 	}
 }
 
+// TestDo_ContextCancelled 验证入口处已取消的 context 返回 Canceled。
 func TestDo_ContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
-	cancel() // 立即取消
+	cancel()
 
 	err := Do(ctx, 3, 10*time.Millisecond, func(ctx context.Context) error {
 		return Retryable(fmt.Errorf("fail"))
@@ -196,6 +200,7 @@ func TestDo_ContextCancelled(t *testing.T) {
 	}
 }
 
+// TestDo_ContextCancelledDuringBackoff 验证退避等待期间取消可中断。
 func TestDo_ContextCancelledDuringBackoff(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	var count atomic.Int32
@@ -215,6 +220,7 @@ func TestDo_ContextCancelledDuringBackoff(t *testing.T) {
 	}
 }
 
+// TestDo_NilErrorIsNotRetryable 验证 fn 返回 nil 视为成功。
 func TestDo_NilErrorIsNotRetryable(t *testing.T) {
 	var count atomic.Int32
 	ctx := t.Context()
@@ -232,17 +238,13 @@ func TestDo_NilErrorIsNotRetryable(t *testing.T) {
 	}
 }
 
-// ============================================================
-// 集成风格测试：模拟 HTTP 调用
-// ============================================================
-
+// TestDo_SimulateHTTPRetry 模拟 503 后最终成功的 HTTP 重试路径。
 func TestDo_SimulateHTTPRetry(t *testing.T) {
 	ctx := t.Context()
 	var count atomic.Int32
 
 	err := Do(ctx, 3, 10*time.Millisecond, func(ctx context.Context) error {
 		n := count.Add(1)
-		// 模拟 HTTP 调用：前 2 次 503，第 3 次 200
 		if n < 3 {
 			return Retryable(fmt.Errorf("HTTP 503 Service Unavailable"))
 		}
@@ -257,13 +259,13 @@ func TestDo_SimulateHTTPRetry(t *testing.T) {
 	}
 }
 
+// TestDo_SimulateHTTPClientError 模拟 4xx 不可重试错误立即失败。
 func TestDo_SimulateHTTPClientError(t *testing.T) {
 	ctx := t.Context()
 	var count atomic.Int32
 
 	err := Do(ctx, 3, 10*time.Millisecond, func(ctx context.Context) error {
 		count.Add(1)
-		// 4xx 错误通常不可重试（除 429）
 		return fmt.Errorf("HTTP 400 Bad Request")
 	})
 
@@ -275,6 +277,7 @@ func TestDo_SimulateHTTPClientError(t *testing.T) {
 	}
 }
 
+// TestDo_SimulateHTTPRateLimit 模拟 429 限流经多次重试后成功。
 func TestDo_SimulateHTTPRateLimit(t *testing.T) {
 	ctx := t.Context()
 	var count atomic.Int32
@@ -295,8 +298,8 @@ func TestDo_SimulateHTTPRateLimit(t *testing.T) {
 	}
 }
 
+// TestDo_BackoffIncreasing 粗略验证连续重试之间存在退避等待。
 func TestDo_BackoffIncreasing(t *testing.T) {
-	// 验证重试后确实有等待，即每次重试的时间戳不同
 	ctx := t.Context()
 	var timestamps []time.Time
 
@@ -315,7 +318,6 @@ func TestDo_BackoffIncreasing(t *testing.T) {
 		t.Fatalf("应记录 3 个时间戳, 实际 %d", len(timestamps))
 	}
 
-	// 检查退避时间差应递增
 	diff1 := timestamps[1].Sub(timestamps[0])
 	diff2 := timestamps[2].Sub(timestamps[1])
 	if diff2 < diff1/2 {
