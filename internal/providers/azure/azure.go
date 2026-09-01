@@ -23,10 +23,10 @@ import (
 )
 
 const (
-	loginURL    = "https://login.microsoftonline.com/%s/oauth2/v2.0/token"
-	management  = "https://management.azure.com"
-	apiVersion  = "2018-05-01"
-	tokenScope  = "https://management.azure.com/.default"
+	loginURL   = "https://login.microsoftonline.com/%s/oauth2/v2.0/token"
+	management = "https://management.azure.com"
+	apiVersion = "2018-05-01"
+	tokenScope = "https://management.azure.com/.default"
 )
 
 // Client Azure DNS API 客户端。
@@ -40,7 +40,7 @@ type Client struct {
 	token          string
 	tokenExpiry    time.Time
 	mu             sync.Mutex
-	*http.Client
+	httpClient     *http.Client
 }
 
 // Option 客户端配置选项。
@@ -55,7 +55,7 @@ func NewClient(subscriptionID, tenantID, clientID, clientSecret string, options 
 		clientSecret:   clientSecret,
 		loginBase:      "https://login.microsoftonline.com",
 		managementBase: management,
-		Client:         &http.Client{Timeout: 30 * time.Second},
+		httpClient:     &http.Client{Timeout: 30 * time.Second},
 	}
 	for _, opt := range options {
 		opt(c)
@@ -73,7 +73,7 @@ func WithManagementBase(base string) Option {
 // WithHTTPClient 设置自定义 HTTP 客户端。
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
-		c.Client = httpClient
+		c.httpClient = httpClient
 	}
 }
 
@@ -92,9 +92,11 @@ type aaaaRecord struct {
 
 type recordSet struct {
 	Properties struct {
-		TTL          int          `json:"ttl"`
-		AAAARecords  []aaaaRecord `json:"aaaaRecords"`
-		ARecords     []struct{ IPv4Address string `json:"ipv4Address"` } `json:"aRecords"`
+		TTL         int          `json:"ttl"`
+		AAAARecords []aaaaRecord `json:"aaaaRecords"`
+		ARecords    []struct {
+			IPv4Address string `json:"ipv4Address"`
+		} `json:"aRecords"`
 	} `json:"properties"`
 }
 
@@ -204,11 +206,8 @@ func extractResourceGroup(zoneID string) string {
 	if idx < 0 {
 		return "dns"
 	}
-	rest := zoneID[idx+len(marker):]
-	if end := strings.Index(rest, "/"); end >= 0 {
-		return rest[:end]
-	}
-	return rest
+	rg, _, _ := strings.Cut(zoneID[idx+len(marker):], "/")
+	return rg
 }
 
 func (c *Client) findZone(ctx context.Context, fulldomain, zoneHint string) (zoneID, zoneName, sub string, err error) {
@@ -249,7 +248,7 @@ func (c *Client) accessToken(ctx context.Context) (string, error) {
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := c.Client.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("Azure token request failed: %w", err)
 	}
@@ -293,7 +292,7 @@ func (c *Client) doJSON(ctx context.Context, method, path string, body []byte) (
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("Azure DNS request failed: %w", err)
 	}

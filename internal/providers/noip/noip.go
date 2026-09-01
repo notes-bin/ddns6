@@ -21,10 +21,10 @@ const (
 
 // Client No-IP DDNS API 客户端
 type Client struct {
-	username string
-	password string
-	baseURL  string
-	*http.Client
+	username   string
+	password   string
+	baseURL    string
+	httpClient *http.Client
 }
 
 // Option 客户端配置选项函数
@@ -33,10 +33,10 @@ type Option func(*Client)
 // NewClient 创建 No-IP 客户端
 func NewClient(username, password string, options ...Option) *Client {
 	c := &Client{
-		username: username,
-		password: password,
-		baseURL:  defaultBaseURL,
-		Client:   &http.Client{Timeout: 10 * time.Second},
+		username:   username,
+		password:   password,
+		baseURL:    defaultBaseURL,
+		httpClient: &http.Client{Timeout: 10 * time.Second},
 	}
 	for _, opt := range options {
 		opt(c)
@@ -54,7 +54,7 @@ func WithBaseURL(baseURL string) Option {
 // WithHTTPClient 设置自定义 HTTP 客户端
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
-		c.Client = httpClient
+		c.httpClient = httpClient
 	}
 }
 
@@ -105,7 +105,7 @@ func (c *Client) update(ctx context.Context, hostname, ip string) error {
 	req.SetBasicAuth(c.username, c.password)
 	req.Header.Set("User-Agent", "ddns6/1.0 contact@notes-bin")
 
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		slog.Error("No-IP API request failed", "module", "noip", "hostname", hostname, "err", err)
 		return fmt.Errorf("No-IP request failed: %w", err)

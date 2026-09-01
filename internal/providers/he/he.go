@@ -21,9 +21,9 @@ const (
 
 // Client HE DNS API 客户端
 type Client struct {
-	password string
-	baseURL  string
-	*http.Client
+	password   string
+	baseURL    string
+	httpClient *http.Client
 }
 
 // Option 客户端配置选项函数
@@ -33,9 +33,9 @@ type Option func(*Client)
 // HE DDNS 使用固定用户名 "hosted_dns_editapi"，只需传入 DDNS Key 作为 password
 func NewClient(password string, options ...Option) *Client {
 	c := &Client{
-		password: password,
-		baseURL:  defaultBaseURL,
-		Client:   &http.Client{Timeout: 10 * time.Second},
+		password:   password,
+		baseURL:    defaultBaseURL,
+		httpClient: &http.Client{Timeout: 10 * time.Second},
 	}
 	for _, opt := range options {
 		opt(c)
@@ -53,7 +53,7 @@ func WithBaseURL(baseURL string) Option {
 // WithHTTPClient 设置自定义 HTTP 客户端
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
-		c.Client = httpClient
+		c.httpClient = httpClient
 	}
 }
 
@@ -103,7 +103,7 @@ func (c *Client) update(ctx context.Context, hostname, ip string) error {
 	// HE 使用固定用户名 "hosted_dns_editapi" 和 DDNS 密钥认证
 	req.SetBasicAuth("hosted_dns_editapi", c.password)
 
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		slog.Error("HE DNS API request failed", "module", "he", "hostname", hostname, "err", err)
 		return fmt.Errorf("HE DNS request failed: %w", err)

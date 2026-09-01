@@ -22,9 +22,9 @@ const (
 
 // Client DuckDNS API 客户端
 type Client struct {
-	token   string
-	baseURL string
-	*http.Client
+	token      string
+	baseURL    string
+	httpClient *http.Client
 }
 
 // Option 客户端配置选项函数
@@ -33,9 +33,9 @@ type Option func(*Client)
 // NewClient 创建 DuckDNS 客户端
 func NewClient(token string, options ...Option) *Client {
 	c := &Client{
-		token:   token,
-		baseURL: defaultBaseURL,
-		Client:  &http.Client{Timeout: 10 * time.Second},
+		token:      token,
+		baseURL:    defaultBaseURL,
+		httpClient: &http.Client{Timeout: 10 * time.Second},
 	}
 	for _, opt := range options {
 		opt(c)
@@ -53,7 +53,7 @@ func WithBaseURL(baseURL string) Option {
 // WithHTTPClient 设置自定义 HTTP 客户端
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
-		c.Client = httpClient
+		c.httpClient = httpClient
 	}
 }
 
@@ -116,7 +116,7 @@ func (c *Client) update(ctx context.Context, domain, ip string) error {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		slog.Error("DuckDNS API request failed", "module", "duckdns", "domain", domain, "err", err)
 		return fmt.Errorf("DuckDNS request failed: %w", err)

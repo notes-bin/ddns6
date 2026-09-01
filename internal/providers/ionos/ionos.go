@@ -26,10 +26,10 @@ const defaultBaseURL = "https://api.hosting.ionos.com/dns/v1"
 
 // Client IONOS DNS API 客户端。
 type Client struct {
-	prefix  string
-	secret  string
-	baseURL string
-	*http.Client
+	prefix     string
+	secret     string
+	baseURL    string
+	httpClient *http.Client
 }
 
 // Option 客户端配置选项。
@@ -38,10 +38,10 @@ type Option func(*Client)
 // NewClient 创建 IONOS DNS 客户端。
 func NewClient(prefix, secret string, options ...Option) *Client {
 	c := &Client{
-		prefix:  prefix,
-		secret:  secret,
-		baseURL: defaultBaseURL,
-		Client:  &http.Client{Timeout: 15 * time.Second},
+		prefix:     prefix,
+		secret:     secret,
+		baseURL:    defaultBaseURL,
+		httpClient: &http.Client{Timeout: 15 * time.Second},
 	}
 	for _, opt := range options {
 		opt(c)
@@ -59,7 +59,7 @@ func WithBaseURL(baseURL string) Option {
 // WithHTTPClient 设置自定义 HTTP 客户端。
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
-		c.Client = httpClient
+		c.httpClient = httpClient
 	}
 }
 
@@ -204,8 +204,8 @@ func (c *Client) findZone(ctx context.Context, fulldomain string) (zoneID, zoneN
 
 	candidate := strings.ToLower(strings.TrimSuffix(fulldomain, "."))
 	parts := strings.Split(candidate, ".")
-	for i := 1; i < len(parts); i++ {
-		root := strings.Join(parts[i:], ".")
+	for i := range len(parts) - 1 {
+		root := strings.Join(parts[i+1:], ".")
 		for _, z := range zones {
 			if strings.EqualFold(strings.TrimSuffix(z.Name, "."), root) {
 				return z.ID, root, nil
@@ -233,7 +233,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body []byte
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("IONOS API request failed: %w", err)
 	}

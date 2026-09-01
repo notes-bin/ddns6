@@ -28,10 +28,10 @@ const defaultBaseURL = "https://dns.googleapis.com/dns/v1"
 
 // Client Google Cloud DNS API 客户端。
 type Client struct {
-	project   string
-	token     string
-	baseURL   string
-	*http.Client
+	project    string
+	token      string
+	baseURL    string
+	httpClient *http.Client
 }
 
 // Option 客户端配置选项。
@@ -40,10 +40,10 @@ type Option func(*Client)
 // NewClient 创建 Google Cloud DNS 客户端。
 func NewClient(project, accessToken string, options ...Option) *Client {
 	c := &Client{
-		project: project,
-		token:   accessToken,
-		baseURL: defaultBaseURL,
-		Client:  &http.Client{Timeout: 30 * time.Second},
+		project:    project,
+		token:      accessToken,
+		baseURL:    defaultBaseURL,
+		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}
 	for _, opt := range options {
 		opt(c)
@@ -61,7 +61,7 @@ func WithBaseURL(baseURL string) Option {
 // WithHTTPClient 设置自定义 HTTP 客户端。
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
-		c.Client = httpClient
+		c.httpClient = httpClient
 	}
 }
 
@@ -217,7 +217,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, query url.V
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("Cloud DNS request failed: %w", err)
 	}

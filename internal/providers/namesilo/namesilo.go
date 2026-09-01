@@ -27,9 +27,9 @@ const defaultBaseURL = "https://www.namesilo.com/api"
 
 // Client NameSilo DNS API 客户端。
 type Client struct {
-	apiKey  string
-	baseURL string
-	*http.Client
+	apiKey     string
+	baseURL    string
+	httpClient *http.Client
 }
 
 // Option 客户端配置选项。
@@ -38,9 +38,9 @@ type Option func(*Client)
 // NewClient 创建 NameSilo 客户端。
 func NewClient(apiKey string, options ...Option) *Client {
 	c := &Client{
-		apiKey:  apiKey,
-		baseURL: defaultBaseURL,
-		Client:  &http.Client{Timeout: 15 * time.Second},
+		apiKey:     apiKey,
+		baseURL:    defaultBaseURL,
+		httpClient: &http.Client{Timeout: 15 * time.Second},
 	}
 	for _, opt := range options {
 		opt(c)
@@ -58,7 +58,7 @@ func WithBaseURL(baseURL string) Option {
 // WithHTTPClient 设置自定义 HTTP 客户端。
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
-		c.Client = httpClient
+		c.httpClient = httpClient
 	}
 }
 
@@ -222,11 +222,11 @@ func (c *Client) findZone(ctx context.Context, fulldomain string) (zone, sub str
 	}
 
 	parts := strings.Split(strings.TrimSuffix(fulldomain, "."), ".")
-	for i := 1; i < len(parts); i++ {
-		candidate := strings.Join(parts[i:], ".")
+	for i := range len(parts) - 1 {
+		candidate := strings.Join(parts[i+1:], ".")
 		for _, d := range reply.Reply.Domains.Domain {
 			if strings.EqualFold(strings.TrimSuffix(d, "."), candidate) {
-				sub = strings.Join(parts[:i], ".")
+				sub = strings.Join(parts[:i+1], ".")
 				if sub == "" {
 					sub = "@"
 				}
@@ -255,7 +255,7 @@ func (c *Client) fetch(ctx context.Context, action string, params url.Values) ([
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("NameSilo API request failed: %w", err)
 	}

@@ -28,10 +28,10 @@ const (
 
 // Client 华为云 DNS API 客户端
 type Client struct {
-	accessKey string
-	secretKey string
-	baseURL   string
-	*http.Client
+	accessKey  string
+	secretKey  string
+	baseURL    string
+	httpClient *http.Client
 }
 
 // Option 客户端配置选项函数
@@ -40,10 +40,10 @@ type Option func(*Client)
 // NewClient 创建华为云 DNS 客户端
 func NewClient(accessKey, secretKey string, options ...Option) *Client {
 	c := &Client{
-		accessKey: accessKey,
-		secretKey: secretKey,
-		baseURL:   defaultBaseURL,
-		Client:    &http.Client{Timeout: 30 * time.Second},
+		accessKey:  accessKey,
+		secretKey:  secretKey,
+		baseURL:    defaultBaseURL,
+		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}
 	for _, opt := range options {
 		opt(c)
@@ -61,7 +61,7 @@ func WithBaseURL(baseURL string) Option {
 // WithHTTPClient 设置自定义 HTTP 客户端
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
-		c.Client = httpClient
+		c.httpClient = httpClient
 	}
 }
 
@@ -72,7 +72,7 @@ type DNSRecord struct {
 	Type    string   `json:"type"`
 	TTL     int      `json:"ttl"`
 	Records []string `json:"records"`
-	Weight  *int     `json:"weight,omitempty"`
+	Weight  *int     `json:"weight,omitzero"`
 	ZoneID  string   `json:"zone_id,omitempty"`
 }
 
@@ -225,8 +225,8 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 // getZoneID 查找域名对应的 Zone ID
 func (c *Client) getZoneID(ctx context.Context, domain string) (string, error) {
 	parts := strings.Split(domain, ".")
-	for i := 1; i < len(parts); i++ {
-		h := strings.Join(parts[i:], ".")
+	for i := range len(parts) - 1 {
+		h := strings.Join(parts[i+1:], ".")
 		slog.Debug("looking up HuaweiCloud zone", "module", "huaweicloud", "domain", h)
 
 		reqURL := c.baseURL + "/v2/zones?name=" + url.QueryEscape(h)
@@ -298,7 +298,7 @@ func (c *Client) request(ctx context.Context, method, url string, payload any) (
 		return nil, fmt.Errorf("failed to sign request: %w", err)
 	}
 
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("HuaweiCloud API request failed: %w", err)
 	}
@@ -331,14 +331,17 @@ func (c *Client) requestRaw(ctx context.Context, method, url string, result any)
 		return fmt.Errorf("failed to sign request: %w", err)
 	}
 
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("HuaweiCloud API request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("failed to read error response body: %w", readErr)
+		}
 		return fmt.Errorf("HuaweiCloud API error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 

@@ -36,15 +36,15 @@ const (
 // 但响应（DescribeRecordList/DescribeRecord）使用 Name/Type/Line/LineId 字段名。
 // 自定义 UnmarshalJSON 处理此差异，保证 Go 结构体字段名不变的同时正确解析响应。
 type DNSRecord struct {
-	DomainId     int    `json:"DomainId,omitempty"`
+	DomainId     int    `json:"DomainId,omitzero"`
 	Domain       string `json:"Domain,omitempty"`
 	SubDomain    string `json:"SubDomain,omitempty"`
-	RecordId     int    `json:"RecordId,omitempty"`
+	RecordId     int    `json:"RecordId,omitzero"`
 	RecordType   string `json:"RecordType,omitempty"`
 	RecordLine   string `json:"RecordLine,omitempty"`
 	RecordLineId string `json:"RecordLineId,omitempty"`
 	Value        string `json:"Value,omitempty"`
-	TTL          int    `json:"TTL,omitempty"`
+	TTL          int    `json:"TTL,omitzero"`
 }
 
 // UnmarshalJSON 实现 json.Unmarshaler 接口。
@@ -100,10 +100,10 @@ type domainListItem struct {
 
 // DNSPod Tencent Cloud DNS 服务客户端
 type DNSPod struct {
-	secretId  string
-	secretKey string
-	apiURL    string
-	*http.Client
+	secretId   string
+	secretKey  string
+	apiURL     string
+	httpClient *http.Client
 }
 
 // Option 客户端配置选项函数
@@ -115,7 +115,7 @@ func NewDNSPod(secretId, secretKey string, options ...Option) *DNSPod {
 		secretId:  secretId,
 		secretKey: secretKey,
 		apiURL:    "https://dnspod.tencentcloudapi.com",
-		Client: &http.Client{
+		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
 				ForceAttemptHTTP2: false,
@@ -140,7 +140,7 @@ func WithBaseURL(url string) Option {
 // WithHTTPClient 设置自定义 HTTP 客户端
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(ds *DNSPod) {
-		ds.Client = httpClient
+		ds.httpClient = httpClient
 	}
 }
 
@@ -248,7 +248,7 @@ func (ds *DNSPod) ModifyRecord(ctx context.Context, record ddns.RecordInfo) erro
 
 	recordId, err := strconv.Atoi(record.ID)
 	if err != nil {
-		return fmt.Errorf("invalid record ID %q: %v", record.ID, err)
+		return fmt.Errorf("invalid record ID %q: %w", record.ID, err)
 	}
 
 	payload := DNSRecord{
@@ -284,7 +284,7 @@ func (ds *DNSPod) DeleteRecord(ctx context.Context, record ddns.RecordInfo) erro
 
 	recordId, err := strconv.Atoi(record.ID)
 	if err != nil {
-		return fmt.Errorf("invalid record ID %q: %v", record.ID, err)
+		return fmt.Errorf("invalid record ID %q: %w", record.ID, err)
 	}
 
 	payload := DNSRecord{Domain: domain, RecordId: recordId}
@@ -341,7 +341,7 @@ func (ds *DNSPod) GetDomainRecord(ctx context.Context, fulldomain, recordId stri
 
 	recordID, err := strconv.Atoi(recordId)
 	if err != nil {
-		return nil, fmt.Errorf("invalid record ID %q: %v", recordId, err)
+		return nil, fmt.Errorf("invalid record ID %q: %w", recordId, err)
 	}
 
 	payload := DNSRecord{Domain: domain, RecordId: recordID}
@@ -388,13 +388,13 @@ func (ds *DNSPod) getRootDomain(ctx context.Context, domain string) (string, str
 	// DescribeDomainList 失败时回退到原有探测逻辑
 	slog.Warn("DescribeDomainList failed, falling back to probing", "module", "tencent", "err", err)
 	parts := strings.Split(domain, ".")
-	for i := 1; i < len(parts); i++ {
-		h := strings.Join(parts[i:], ".")
+	for i := range len(parts) - 1 {
+		h := strings.Join(parts[i+1:], ".")
 		slog.Debug("probing Tencent root domain", "module", "tencent", "domain", h)
 
 		_, err := ds.describeRecords(ctx, h, "@")
 		if err == nil {
-			subDomain := strings.Join(parts[:i], ".")
+			subDomain := strings.Join(parts[:i+1], ".")
 			slog.Info("Tencent root domain found (probe)", "module", "tencent", "root", h, "subdomain", subDomain)
 			return h, subDomain, nil
 		}
@@ -499,7 +499,7 @@ func (ds *DNSPod) makeRequest(ctx context.Context, action string, payload any, r
 	req.Header.Set("X-TC-Action", action)
 
 	// 发送请求
-	resp, err := ds.Do(req)
+	resp, err := ds.httpClient.Do(req)
 	if err != nil {
 		slog.Error("Tencent API request failed", "module", "tencent", "action", action, "err", err)
 		return fmt.Errorf("API request failed: %w", err)

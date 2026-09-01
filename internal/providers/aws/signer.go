@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 )
@@ -44,7 +44,7 @@ func signRequest(req *http.Request, accessKey, secretKey, sessionToken string, b
 	if len(body) > 0 {
 		signedHeaders = append(signedHeaders, "content-type")
 	}
-	sort.Strings(signedHeaders)
+	slices.Sort(signedHeaders)
 
 	canonicalHeaders := strings.Builder{}
 	for _, h := range signedHeaders {

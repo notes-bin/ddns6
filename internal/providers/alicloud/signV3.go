@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"slices"
@@ -159,14 +160,8 @@ func buildCanonicalQueryStringV3(params map[string]string) string {
 		return ""
 	}
 
-	keys := make([]string, 0, len(params))
-	for k := range params {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
-
 	var buf strings.Builder
-	for i, k := range keys {
+	for i, k := range slices.Sorted(maps.Keys(params)) {
 		if i > 0 {
 			buf.WriteByte('&')
 		}

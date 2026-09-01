@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/notes-bin/ddns6/internal/crypto"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"slices"
@@ -71,9 +72,8 @@ func canonicalRequest(r *http.Request, signedHeaders []string) (string, error) {
 
 // canonicalURI 返回规范化的 URI
 func canonicalURI(r *http.Request) string {
-	patterns := strings.Split(r.URL.Path, "/")
 	var uri []string
-	for _, v := range patterns {
+	for v := range strings.SplitSeq(r.URL.Path, "/") {
 		uri = append(uri, url.PathEscape(v))
 	}
 	urlpath := strings.Join(uri, "/")
@@ -85,14 +85,9 @@ func canonicalURI(r *http.Request) string {
 
 // canonicalQueryString 返回规范化的查询字符串（按键排序）
 func canonicalQueryString(r *http.Request) string {
-	var keys []string
 	query := r.URL.Query()
-	for key := range query {
-		keys = append(keys, key)
-	}
-	slices.Sort(keys)
 	var a []string
-	for _, key := range keys {
+	for _, key := range slices.Sorted(maps.Keys(query)) {
 		k := url.QueryEscape(key)
 		slices.Sort(query[key])
 		for _, v := range query[key] {

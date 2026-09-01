@@ -27,9 +27,9 @@ const (
 
 // Client DigitalOcean DNS API 客户端
 type Client struct {
-	token   string
-	baseURL string
-	*http.Client
+	token      string
+	baseURL    string
+	httpClient *http.Client
 }
 
 // Option 客户端配置选项函数
@@ -38,9 +38,9 @@ type Option func(*Client)
 // NewClient 创建 DigitalOcean DNS 客户端
 func NewClient(token string, options ...Option) *Client {
 	c := &Client{
-		token:   token,
-		baseURL: defaultBaseURL,
-		Client:  &http.Client{Timeout: 10 * time.Second},
+		token:      token,
+		baseURL:    defaultBaseURL,
+		httpClient: &http.Client{Timeout: 10 * time.Second},
 	}
 	for _, opt := range options {
 		opt(c)
@@ -58,7 +58,7 @@ func WithBaseURL(baseURL string) Option {
 // WithHTTPClient 设置自定义 HTTP 客户端
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
-		c.Client = httpClient
+		c.httpClient = httpClient
 	}
 }
 
@@ -68,8 +68,8 @@ type DomainRecord struct {
 	Type     string `json:"type"`
 	Name     string `json:"name"`
 	Data     string `json:"data"`
-	Priority int    `json:"priority,omitempty"`
-	Port     int    `json:"port,omitempty"`
+	Priority int    `json:"priority,omitzero"`
+	Port     int    `json:"port,omitzero"`
 	TTL      int    `json:"ttl"`
 }
 
@@ -92,13 +92,10 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	url := fmt.Sprintf("%s/domains/%s/records", c.baseURL, domain)
 	slog.Debug("adding DigitalOcean DNS record", "module", "digitalocean", "domain", domain, "type", record.Type)
 
-	respBody, err := c.doRequest(ctx, http.MethodPost, url, body)
+	_, err = c.doRequest(ctx, http.MethodPost, url, body)
 	if err != nil {
 		return err
 	}
-
-	// DigitalOcean 返回 201 Created 或 200 OK
-	_ = respBody // 响应体不需要解析
 
 	slog.Info("DigitalOcean DNS record added successfully", "module", "digitalocean", "domain", domain, "type", record.Type, "ipv6", record.Value)
 	return nil
@@ -211,7 +208,7 @@ func (c *Client) doRequest(ctx context.Context, method, url string, body []byte)
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("DigitalOcean API request failed: %w", err)
 	}

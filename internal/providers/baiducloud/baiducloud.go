@@ -24,10 +24,10 @@ const (
 
 // Client 百度云 DNS API 客户端
 type Client struct {
-	accessKey string
-	secretKey string
-	baseURL   string
-	*http.Client
+	accessKey  string
+	secretKey  string
+	baseURL    string
+	httpClient *http.Client
 }
 
 // Option 客户端配置选项函数
@@ -36,10 +36,10 @@ type Option func(*Client)
 // NewClient 创建百度云 DNS 客户端
 func NewClient(accessKey, secretKey string, options ...Option) *Client {
 	c := &Client{
-		accessKey: accessKey,
-		secretKey: secretKey,
-		baseURL:   defaultBaseURL,
-		Client:    &http.Client{Timeout: 10 * time.Second},
+		accessKey:  accessKey,
+		secretKey:  secretKey,
+		baseURL:    defaultBaseURL,
+		httpClient: &http.Client{Timeout: 10 * time.Second},
 	}
 	for _, opt := range options {
 		opt(c)
@@ -57,7 +57,7 @@ func WithBaseURL(baseURL string) Option {
 // WithHTTPClient 设置自定义 HTTP 客户端
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
-		c.Client = httpClient
+		c.httpClient = httpClient
 	}
 }
 
@@ -66,7 +66,7 @@ type DNSRecord struct {
 	RecordID string `json:"recordId,omitempty"`
 	Domain   string `json:"domain"`
 	RDType   string `json:"rdtype"`
-	TTL      int    `json:"ttl,omitempty"`
+	TTL      int    `json:"ttl,omitzero"`
 	RData    string `json:"rdata"`
 	View     string `json:"view"`
 	ZoneName string `json:"zoneName"`
@@ -251,7 +251,7 @@ func (c *Client) request(ctx context.Context, method, url string, payload any) (
 	// 生成 BCE 签名
 	c.signRequest(req, bodyBytes)
 
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("BaiduCloud API request failed: %w", err)
 	}

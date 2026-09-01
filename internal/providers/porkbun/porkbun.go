@@ -28,7 +28,7 @@ type Client struct {
 	apiKey       string
 	secretAPIKey string
 	baseURL      string
-	*http.Client
+	httpClient   *http.Client
 }
 
 // Option 客户端配置选项函数
@@ -40,7 +40,7 @@ func NewClient(apiKey, secretAPIKey string, options ...Option) *Client {
 		apiKey:       apiKey,
 		secretAPIKey: secretAPIKey,
 		baseURL:      defaultBaseURL,
-		Client:       &http.Client{Timeout: 10 * time.Second},
+		httpClient:   &http.Client{Timeout: 10 * time.Second},
 	}
 	for _, opt := range options {
 		opt(c)
@@ -58,7 +58,7 @@ func WithBaseURL(baseURL string) Option {
 // WithHTTPClient 设置自定义 HTTP 客户端
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
-		c.Client = httpClient
+		c.httpClient = httpClient
 	}
 }
 
@@ -210,7 +210,7 @@ func (c *Client) post(ctx context.Context, url string, record *DNSRecord, result
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("Porkbun API request failed: %w", err)
 	}
