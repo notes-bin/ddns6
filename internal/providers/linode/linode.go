@@ -27,9 +27,9 @@ const defaultBaseURL = "https://api.linode.com/v4/domains"
 
 // Client Linode DNS API 客户端。
 type Client struct {
-	apiKey  string
-	baseURL string
-	*http.Client
+	apiKey     string
+	baseURL    string
+	httpClient *http.Client
 }
 
 // Option 客户端配置选项。
@@ -38,9 +38,9 @@ type Option func(*Client)
 // NewClient 创建 Linode DNS 客户端。
 func NewClient(apiKey string, options ...Option) *Client {
 	c := &Client{
-		apiKey:  apiKey,
-		baseURL: defaultBaseURL,
-		Client:  &http.Client{Timeout: 15 * time.Second},
+		apiKey:     apiKey,
+		baseURL:    defaultBaseURL,
+		httpClient: &http.Client{Timeout: 15 * time.Second},
 	}
 	for _, opt := range options {
 		opt(c)
@@ -58,7 +58,7 @@ func WithBaseURL(baseURL string) Option {
 // WithHTTPClient 设置自定义 HTTP 客户端。
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
-		c.Client = httpClient
+		c.httpClient = httpClient
 	}
 }
 
@@ -205,8 +205,8 @@ func (c *Client) resolveDomain(ctx context.Context, name, zone string) (domainID
 
 func (c *Client) findDomainID(ctx context.Context, fulldomain string) (int, string, error) {
 	parts := strings.Split(strings.TrimSuffix(fulldomain, "."), ".")
-	for i := 1; i < len(parts); i++ {
-		candidate := strings.Join(parts[i:], ".")
+	for i := range len(parts) - 1 {
+		candidate := strings.Join(parts[i+1:], ".")
 		filter := url.QueryEscape(fmt.Sprintf(`{"domain":"%s"}`, candidate))
 		body, err := c.doRequestWithFilter(ctx, filter)
 		if err != nil {
@@ -249,7 +249,7 @@ func (c *Client) doRequestWithFilter(ctx context.Context, filter string) ([]byte
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("X-Filter", filter)
 
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("Linode API request failed: %w", err)
 	}
@@ -282,7 +282,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body []byte
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("Linode API request failed: %w", err)
 	}

@@ -8,8 +8,8 @@ package desec
 
 import (
 	"bytes"
-	"context"
 	"cmp"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,9 +29,9 @@ const defaultBaseURL = "https://desec.io/api/v1"
 
 // Client deSEC DNS API 客户端。
 type Client struct {
-	token   string
-	baseURL string
-	*http.Client
+	token      string
+	baseURL    string
+	httpClient *http.Client
 }
 
 // Option 客户端配置选项。
@@ -40,9 +40,9 @@ type Option func(*Client)
 // NewClient 创建 deSEC 客户端。
 func NewClient(token string, options ...Option) *Client {
 	c := &Client{
-		token:   token,
-		baseURL: defaultBaseURL,
-		Client:  &http.Client{Timeout: 15 * time.Second},
+		token:      token,
+		baseURL:    defaultBaseURL,
+		httpClient: &http.Client{Timeout: 15 * time.Second},
 	}
 	for _, opt := range options {
 		opt(c)
@@ -60,7 +60,7 @@ func WithBaseURL(baseURL string) Option {
 // WithHTTPClient 设置自定义 HTTP 客户端。
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
-		c.Client = httpClient
+		c.httpClient = httpClient
 	}
 }
 
@@ -240,11 +240,11 @@ func (c *Client) findZone(ctx context.Context, fulldomain string) (zone, sub str
 	}
 
 	parts := strings.Split(strings.ToLower(strings.TrimSuffix(fulldomain, ".")), ".")
-	for i := 1; i < len(parts); i++ {
-		candidate := strings.Join(parts[i:], ".")
+	for i := range len(parts) - 1 {
+		candidate := strings.Join(parts[i+1:], ".")
 		for _, d := range domains {
 			if strings.EqualFold(d.Name, candidate) {
-				sub = strings.Join(parts[:i], ".")
+				sub = strings.Join(parts[:i+1], ".")
 				if sub == "" {
 					sub = "@"
 				}
@@ -303,7 +303,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body []byte
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("deSEC API request failed: %w", err)
 	}

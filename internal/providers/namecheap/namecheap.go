@@ -27,11 +27,11 @@ const defaultBaseURL = "https://api.namecheap.com/xml.response"
 
 // Client Namecheap DNS API 客户端。
 type Client struct {
-	apiKey   string
-	username string
-	clientIP string
-	baseURL  string
-	*http.Client
+	apiKey     string
+	username   string
+	clientIP   string
+	baseURL    string
+	httpClient *http.Client
 }
 
 // Option 客户端配置选项。
@@ -40,11 +40,11 @@ type Option func(*Client)
 // NewClient 创建 Namecheap 客户端。
 func NewClient(apiKey, username, clientIP string, options ...Option) *Client {
 	c := &Client{
-		apiKey:   apiKey,
-		username: username,
-		clientIP: clientIP,
-		baseURL:  defaultBaseURL,
-		Client:   &http.Client{Timeout: 15 * time.Second},
+		apiKey:     apiKey,
+		username:   username,
+		clientIP:   clientIP,
+		baseURL:    defaultBaseURL,
+		httpClient: &http.Client{Timeout: 15 * time.Second},
 	}
 	for _, opt := range options {
 		opt(c)
@@ -62,7 +62,7 @@ func WithBaseURL(baseURL string) Option {
 // WithHTTPClient 设置自定义 HTTP 客户端。
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
-		c.Client = httpClient
+		c.httpClient = httpClient
 	}
 }
 
@@ -204,7 +204,8 @@ func (c *Client) setHosts(ctx context.Context, sld, tld string, hosts []hostEntr
 		"SLD": {sld},
 		"TLD": {tld},
 	}
-	for i, h := range hosts {
+	for i := range len(hosts) {
+		h := hosts[i]
 		n := strconv.Itoa(i + 1)
 		params.Set("HostName"+n, h.Name)
 		params.Set("RecordType"+n, h.Type)
@@ -232,7 +233,7 @@ func (c *Client) call(ctx context.Context, command string, extra url.Values) (*a
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("Namecheap API request failed: %w", err)
 	}

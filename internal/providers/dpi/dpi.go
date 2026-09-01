@@ -92,14 +92,14 @@ type recordResponse struct {
 func (c *Client) AddRecord(ctx context.Context, info ddns.RecordInfo) error {
 	domain, sub := domainutil.SplitDomain(info.Name, info.Zone)
 	params := url.Values{
-		"login_token":  {c.loginToken},
-		"format":       {"json"},
-		"domain":       {domain},
-		"sub_domain":   {sub},
-		"record_type":  {info.Type},
-		"record_line":  {"default"},
-		"value":        {info.Value},
-		"ttl":          {strconv.Itoa(cmp.Or(info.TTL, ddns.DefaultTTL))},
+		"login_token": {c.loginToken},
+		"format":      {"json"},
+		"domain":      {domain},
+		"sub_domain":  {sub},
+		"record_type": {info.Type},
+		"record_line": {"default"},
+		"value":       {info.Value},
+		"ttl":         {strconv.Itoa(cmp.Or(info.TTL, ddns.DefaultTTL))},
 	}
 	slog.Debug("adding DNSPod intl record", "module", "dpi", "domain", domain, "sub", sub, "type", info.Type)
 	var resp recordResponse

@@ -22,9 +22,9 @@ const (
 
 // Client Dynv6 API 客户端
 type Client struct {
-	token   string
-	baseURL string
-	*http.Client
+	token      string
+	baseURL    string
+	httpClient *http.Client
 }
 
 // Option 客户端配置选项函数
@@ -33,9 +33,9 @@ type Option func(*Client)
 // NewClient 创建 Dynv6 客户端
 func NewClient(token string, options ...Option) *Client {
 	c := &Client{
-		token:   token,
-		baseURL: defaultBaseURL,
-		Client:  &http.Client{Timeout: 10 * time.Second},
+		token:      token,
+		baseURL:    defaultBaseURL,
+		httpClient: &http.Client{Timeout: 10 * time.Second},
 	}
 	for _, opt := range options {
 		opt(c)
@@ -53,7 +53,7 @@ func WithBaseURL(baseURL string) Option {
 // WithHTTPClient 设置自定义 HTTP 客户端
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
-		c.Client = httpClient
+		c.httpClient = httpClient
 	}
 }
 
@@ -71,7 +71,7 @@ type Record struct {
 	Type string `json:"type"`
 	Name string `json:"name"`
 	Data string `json:"data"`
-	TTL  int    `json:"ttl,omitempty"`
+	TTL  int    `json:"ttl,omitzero"`
 }
 
 // AddRecord 添加域名解析记录
@@ -106,14 +106,17 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	c.setAuth(req)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("Dynv6 API request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("failed to read error response body: %w", readErr)
+		}
 		return fmt.Errorf("Dynv6 API error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
@@ -149,14 +152,17 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	c.setAuth(req)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("Dynv6 API request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("failed to read error response body: %w", readErr)
+		}
 		return fmt.Errorf("Dynv6 API error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
@@ -180,14 +186,17 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	}
 	c.setAuth(req)
 
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("Dynv6 API request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("failed to read error response body: %w", readErr)
+		}
 		return fmt.Errorf("Dynv6 API error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
@@ -224,14 +233,17 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	}
 	c.setAuth(req)
 
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("Dynv6 API request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, fmt.Errorf("failed to read error response body: %w", readErr)
+		}
 		return nil, fmt.Errorf("Dynv6 API error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
@@ -266,7 +278,7 @@ func (c *Client) resolveZone(ctx context.Context, domain string) (string, string
 	}
 	c.setAuth(req)
 
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to list zones: %w", err)
 	}
@@ -309,7 +321,7 @@ func (c *Client) getZone(ctx context.Context, zoneID string) (*Zone, error) {
 	}
 	c.setAuth(req)
 
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get zone: %w", err)
 	}
@@ -342,14 +354,17 @@ func (c *Client) updateZoneIP(ctx context.Context, zoneID, ipv6 string) error {
 	c.setAuth(req)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("failed to read error response body: %w", readErr)
+		}
 		return fmt.Errorf("Dynv6 API error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 

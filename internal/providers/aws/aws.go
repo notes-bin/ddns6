@@ -33,7 +33,7 @@ type Client struct {
 	sessionToken    string
 	host            string
 	scheme          string
-	*http.Client
+	httpClient      *http.Client
 }
 
 // Option 客户端配置选项。
@@ -46,7 +46,7 @@ func NewClient(accessKeyID, secretAccessKey string, options ...Option) *Client {
 		secretAccessKey: secretAccessKey,
 		host:            defaultHost,
 		scheme:          "https",
-		Client:          &http.Client{Timeout: 30 * time.Second},
+		httpClient:      &http.Client{Timeout: 30 * time.Second},
 	}
 	for _, opt := range options {
 		opt(c)
@@ -78,7 +78,7 @@ func WithScheme(scheme string) Option {
 // WithHTTPClient 设置自定义 HTTP 客户端。
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
-		c.Client = httpClient
+		c.httpClient = httpClient
 	}
 }
 
@@ -186,7 +186,7 @@ func (c *Client) resolveRecord(ctx context.Context, fulldomain, zoneHint string)
 	root, sub := domainutil.SplitDomain(fulldomain, zoneHint)
 	candidate := strings.ToLower(strings.TrimSuffix(root, "."))
 	parts := strings.Split(candidate, ".")
-	for i := 0; i < len(parts)-1; i++ {
+	for i := range len(parts) - 1 {
 		zone := strings.Join(parts[i:], ".")
 		id, name, err := c.findHostedZone(ctx, zone)
 		if err != nil {
@@ -241,7 +241,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, query url.V
 		return nil, err
 	}
 	slog.Debug("Route53 API request", "module", "aws", "method", method, "path", path)
-	resp, err := c.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("Route53 API request failed: %w", err)
 	}

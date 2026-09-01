@@ -26,24 +26,24 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-// AliDNSClient 阿里云 DNS API 客户端
-type AliDNSClient struct {
+// Client 阿里云 DNS API 客户端
+type Client struct {
 	AccessKeyId     string
 	AccessKeySecret string
 	BaseURL         string
-	HTTPClient      *http.Client
+	httpClient      *http.Client
 	SignVersion     string // 签名版本："v1"（默认，HMAC-SHA1）或 "v3"（ACS3-HMAC-SHA256）
 }
 
-type Option func(*AliDNSClient)
+type Option func(*Client)
 
-// NewClient 创建 AliDNSClient
-func NewClient(accessKeyId, accessKeySecret string, options ...Option) *AliDNSClient {
-	client := &AliDNSClient{
+// NewClient 创建阿里云 DNS 客户端。
+func NewClient(accessKeyId, accessKeySecret string, options ...Option) *Client {
+	client := &Client{
 		AccessKeyId:     accessKeyId,
 		AccessKeySecret: accessKeySecret,
 		BaseURL:         "https://alidns.aliyuncs.com/",
-		HTTPClient:      &http.Client{Timeout: 30 * time.Second},
+		httpClient:      &http.Client{Timeout: 30 * time.Second},
 		SignVersion:     "v1",
 	}
 
@@ -56,21 +56,21 @@ func NewClient(accessKeyId, accessKeySecret string, options ...Option) *AliDNSCl
 
 // WithBaseURL 设置自定义 API 地址（测试用）
 func WithBaseURL(baseURL string) Option {
-	return func(c *AliDNSClient) {
+	return func(c *Client) {
 		c.BaseURL = baseURL
 	}
 }
 
 // WithHTTPClient 设置自定义 HTTP 客户端
 func WithHTTPClient(httpClient *http.Client) Option {
-	return func(c *AliDNSClient) {
-		c.HTTPClient = httpClient
+	return func(c *Client) {
+		c.httpClient = httpClient
 	}
 }
 
 // WithSignVersion 设置签名版本："v1"（默认，HMAC-SHA1）或 "v3"（ACS3-HMAC-SHA256）
 func WithSignVersion(version string) Option {
-	return func(c *AliDNSClient) {
+	return func(c *Client) {
 		c.SignVersion = version
 	}
 }
@@ -86,7 +86,7 @@ type DNSRecord struct {
 }
 
 // AddRecord 添加域名解析记录
-func (c *AliDNSClient) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
+func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	domain, subDomain, err := c.getRootDomain(ctx, record.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %w", err)
@@ -107,7 +107,7 @@ func (c *AliDNSClient) AddRecord(ctx context.Context, record ddns.RecordInfo) er
 }
 
 // ModifyRecord 修改域名解析记录
-func (c *AliDNSClient) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
+func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
 	_, subDomain, err := c.getRootDomain(ctx, record.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %w", err)
@@ -127,7 +127,7 @@ func (c *AliDNSClient) ModifyRecord(ctx context.Context, record ddns.RecordInfo)
 }
 
 // DeleteRecord 删除域名解析记录
-func (c *AliDNSClient) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
+func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
 	params := map[string]string{
 		"Action":   "DeleteDomainRecord",
 		"RecordId": record.ID,
@@ -138,7 +138,7 @@ func (c *AliDNSClient) DeleteRecord(ctx context.Context, record ddns.RecordInfo)
 }
 
 // GetRecords 查询域名的解析记录，返回通用 RecordInfo 列表
-func (c *AliDNSClient) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
+func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	domain, subDomain, err := c.getRootDomain(ctx, fulldomain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root domain: %w", err)
@@ -190,7 +190,7 @@ func (c *AliDNSClient) GetRecords(ctx context.Context, fulldomain, recordType st
 }
 
 // GetDomainRecord 查询单条解析记录详情
-func (c *AliDNSClient) GetDomainRecord(ctx context.Context, fulldomain, recordID string) (*DNSRecord, error) {
+func (c *Client) GetDomainRecord(ctx context.Context, fulldomain, recordID string) (*DNSRecord, error) {
 	params := map[string]string{
 		"Action":   "DescribeDomainRecordInfo",
 		"RecordId": recordID,
@@ -210,10 +210,10 @@ func (c *AliDNSClient) GetDomainRecord(ctx context.Context, fulldomain, recordID
 }
 
 // getRootDomain finds the root domain and subdomain
-func (c *AliDNSClient) getRootDomain(ctx context.Context, domain string) (string, string, error) {
+func (c *Client) getRootDomain(ctx context.Context, domain string) (string, string, error) {
 	parts := strings.Split(domain, ".")
-	for i := 1; i < len(parts); i++ {
-		h := strings.Join(parts[i:], ".")
+	for i := range len(parts) - 1 {
+		h := strings.Join(parts[i+1:], ".")
 		slog.Debug("probing Alibaba root domain", "module", "alicloud", "domain", h)
 
 		params := map[string]string{
@@ -240,7 +240,7 @@ func (c *AliDNSClient) getRootDomain(ctx context.Context, domain string) (string
 			continue
 		}
 
-		subDomain := strings.Join(parts[:i], ".")
+		subDomain := strings.Join(parts[:i+1], ".")
 		slog.Info("Alibaba root domain found", "module", "alicloud", "root", h, "subdomain", subDomain)
 		return h, subDomain, nil
 	}
@@ -250,7 +250,7 @@ func (c *AliDNSClient) getRootDomain(ctx context.Context, domain string) (string
 }
 
 // makeRequest 根据 SignVersion 选择签名方式发起认证请求。
-func (c *AliDNSClient) makeRequest(ctx context.Context, params map[string]string) ([]byte, error) {
+func (c *Client) makeRequest(ctx context.Context, params map[string]string) ([]byte, error) {
 	if c.SignVersion == "v3" {
 		return c.makeV3Request(ctx, params)
 	}
@@ -261,7 +261,7 @@ func (c *AliDNSClient) makeRequest(ctx context.Context, params map[string]string
 //
 // 签名方式：所有参数放入查询字符串，对整个查询字符串进行 HMAC-SHA1 签名，
 // 签名结果附加在 URL 末尾。
-func (c *AliDNSClient) makeV1Request(ctx context.Context, params map[string]string) ([]byte, error) {
+func (c *Client) makeV1Request(ctx context.Context, params map[string]string) ([]byte, error) {
 	action := params["Action"]
 	slog.Debug("Alibaba Cloud API request", "module", "alicloud", "action", action)
 
@@ -305,7 +305,7 @@ func (c *AliDNSClient) makeV1Request(ctx context.Context, params map[string]stri
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.HTTPClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		slog.Error("Alibaba Cloud API request failed", "module", "alicloud", "action", action, "err", err)
 		return nil, err
@@ -345,7 +345,7 @@ func (c *AliDNSClient) makeV1Request(ctx context.Context, params map[string]stri
 // 签名方式：参数中的 Action 作为 x-acs-action 头，Version 作为 x-acs-version 头，
 // 其余参数放入查询字符串，使用 HMAC-SHA256 对整个请求进行签名，
 // 签名结果放在 Authorization 头中。
-func (c *AliDNSClient) makeV3Request(ctx context.Context, params map[string]string) ([]byte, error) {
+func (c *Client) makeV3Request(ctx context.Context, params map[string]string) ([]byte, error) {
 	action := params["Action"]
 	if action == "" {
 		return nil, fmt.Errorf("makeV3Request: missing 'Action' parameter")
@@ -394,7 +394,7 @@ func (c *AliDNSClient) makeV3Request(ctx context.Context, params map[string]stri
 	}
 
 	// 发起请求
-	resp, err := c.HTTPClient.Do(httpReq)
+	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		slog.Error("Alibaba Cloud API V3 request failed", "module", "alicloud", "action", action, "err", err)
 		return nil, err
@@ -404,11 +404,14 @@ func (c *AliDNSClient) makeV3Request(ctx context.Context, params map[string]stri
 	slog.Debug("Alibaba Cloud API V3 response", "module", "alicloud", "action", action, "status", resp.StatusCode)
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, fmt.Errorf("failed to read error response body: %w", readErr)
+		}
 		slog.Debug("Alibaba Cloud API V3 returned non-200 status",
 			"module", "alicloud",
 			"action", action, "status", resp.StatusCode, "body", truncateString(string(body), 200))
-		return nil, fmt.Errorf("API request failed with status %d", resp.StatusCode)
+		return nil, fmt.Errorf("API request failed with status %d, body: %s", resp.StatusCode, truncateString(string(body), 200))
 	}
 
 	body, err := io.ReadAll(resp.Body)
