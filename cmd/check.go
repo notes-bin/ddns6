@@ -11,7 +11,7 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-// checkCmd 验证配置和 API 连通性。
+// checkCmd 校验配置/认证并探测 DNS API 连通性（查询 AAAA）。
 var checkCmd = &cobra.Command{
 	Use:   "check [provider]",
 	Short: "验证配置和 API 连通性",
@@ -37,18 +37,16 @@ var checkCmd = &cobra.Command{
   ddns6 check --debug tencent --domain example.com --secret-id xxx --secret-key yyy`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// check help - 显示帮助
 		if len(args) > 0 && args[0] == "help" {
 			cmd.Help()
 			return nil
 		}
 
 		if len(args) > 0 {
-			// CLI 模式：参数中指定了 provider 名称，用命令行参数验证
+			// CLI 模式：用命令行 provider 与 flag 做连通性探测
 			provider := args[0]
 			fmt.Printf("Checking provider: %s\n\n", provider)
 
-			// 查找 provider 工厂
 			var factory *providerFactory
 			for i, p := range providerFactories {
 				if p.name == provider {
@@ -63,7 +61,6 @@ var checkCmd = &cobra.Command{
 			}
 			fmt.Printf("Provider '%s' is valid\n", provider)
 
-			// 检查认证参数
 			fmt.Println("\n--- Auth Check ---")
 			for _, f := range factory.flags {
 				v := getString(cmd, f.name)
@@ -74,7 +71,6 @@ var checkCmd = &cobra.Command{
 				}
 			}
 
-			// 检查域名
 			domain := getString(cmd, "domain")
 			if domain == "" {
 				fmt.Println("--domain is missing")
@@ -82,7 +78,6 @@ var checkCmd = &cobra.Command{
 			}
 			fmt.Printf("--domain is set to %s\n", domain)
 
-			// API 连通性测试
 			fmt.Println("\n--- API Connectivity Test ---")
 			domains, providerClient, err := factory.run(cmd)
 			if err != nil {
@@ -103,7 +98,6 @@ var checkCmd = &cobra.Command{
 			return nil
 		}
 
-		// 配置文件模式
 		cfg, err := config.Load()
 		if err != nil {
 			fmt.Printf("Config load failed: %v\n", err)
@@ -115,7 +109,7 @@ var checkCmd = &cobra.Command{
 	},
 }
 
-// checkFromConfig 从配置文件执行验证。
+// checkFromConfig 校验配置字段完整性后，用 fromConfig 创建 Provider 并探测 AAAA。
 func checkFromConfig(cfg *config.Config) error {
 	fmt.Println("--- Config Validation ---")
 	if cfg.Provider != "" {
@@ -153,7 +147,6 @@ func checkFromConfig(cfg *config.Config) error {
 	fmt.Printf("interface: %s\n", cfg.Interface)
 	fmt.Printf("ttl: %d\n", cfg.GetTTL())
 
-	// 验证 Provider 是否有效
 	var factory *providerFactory
 	for i, p := range providerFactories {
 		if p.name == cfg.Provider {
@@ -168,7 +161,6 @@ func checkFromConfig(cfg *config.Config) error {
 	}
 	fmt.Printf("Provider '%s' is valid\n", cfg.Provider)
 
-	// API 连通性测试
 	fmt.Println("\n--- API Connectivity Test ---")
 	providerClient, err := factory.fromConfig(cfg)
 	if err != nil {

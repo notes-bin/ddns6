@@ -16,7 +16,7 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-// cleanCmd 删除 DNS 记录。
+// cleanCmd 删除匹配的 DNS 记录；支持 --dry-run / --yes 与配置文件模式。
 var cleanCmd = &cobra.Command{
 	Use:   "clean [provider]",
 	Short: "删除 DNS 记录",
@@ -44,7 +44,6 @@ var cleanCmd = &cobra.Command{
   # 从配置文件读取并自动删除
   ddns6 clean --yes`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// ddns6 clean help - 显示帮助
 		if len(args) > 0 && args[0] == "help" {
 			cmd.Help()
 			return nil
@@ -57,9 +56,8 @@ var cleanCmd = &cobra.Command{
 	},
 }
 
-// registerCleanCommands 注册 clean 命令的 provider 子命令。
+// registerCleanCommands 为 clean 注册 --type/--dry-run/--yes 及各 provider 子命令。
 func registerCleanCommands() {
-	// cleanCmd 自身的参数
 	cleanCmd.Flags().String("type", "AAAA", "DNS 记录类型过滤（默认 AAAA）")
 	cleanCmd.Flags().Bool("dry-run", false, "仅展示将删除的记录，不实际执行删除")
 	cleanCmd.Flags().Bool("yes", false, "跳过确认提示（用于自动化脚本）")
@@ -71,9 +69,8 @@ func registerCleanCommands() {
 	}, handleClean)
 }
 
-// handleClean 处理 clean 命令的业务逻辑。
+// handleClean 查询匹配记录后按 dry-run/确认策略删除，删除阶段限流为最多 5 并发。
 func handleClean(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider) error {
-	// 获取参数
 	recordType, err := cmd.Flags().GetString("type")
 	if err != nil {
 		return fmt.Errorf("invalid --type flag: %w", err)
@@ -90,29 +87,24 @@ func handleClean(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	// 收集要删除的记录
 	toDelete, err := ddns.CollectMatchingRecords(ctx, p, domains, recordType, true)
 	if err != nil {
 		return fmt.Errorf("failed to query records: %w", err)
 	}
 
-	// 无记录可删除
 	if len(toDelete) == 0 {
 		fmt.Println("No matching records to delete.")
 		return nil
 	}
 
-	// 展示将删除的记录
 	fmt.Printf("Will delete %d records:\n\n", len(toDelete))
 	fmt.Println(ddns.FormatRecords(toDelete))
 
-	// --dry-run 模式：仅展示，不执行
 	if dryRun {
 		fmt.Printf("\nDry-run mode. Use --dry-run=false or omit --dry-run to actually delete.\n")
 		return nil
 	}
 
-	// 确认提示
 	if !yes {
 		fmt.Printf("\nDelete %d records? [y/N] ", len(toDelete))
 		reader := bufio.NewReader(os.Stdin)
@@ -124,17 +116,17 @@ func handleClean(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider)
 		}
 	}
 
-	// 执行删除（限流 5 并发）
+	// 信号量限制并发，避免压垮上游 API
 	sem := make(chan struct{}, 5)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	var failed int
 
 	for _, r := range toDelete {
-		sem <- struct{}{} // 获取信号量，满 5 时阻塞
+		sem <- struct{}{}
 
 		wg.Go(func() {
-			defer func() { <-sem }() // 释放信号量
+			defer func() { <-sem }()
 
 			slog.Info("deleting DNS record",
 				"module", "cmd", "record_id", r.ID, "name", r.Name,
@@ -155,7 +147,6 @@ func handleClean(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider)
 
 	wg.Wait()
 
-	// 汇总
 	success := len(toDelete) - failed
 	fmt.Printf("\nDeleted %d records", success)
 	if failed > 0 {
@@ -169,7 +160,7 @@ func handleClean(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider)
 	return nil
 }
 
-// runCleanWithConfig 从 ~/.ddns6/config.yaml 加载配置并执行 clean。
+// runCleanWithConfig 走配置文件模式执行 clean；受限运营商直接返回错误。
 func runCleanWithConfig(cmd *cobra.Command) error {
 	return runWithConfig(cmd, "clean", func(cmd *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error {
 		if restrictedProviders[cfg.Provider] {

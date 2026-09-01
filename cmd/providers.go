@@ -1,11 +1,11 @@
 package cmd
 
-// providers.go 注册全部 DNS 运营商工厂，并挂载到 run / list / clean / check / init 子命令。
+// 本文件集中注册 23 家 DNS 运营商工厂，并挂载到 run / list / clean / init。
 //
 // 新增运营商步骤：
 //  1. 在 internal/providers/<name>/ 实现 ddns.DNSProvider
-//  2. 在本文件 providerFactories 追加一条（flags、run、fromConfig）
-//  3. 若 API 仅支持更新、不支持查询/删除，加入 restrictedProviders
+//  2. 在 providerFactories 追加一条（flags、run、fromConfig）
+//  3. 若 API 仅支持更新、不支持查询/删除，设置 noListClean 并加入 restrictedProviders
 //  4. 补充 docker-compose.yml / .env.example / README 中的对应说明
 
 import (
@@ -42,36 +42,33 @@ import (
 	"github.com/notes-bin/ddns6/internal/providers/tencent"
 )
 
-// providerFlag 运营商命令行参数定义
+// providerFlag 描述单个运营商认证/选项 flag 的名称与帮助文案。
 type providerFlag struct {
 	name  string
 	usage string
 }
 
-// providerFactory DNS 运营商工厂定义
+// providerFactory 定义一家 DNS 运营商的 CLI 与配置文件两种创建路径。
 //
-// 统一管理 CLI 模式和配置文件模式的 Provider 创建。
-// run 用于 CLI 模式（从命令行参数创建），fromConfig 用于配置文件模式。
-// 新增运营商只需在此列表中追加一个条目。
+// run 从命令行 flag 构造域名列表与 Provider；fromConfig 从 config.Config 构造。
+// noListClean 为 true 时 list/clean 仅注册提示命令（API 无查询/删除能力）。
 type providerFactory struct {
 	name        string
 	short       string
 	flags       []providerFlag
-	noListClean bool // true 表示此 provider 不支持 list/clean（如 duckdns、he、noip）
-	// run 从命令行参数创建域名列表和 DNSProvider
-	run func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error)
-	// fromConfig 从配置文件创建 DNSProvider
-	fromConfig func(cfg *config.Config) (ddns.DNSProvider, error)
+	noListClean bool // 如 duckdns / he / noip：仅更新端点
+	run         func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error)
+	fromConfig  func(cfg *config.Config) (ddns.DNSProvider, error)
 }
 
-// restrictedProviders 为 API 仅提供更新接口、不支持 list/clean 的运营商。
+// restrictedProviders 标记 API 仅提供更新、不支持 list/clean 的运营商名。
 var restrictedProviders = map[string]bool{
 	"duckdns": true,
 	"he":      true,
 	"noip":    true,
 }
 
-// providerFactories 所有支持的 DNS 运营商
+// providerFactories 为全部 23 家运营商的工厂表，注册与配置模式均依赖此表。
 var providerFactories = []providerFactory{
 	{
 		name: "tencent", short: "Tencent Cloud DNS (DNSPod API v3) - 需 --secret-id 和 --secret-key",
@@ -493,7 +490,7 @@ var providerFactories = []providerFactory{
 	},
 }
 
-// registerProviders 注册所有 DNS 运营商子命令到 runCmd。
+// registerProviders 将 providerFactories 中每家运营商注册为 run 的子命令。
 func registerProviders() {
 	for i := range providerFactories {
 		p := &providerFactories[i]
@@ -523,7 +520,6 @@ func registerProviders() {
 				p.name, formatSampleFlags(p.flags),
 				p.name, formatSampleFlags(p.flags)),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				// 验证必填参数
 				if err := requireFlags(cmd, p.flags); err != nil {
 					return err
 				}
@@ -542,27 +538,16 @@ func registerProviders() {
 	}
 }
 
-// providerCmdHandler 是 list/clean provider 子命令的业务处理函数类型。
-//
-// 参数:
-//   - cmd: cobra 命令实例（可从中读取额外 flag）
-//   - domains: 从 --domain/--subdomain 解析的域名配置列表
-//   - p: DNS 服务商实例
+// providerCmdHandler 为 list/clean 等 provider 子命令的业务回调类型。
 type providerCmdHandler func(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider) error
 
-// registerProviderSubCommands 为 list/clean 等命令注册 provider 子命令。
+// registerProviderSubCommands 复用 providerFactories 的认证 flag 与 run，为 parent 挂载子命令。
 //
-// 复用 providerFactories 中的 auth 参数定义和 run 函数，避免为每个命令重复定义
-// 23 个 provider 的认证参数。参数:
-//   - parent: 父命令（listCmd / cleanCmd）
-//   - commandName: 命令名称（"list" / "clean"），用于生成帮助文本
-//   - extraFlags: 注册额外 flag 的回调，可为 nil
-//   - handler: 业务逻辑回调，接收 cobra 命令、域名配置和 DNS 服务商实例
+// commandName 用于帮助文案与受限 API 错误信息；extraFlags 可为 nil；handler 执行实际业务。
 func registerProviderSubCommands(parent *cobra.Command, commandName string, extraFlags func(cmd *cobra.Command), handler providerCmdHandler) {
 	for i := range providerFactories {
 		pd := &providerFactories[i]
 
-		// 受限 API provider 注册 list/clean 时给出明确提示
 		if pd.noListClean {
 			registerRestrictedCommand(parent, commandName, pd)
 			continue
@@ -602,11 +587,9 @@ func registerProviderSubCommands(parent *cobra.Command, commandName string, extr
 				return handler(cmd, domains, provider)
 			},
 		}
-		// 注册认证参数
 		for _, f := range pd.flags {
 			cmd.Flags().String(f.name, "", f.usage)
 		}
-		// 注册额外参数
 		if extraFlags != nil {
 			extraFlags(cmd)
 		}
@@ -614,7 +597,7 @@ func registerProviderSubCommands(parent *cobra.Command, commandName string, extr
 	}
 }
 
-// registerRestrictedCommand 为受限 API provider 注册 list/clean 提示命令。
+// registerRestrictedCommand 为仅支持更新的运营商注册 list/clean 占位命令，运行时返回明确错误。
 func registerRestrictedCommand(parent *cobra.Command, commandName string, pd *providerFactory) {
 	cmd := &cobra.Command{
 		Use:   pd.name,
@@ -626,7 +609,7 @@ func registerRestrictedCommand(parent *cobra.Command, commandName string, pd *pr
 	parent.AddCommand(cmd)
 }
 
-// formatProviderFlags 返回运营商的必填参数格式文本
+// formatProviderFlags 将认证 flag 列表格式化为帮助文本中的「必填参数」段落。
 func formatProviderFlags(flags []providerFlag) string {
 	var b strings.Builder
 	for _, f := range flags {
@@ -635,7 +618,7 @@ func formatProviderFlags(flags []providerFlag) string {
 	return b.String()
 }
 
-// formatSampleFlags 返回示例参数文本
+// formatSampleFlags 生成帮助示例中的占位 flag 片段（YOUR_<name>）。
 func formatSampleFlags(flags []providerFlag) string {
 	var b strings.Builder
 	for _, f := range flags {
@@ -644,8 +627,7 @@ func formatSampleFlags(flags []providerFlag) string {
 	return b.String()
 }
 
-// requireFlags 验证必填字符串 flag 非空。
-// 在 RunE 中调用，确保必填参数已提供后再执行业务逻辑。
+// requireFlags 校验给定字符串 flag 均已提供非空值；供 RunE 在业务逻辑前调用。
 func requireFlags(cmd *cobra.Command, flags []providerFlag) error {
 	for _, f := range flags {
 		v, err := cmd.Flags().GetString(f.name)
@@ -659,13 +641,10 @@ func requireFlags(cmd *cobra.Command, flags []providerFlag) error {
 	return nil
 }
 
-// ============================================================
-// 配置文件模式：从 ~/.ddns6/config.yaml 创建 provider
-// ============================================================
+// --- 配置文件模式 ---
 
-// runWithConfig 从配置文件加载配置，构造域名列表和 Provider，然后交给 handler 执行。
-//
-// commandName 用于生成错误提示中的子命令名称（如 "run"、"list"、"clean"）。
+// runWithConfig 加载 ~/.ddns6/config.yaml，构造域名与 Provider，再交给 handler。
+// commandName 写入加载失败时的提示（如 "run" / "list" / "clean"）。
 func runWithConfig(cmd *cobra.Command, commandName string, handler func(cmd *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error) error {
 	cfg, err := config.Load()
 	if err != nil {
@@ -681,9 +660,8 @@ func runWithConfig(cmd *cobra.Command, commandName string, handler func(cmd *cob
 	return handler(cmd, cfg, domains, p)
 }
 
-// runServiceFromConfigHandler 是 runWithConfig 的 handler，将配置和命令行参数合并后启动 DDNS 服务。
+// runServiceFromConfigHandler 合并配置与命令行（命令行优先）后启动 DDNS 服务。
 func runServiceFromConfigHandler(cmd *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error {
-	// 合并配置与命令行参数（命令行参数优先）
 	interval, err := cfg.GetInterval()
 	if err != nil {
 		return err
@@ -704,7 +682,7 @@ func runServiceFromConfigHandler(cmd *cobra.Command, cfg *config.Config, domains
 	return ddns.RunService(domains, p, interval, ddns.DefaultIPv6Fetchers(), iface)
 }
 
-// createProviderFromConfig 根据配置的 provider 类型和 auth 字段创建对应的 DNS 服务商。
+// createProviderFromConfig 按 cfg.Provider 在工厂表中查找并调用 fromConfig。
 func createProviderFromConfig(cfg *config.Config) (ddns.DNSProvider, error) {
 	for _, p := range providerFactories {
 		if p.name == cfg.Provider {
@@ -714,12 +692,9 @@ func createProviderFromConfig(cfg *config.Config) (ddns.DNSProvider, error) {
 	return nil, fmt.Errorf("unsupported provider: %s", cfg.Provider)
 }
 
-// ============================================================
-// 辅助函数
-// ============================================================
+// --- flag / 域名辅助 ---
 
-// getString 获取字符串类型 flag 值。
-// 仅用于可选参数（如 --interface），必填参数请使用 requireFlags。
+// getString 读取可选字符串 flag；未注册或出错时返回空串（必填项应先走 requireFlags）。
 func getString(cmd *cobra.Command, name string) string {
 	v, err := cmd.Flags().GetString(name)
 	if err != nil {
@@ -728,8 +703,7 @@ func getString(cmd *cobra.Command, name string) string {
 	return v
 }
 
-// getDuration 获取 duration 类型 flag 值。
-// 仅用于可选参数（如 --interval）；调用方应确保 flag 已注册。
+// getDuration 读取可选 duration flag；未注册时回退为 5 分钟。
 func getDuration(cmd *cobra.Command, name string) time.Duration {
 	v, err := cmd.Flags().GetDuration(name)
 	if err != nil {
@@ -738,8 +712,7 @@ func getDuration(cmd *cobra.Command, name string) time.Duration {
 	return v
 }
 
-// createDomainConfigs 从命令行参数创建域名配置列表。
-// 每个 --subdomain 值会生成一个对应的 Domain 实例。
+// createDomainConfigs 从 --domain / --subdomain / --ttl 构造 Domain 列表；缺省子域名为 "@"。
 func createDomainConfigs(cmd *cobra.Command) ([]*ddns.Domain, error) {
 	domainName, err := cmd.Flags().GetString("domain")
 	if err != nil {
@@ -765,7 +738,7 @@ func createDomainConfigs(cmd *cobra.Command) ([]*ddns.Domain, error) {
 	return buildDomains(domainName, subdomains, ttl), nil
 }
 
-// buildDomains 根据根域名、子域名列表和 TTL 创建 Domain 列表。
+// buildDomains 为每个子域名生成 Type=AAAA 的 Domain；TTL 原样写入。
 func buildDomains(domain string, subdomains []string, ttl int) []*ddns.Domain {
 	domains := make([]*ddns.Domain, len(subdomains))
 	for i, sd := range subdomains {

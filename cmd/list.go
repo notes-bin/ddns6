@@ -13,7 +13,7 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-// listCmd 列出 DNS 记录。
+// listCmd 查询并打印 DNS 记录；默认过滤 AAAA，可通过 --type 调整。
 var listCmd = &cobra.Command{
 	Use:   "list [provider]",
 	Short: "列出 DNS 记录",
@@ -34,7 +34,6 @@ var listCmd = &cobra.Command{
   # 从配置文件读取
   ddns6 list`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// ddns6 list help - 显示帮助
 		if len(args) > 0 && args[0] == "help" {
 			cmd.Help()
 			return nil
@@ -47,9 +46,8 @@ var listCmd = &cobra.Command{
 	},
 }
 
-// registerListCommands 注册 list 命令的 provider 子命令。
+// registerListCommands 为 list 注册 --type 及各 provider 子命令。
 func registerListCommands() {
-	// listCmd 自身的 --type 参数
 	listCmd.Flags().String("type", "AAAA", "DNS 记录类型过滤（默认 AAAA，设为空字符串展示所有类型）")
 
 	registerProviderSubCommands(listCmd, "list", func(cmd *cobra.Command) {
@@ -57,16 +55,14 @@ func registerListCommands() {
 	}, handleList)
 }
 
-// handleList 处理 list 命令的业务逻辑。
+// handleList 按 --type 收集记录并格式化输出；仅当用户显式传 --subdomain 时按子域名过滤。
 func handleList(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider) error {
-	// 获取 --type 参数
 	recordType, err := cmd.Flags().GetString("type")
 	if err != nil {
 		return fmt.Errorf("invalid --type flag: %w", err)
 	}
 
-	// 用户显式指定了 --subdomain 时才按子域名过滤
-	// 未指定时展示该域名下所有匹配 --type 的记录
+	// 未显式指定 --subdomain 时展示该域名下匹配类型的全部记录
 	filterBySubdomain := cmd.Flags().Changed("subdomain")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -77,7 +73,6 @@ func handleList(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider) 
 		return fmt.Errorf("failed to list records: %w", err)
 	}
 
-	// 输出
 	filterInfo := buildFilterInfo(domains)
 	heading := fmt.Sprintf("Listing %s for %s", recordTypeDesc(recordType), filterInfo)
 	if filterBySubdomain {
@@ -95,7 +90,7 @@ func handleList(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider) 
 	return nil
 }
 
-// runListWithConfig 从 ~/.ddns6/config.yaml 加载配置并执行 list。
+// runListWithConfig 走配置文件模式执行 list；受限运营商直接返回错误。
 func runListWithConfig(cmd *cobra.Command) error {
 	return runWithConfig(cmd, "list", func(cmd *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error {
 		if restrictedProviders[cfg.Provider] {
@@ -105,7 +100,7 @@ func runListWithConfig(cmd *cobra.Command) error {
 	})
 }
 
-// recordTypeDesc 返回记录类型的中文描述。
+// recordTypeDesc 将记录类型转为列表标题用语；空类型表示全部记录。
 func recordTypeDesc(t string) string {
 	if t == "" {
 		return "DNS records"
@@ -113,9 +108,8 @@ func recordTypeDesc(t string) string {
 	return t + " records"
 }
 
-// buildFilterInfo 构建过滤条件描述文本。
+// buildFilterInfo 将域名列表去重后的 FQDN 拼成过滤条件描述。
 func buildFilterInfo(domains []*ddns.Domain) string {
-	// 收集所有唯一的 fullDomain
 	seen := make(map[string]bool)
 	var parts []string
 	for _, d := range domains {
