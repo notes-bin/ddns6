@@ -34,7 +34,6 @@ func (h *HttpIPv6Fetcher) String() string {
 
 // Fetch 请求端点并将响应正文解析为 IPv6 地址。
 func (h *HttpIPv6Fetcher) Fetch(ctx context.Context) (net.IP, error) {
-	// 创建 HTTP 请求
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, h.url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request for %s: %w", h.url, err)
@@ -55,19 +54,16 @@ func (h *HttpIPv6Fetcher) Fetch(ctx context.Context) (net.IP, error) {
 		return nil, fmt.Errorf("failed to read response body from %s: %w", h.url, err)
 	}
 
-	// 清理响应内容
 	body = bytes.TrimSpace(body)
 	if bytes.Contains(body, []byte("%")) {
-		body = bytes.Trim(body, "%")
+		body = bytes.Trim(body, "%") // 部分端点带 zone id 后缀
 	}
 
-	// 解析 IPv6 地址
 	ip := net.ParseIP(string(body))
 	if ip != nil && ip.To16() != nil && ip.To4() == nil {
 		return ip, nil
 	}
 
-	// 截断响应内容避免日志过长
 	respStr := string(body)
 	if len(respStr) > 100 {
 		respStr = respStr[:100] + "..."

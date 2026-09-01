@@ -1,6 +1,8 @@
-// Package retry 提供带指数退避的重试机制。
+// Package retry 提供带指数退避的可重试错误封装。
 //
-// 使用场景：HTTP API 调用遇到临时性错误（网络波动、限流 429、5xx 等）时自动重试。
+// 用于 HTTP API 等临时性失败（网络波动、限流 429、5xx）的自动重试。
+// 入口为 Do；仅 RetryableError（经 Retryable 包装）会触发退避重试，
+// 其他错误立即返回。
 //
 // 使用示例：
 //
@@ -13,7 +15,7 @@
 //	    if resp.StatusCode == 429 || resp.StatusCode >= 500 {
 //	        return retry.Retryable(fmt.Errorf("HTTP %d", resp.StatusCode))
 //	    }
-//	    return nil // 成功，不重试
+//	    return nil
 //	})
 package retry
 
@@ -25,24 +27,23 @@ import (
 	"time"
 )
 
-// RetryableError 标记一个错误是可重试的临时错误。
-// Do 遇到 RetryableError 时按退避策略重试，遇到其他错误则立即返回。
+// RetryableError 标记可重试的临时错误。
+// Do 仅对此类型按退避策略重试；其他错误立即返回。
 type RetryableError struct {
 	Err error
 }
 
-// Error 返回错误信息。
+// Error 实现 error，前缀 "retryable:"。
 func (e *RetryableError) Error() string {
 	return fmt.Sprintf("retryable: %v", e.Err)
 }
 
-// Unwrap 返回被包装的原始错误。
+// Unwrap 返回被包装的原始错误，供 errors.Is / errors.As 使用。
 func (e *RetryableError) Unwrap() error {
 	return e.Err
 }
 
-// Retryable 将 err 包装为可重试错误。
-// 如果 err 本身为 nil 则返回 nil。
+// Retryable 将 err 包装为 RetryableError；err 为 nil 时返回 nil。
 func Retryable(err error) error {
 	if err == nil {
 		return nil
@@ -50,36 +51,34 @@ func Retryable(err error) error {
 	return &RetryableError{Err: err}
 }
 
-// IsRetryable 判断错误是否为 RetryableError。
+// IsRetryable 判断 err（含包装链）是否为 RetryableError。
 func IsRetryable(err error) bool {
 	var re *RetryableError
 	return errors.As(err, &re)
 }
 
-// Do 执行 fn，遇到 RetryableError 时按指数退避重试。
+// Do 执行 fn，遇 RetryableError 时按指数退避重试。
 //
 // 参数：
-//   - ctx: 上下文，取消时中止重试
-//   - attempts: 最大尝试次数（包括首次调用）
-//   - baseDelay: 基础延迟，每次重试的延迟为 baseDelay * 2^n + jitter
-//   - fn: 要执行的函数，返回 RetryableError 时重试，其他错误或 nil 时停止
+//   - ctx: 取消时中止重试并返回 ctx.Err()
+//   - attempts: 最大尝试次数（含首次）
+//   - baseDelay: 基础延迟；第 i 次重试等待约为 baseDelay*2^i 的全 jitter
+//   - fn: 返回 RetryableError 时重试，其他错误或 nil 时停止
 //
-// 返回 fn 的最后一次返回值（成功时为 nil，超过重试次数时返回最后一次错误）。
+// 返回最后一次结果：成功为 nil，耗尽次数则为最后一次可重试错误的 Unwrap 值。
 func Do(ctx context.Context, attempts int, baseDelay time.Duration, fn func(context.Context) error) error {
 	var lastErr error
 
 	for i := range attempts {
-		// 检查上下文是否已取消
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 
 		err := fn(ctx)
 		if err == nil {
-			return nil // 成功
+			return nil
 		}
 
-		// 非 RetryableError - 立即返回
 		var re *RetryableError
 		if !errors.As(err, &re) {
 			return err
@@ -87,15 +86,14 @@ func Do(ctx context.Context, attempts int, baseDelay time.Duration, fn func(cont
 
 		lastErr = re.Unwrap()
 
-		// 最后一次尝试后不再等待
 		if i == attempts-1 {
 			break
 		}
 
-		// 指数退避 + 全 jitter（范围 [0, delay)）
+		// 指数退避 + 全 jitter，范围 [0, delay)
 		delay := baseDelay * (1 << i) // baseDelay * 2^i
 		if delay <= 0 {
-			delay = 1 // 确保 delay > 0，防止 rand.Int63n 恐慌
+			delay = 1 // 避免 rand.Int63n 对非正参数 panic
 		}
 		wait := time.Duration(rand.Int63n(int64(delay)))
 

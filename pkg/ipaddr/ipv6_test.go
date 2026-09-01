@@ -14,7 +14,7 @@ import (
 	"github.com/notes-bin/ddns6/pkg/ipaddr"
 )
 
-// TestDnsFetcher 测试 DnsFetcher 的功能
+// TestDnsFetcher 验证 DnsFetcher 的 String 与 Fetch（无 IPv6 时仅记录日志）。
 func TestDnsFetcher(t *testing.T) {
 	dnsServer := "2001:4860:4860::8888" // Google DNS
 	fetcher := ipaddr.NewDnsFetcher(dnsServer)
@@ -26,12 +26,10 @@ func TestDnsFetcher(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
-	// 尝试获取 IPv6 地址
 	ip, err := fetcher.Fetch(ctx)
 	if err != nil {
 		t.Logf("DnsFetcher failed (possibly no IPv6 network): %v", err)
 	} else {
-		// 验证返回的是 IPv6 地址
 		if ip.To4() != nil {
 			t.Error("Expected IPv6 address, got IPv4 address")
 		}
@@ -41,9 +39,8 @@ func TestDnsFetcher(t *testing.T) {
 	}
 }
 
-// TestHttpIPv6Fetcher 测试 HttpIPv6Fetcher 的功能
+// TestHttpIPv6Fetcher 用 httptest 验证合法 IPv6 解析与非法正文失败。
 func TestHttpIPv6Fetcher(t *testing.T) {
-	// 创建测试 HTTP 服务器
 	mockIPv6 := "2001:db8::1"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -51,7 +48,6 @@ func TestHttpIPv6Fetcher(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// 创建 HttpIPv6Fetcher
 	fetcher := ipaddr.NewHttpIPv6Fetcher(server.URL)
 
 	if fetcher.String() != server.URL {
@@ -61,7 +57,6 @@ func TestHttpIPv6Fetcher(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
-	// 测试正常情况
 	ip, err := fetcher.Fetch(ctx)
 	if err != nil {
 		t.Errorf("Expected HttpIPv6Fetcher to succeed, got error: %v", err)
@@ -71,7 +66,6 @@ func TestHttpIPv6Fetcher(t *testing.T) {
 		t.Errorf("Expected IPv6 address %s, got %s", mockIPv6, ip.String())
 	}
 
-	// 测试错误情况 - 无效 IP 地址
 	errorServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("invalid-ip"))
@@ -85,11 +79,11 @@ func TestHttpIPv6Fetcher(t *testing.T) {
 	}
 }
 
-// slowFetcher 模拟一个响应较慢的 fetcher，用于测试竞速取消场景。
+// slowFetcher 模拟可配置延迟的 IPv6Fetcher，用于竞速与取消场景。
 type slowFetcher struct {
 	ip       net.IP
 	delay    time.Duration
-	canceled *atomic.Bool // 记录是否因 context 取消而退出
+	canceled *atomic.Bool // 是否因 context 取消退出
 }
 
 func (s *slowFetcher) Fetch(ctx context.Context) (net.IP, error) {
@@ -104,7 +98,7 @@ func (s *slowFetcher) Fetch(ctx context.Context) (net.IP, error) {
 	}
 }
 
-// TestGetIPv6Addr_RaceCancel 测试竞速成功时其他 fetcher 被取消不影响结果。
+// TestGetIPv6Addr_RaceCancel 验证快 fetcher 胜出时慢方取消不影响结果。
 func TestGetIPv6Addr_RaceCancel(t *testing.T) {
 	fastIP := net.ParseIP("2001:db8::1")
 	slowIP := net.ParseIP("2001:db8::2")
@@ -121,7 +115,6 @@ func TestGetIPv6Addr_RaceCancel(t *testing.T) {
 		t.Errorf("应返回快速 fetcher 的 IP %s, 得到 %s", fastIP, ip)
 	}
 
-	// 等待慢 fetcher 完成清理
 	time.Sleep(100 * time.Millisecond)
 
 	if !slowWasCanceled.Load() {
@@ -129,12 +122,14 @@ func TestGetIPv6Addr_RaceCancel(t *testing.T) {
 	}
 }
 
+// failFetcher 始终返回错误的 IPv6Fetcher。
 type failFetcher struct{ err error }
 
 func (f *failFetcher) Fetch(context.Context) (net.IP, error) {
 	return nil, f.err
 }
 
+// TestGetIPv6Addr_AllFail 验证全部 fetcher 失败时返回汇总错误。
 func TestGetIPv6Addr_AllFail(t *testing.T) {
 	f1 := &failFetcher{err: errors.New("upstream down")}
 	f2 := &failFetcher{err: errors.New("dns fail")}
@@ -148,7 +143,7 @@ func TestGetIPv6Addr_AllFail(t *testing.T) {
 	}
 }
 
-// TestGetIPv6Addr_NoFetchers 测试不提供 fetcher 时返回错误。
+// TestGetIPv6Addr_NoFetchers 验证未提供 fetcher 时返回错误。
 func TestGetIPv6Addr_NoFetchers(t *testing.T) {
 	_, err := ipaddr.GetIPv6Addr(t.Context())
 	if err == nil {
@@ -156,7 +151,7 @@ func TestGetIPv6Addr_NoFetchers(t *testing.T) {
 	}
 }
 
-// TestGetIPv6Addr_SingleFetcher 测试单个 fetcher 成功场景。
+// TestGetIPv6Addr_SingleFetcher 验证单个 fetcher 成功路径。
 func TestGetIPv6Addr_SingleFetcher(t *testing.T) {
 	testIP := net.ParseIP("2001:db8::1")
 	fetcher := &slowFetcher{ip: testIP, delay: 0}
