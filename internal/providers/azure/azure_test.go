@@ -140,3 +140,69 @@ func TestClient_ApiError(t *testing.T) {
 		t.Errorf("expected status 403 in error, got: %v", err)
 	}
 }
+
+func TestClient_AccessToken(t *testing.T) {
+	var gotGrant, gotClientID string
+	login := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("parse form: %v", err)
+		}
+		gotGrant = r.Form.Get("grant_type")
+		gotClientID = r.Form.Get("client_id")
+		if !strings.Contains(r.URL.Path, "/tenant/oauth2/v2.0/token") {
+			t.Errorf("unexpected token path: %s", r.URL.Path)
+		}
+		json.NewEncoder(w).Encode(map[string]any{
+			"access_token": "fresh-token",
+			"expires_in":   3600,
+		})
+	}))
+	t.Cleanup(login.Close)
+
+	mgmt := httptest.NewServer(http.HandlerFunc(defaultHandler))
+	t.Cleanup(mgmt.Close)
+
+	c := NewClient("sub", "tenant", "app", "secret",
+		WithLoginBase(login.URL),
+		WithManagementBase(mgmt.URL),
+	)
+	// 不预置 token，强制走 OAuth
+	records, err := c.GetRecords(t.Context(), "www.example.com", "AAAA")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("unexpected records: %+v", records)
+	}
+	if gotGrant != "client_credentials" || gotClientID != "app" {
+		t.Errorf("unexpected token request: grant=%q client_id=%q", gotGrant, gotClientID)
+	}
+	if c.token != "fresh-token" {
+		t.Errorf("expected cached token fresh-token, got %q", c.token)
+	}
+
+	// 缓存未过期时不应再请求登录端点
+	login.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("should not refresh token when still valid")
+		http.Error(w, "unexpected", http.StatusInternalServerError)
+	})
+	if _, err := c.GetRecords(t.Context(), "www.example.com", "AAAA"); err != nil {
+		t.Fatalf("cached token path failed: %v", err)
+	}
+}
+
+func TestClient_AccessTokenError(t *testing.T) {
+	login := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	}))
+	t.Cleanup(login.Close)
+
+	c := NewClient("sub", "tenant", "app", "secret", WithLoginBase(login.URL), WithManagementBase("http://127.0.0.1:1"))
+	_, err := c.GetRecords(t.Context(), "www.example.com", "AAAA")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "401") {
+		t.Errorf("expected 401 in error, got: %v", err)
+	}
+}
