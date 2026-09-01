@@ -142,3 +142,22 @@ func TestMakeRequest(t *testing.T) {
 		t.Errorf("Expected status 'ok', got '%v'", result["status"])
 	}
 }
+
+func TestApiError(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"success": false, "errors": [{"code": 9109, "message": "Invalid access token"}]}`))
+	}))
+	t.Cleanup(ts.Close)
+
+	client := NewClient(WithAPIToken("bad-token"), WithBaseURL(ts.URL))
+	var result map[string]any
+	err := client.makeRequest(t.Context(), "GET", ts.URL+"/zones", nil, &result)
+	if err == nil {
+		t.Fatal("expected API error, got nil")
+	}
+	if !strings.Contains(err.Error(), "Invalid access token") {
+		t.Errorf("error should include API message: %v", err)
+	}
+}
