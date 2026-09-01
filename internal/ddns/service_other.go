@@ -10,10 +10,9 @@ import (
 	"time"
 )
 
-// startTrigger 启动定时轮询地址变化。
+// startTrigger 启动定时轮询地址变化触发器。
 //
-// 非 Linux 平台不支持 Netlink，使用 time.NewTicker 定期检查地址变化。
-// interval 由用户通过 --interval 参数控制，默认 5 分钟。
+// 非 Linux 不支持 Netlink，使用 ticker 定期检查；interval 由 --interval 控制，默认 5 分钟。
 func startTrigger(ctx context.Context, interval time.Duration, _ string) <-chan struct{} {
 	triggerCh := make(chan struct{}, 1)
 
@@ -29,7 +28,7 @@ func startTrigger(ctx context.Context, interval time.Duration, _ string) <-chan 
 	return triggerCh
 }
 
-// platformTriggerMode 返回当前平台的触发模式描述。
+// platformTriggerMode 返回当前平台的触发模式描述（日志用）。
 func platformTriggerMode() string {
 	return "polling"
 }

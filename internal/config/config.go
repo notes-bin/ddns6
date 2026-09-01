@@ -1,4 +1,6 @@
-// Package config 管理 DDNS6 配置文件 (~/.ddns6/config.yaml)。
+// Package config 管理 DDNS6 配置文件（~/.ddns6/config.yaml）。
+//
+// 配置由 ddns6 init 生成模板，或手动创建；ddns6 run/check/list/clean 等命令通过 Load 读取。
 //
 // 配置文件格式（YAML）：
 //
@@ -13,8 +15,6 @@
 //	interval: 10m              # 可选：非 Linux 轮询间隔（默认 5m）
 //	interface: ppp0            # 可选：监听的网络接口（仅 Linux Netlink）
 //	ttl: 600                   # 可选：DNS 记录 TTL（默认 600）
-//
-// 配置文件通过 ddns6 init 生成模板，或手动创建。
 package config
 
 import (
@@ -59,10 +59,9 @@ func ConfigPath() (string, error) {
 	return filepath.Join(dir, "config.yaml"), nil
 }
 
-// Load 读取并解析 ~/.ddns6/config.yaml，返回 Config 结构体。
+// Load 读取并解析 ~/.ddns6/config.yaml。
 //
-// 如果文件不存在或格式错误，返回错误。
-// 调用方可根据错误类型判断是"文件不存在"还是"解析错误"。
+// 文件不存在或格式错误时返回错误；调用方可据此区分「未初始化」与「解析失败」。
 func Load() (*Config, error) {
 	path, err := ConfigPath()
 	if err != nil {
@@ -77,7 +76,7 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("cannot read config file %s: %w", path, err)
 	}
 
-	// 检查配置文件权限（仅 Unix），非 owner-only 时发出警告
+	// Unix 上权限过宽时仅警告，不阻断加载（凭据可能泄露）
 	if runtime.GOOS != "windows" {
 		if fi, err := os.Stat(path); err == nil {
 			if fi.Mode().Perm()&0077 != 0 {
@@ -92,7 +91,6 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("cannot parse config file %s: %w", path, err)
 	}
 
-	// 必填字段校验
 	if cfg.Provider == "" {
 		return nil, fmt.Errorf("config field 'provider' is required")
 	}
@@ -100,7 +98,7 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("config field 'domain' is required")
 	}
 	if len(cfg.Subdomains) == 0 {
-		cfg.Subdomains = []string{"@"} // 默认根域名
+		cfg.Subdomains = []string{"@"} // 缺省同步根域名
 	}
 	if cfg.Auth == nil {
 		cfg.Auth = make(map[string]string)
@@ -110,7 +108,8 @@ func Load() (*Config, error) {
 }
 
 // GetInterval 解析轮询间隔字符串为 time.Duration。
-// 如果未设置或解析失败，返回默认值 5 分钟并附带解析错误。
+//
+// 未设置或解析失败时返回默认 5 分钟；解析失败时同时返回错误说明。
 func (c *Config) GetInterval() (time.Duration, error) {
 	if c.Interval == "" {
 		return 5 * time.Minute, nil
@@ -122,7 +121,7 @@ func (c *Config) GetInterval() (time.Duration, error) {
 	return d, nil
 }
 
-// GetTTL 返回 TTL 值，未设置时返回默认值。
+// GetTTL 返回 TTL；未设置或非正数时使用 ddns.DefaultTTL。
 func (c *Config) GetTTL() int {
 	if c.TTL <= 0 {
 		return ddns.DefaultTTL
@@ -130,8 +129,9 @@ func (c *Config) GetTTL() int {
 	return c.TTL
 }
 
-// InitParams ddns6 init 命令的可选预填参数。
-// 空值/零值表示不预填，相应字段在配置文件中保持注释状态。
+// InitParams 为 ddns6 init 的可选预填参数。
+//
+// 空值/零值表示不预填，相应字段在生成的配置中保持注释示例。
 type InitParams struct {
 	Provider   string            // DNS 运营商名称（如 tencent）
 	Auth       map[string]string // 认证凭据（如 secret_id, secret_key）
@@ -142,8 +142,7 @@ type InitParams struct {
 	Interface  string
 }
 
-// configTemplate 配置模板，使用 text/template 渲染。
-// 有值的字段直接写入配置，空值保留为注释示例。
+// configTemplate 配置模板：有值字段写入配置，空值保留为注释示例。
 const configTemplate = `# DDNS6 配置文件
 # 编辑后执行 ddns6 run 即可启动服务
 #
@@ -191,10 +190,9 @@ subdomains:{{if .Subdomains}}{{range .Subdomains}}
 {{if .TTL}}ttl: {{.TTL}}{{else}}# ttl: 600{{end}}
 `
 
-// Generate 创建 ~/.ddns6/ 目录并写入 config.yaml。
+// Generate 创建 ~/.ddns6/ 目录并写入 config.yaml（已存在则拒绝覆盖）。
 //
-// params 中非零字段会预填入配置文件，零值字段保留为注释默认值。
-// 如果目录已存在但配置文件已存在，不会覆盖。
+// params 中非零字段预填入配置；零值字段保留为注释默认值。
 func Generate(params InitParams) error {
 	dir, err := ConfigDir()
 	if err != nil {
@@ -205,17 +203,14 @@ func Generate(params InitParams) error {
 		return err
 	}
 
-	// 创建目录（如果不存在）
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create config directory %s: %w", dir, err)
 	}
 
-	// 检查配置文件是否已存在
 	if _, err := os.Stat(path); err == nil {
 		return fmt.Errorf("config file already exists at %s", path)
 	}
 
-	// 渲染模板并写入
 	tmpl, err := template.New("config").Parse(configTemplate)
 	if err != nil {
 		return fmt.Errorf("internal error: failed to parse config template: %w", err)

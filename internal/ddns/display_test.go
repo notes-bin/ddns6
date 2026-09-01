@@ -5,10 +5,7 @@ import (
 	"testing"
 )
 
-// ============================================================
-// FormatRecords 测试
-// ============================================================
-
+// TestFormatRecords_Empty 验证空切片返回固定提示文案。
 func TestFormatRecords_Empty(t *testing.T) {
 	result := FormatRecords([]RecordInfo{})
 	if result != "No records found." {
@@ -16,6 +13,7 @@ func TestFormatRecords_Empty(t *testing.T) {
 	}
 }
 
+// TestFormatRecords_Nil 验证 nil 切片与空切片行为一致。
 func TestFormatRecords_Nil(t *testing.T) {
 	result := FormatRecords(nil)
 	if result != "No records found." {
@@ -23,20 +21,19 @@ func TestFormatRecords_Nil(t *testing.T) {
 	}
 }
 
+// TestFormatRecords_SingleRecord 验证单条记录输出含表头与字段。
 func TestFormatRecords_SingleRecord(t *testing.T) {
 	records := []RecordInfo{
 		{ID: "12345678", Name: "www.example.com", Zone: "example.com", Type: "AAAA", Value: "240e:1234::1", TTL: 600},
 	}
 	result := FormatRecords(records)
 
-	// 应包含表头
 	if !strings.Contains(result, "ID") || !strings.Contains(result, "Name") ||
 		!strings.Contains(result, "Type") || !strings.Contains(result, "Value") ||
 		!strings.Contains(result, "TTL") {
 		t.Error("结果应包含表头 (ID, Name, Type, Value, TTL)")
 	}
 
-	// 应包含记录数据
 	if !strings.Contains(result, "12345678") {
 		t.Error("结果应包含记录 ID")
 	}
@@ -51,6 +48,7 @@ func TestFormatRecords_SingleRecord(t *testing.T) {
 	}
 }
 
+// TestFormatRecords_MultipleRecords 验证多条记录均出现在输出中。
 func TestFormatRecords_MultipleRecords(t *testing.T) {
 	records := []RecordInfo{
 		{ID: "1", Name: "www.example.com", Type: "AAAA", Value: "::1", TTL: 600},
@@ -66,6 +64,7 @@ func TestFormatRecords_MultipleRecords(t *testing.T) {
 	}
 }
 
+// TestFormatRecords_ContainsRecordType 验证输出包含记录类型字段。
 func TestFormatRecords_ContainsRecordType(t *testing.T) {
 	records := []RecordInfo{
 		{ID: "1", Name: "www.example.com", Type: "AAAA", Value: "::1", TTL: 600},
@@ -76,8 +75,8 @@ func TestFormatRecords_ContainsRecordType(t *testing.T) {
 	}
 }
 
+// TestFormatRecords_EmptyID 验证 ID 为空时仍正常渲染有记录输出。
 func TestFormatRecords_EmptyID(t *testing.T) {
-	// ID 为空时也应正常显示
 	records := []RecordInfo{
 		{ID: "", Name: "www.example.com", Type: "AAAA", Value: "::1", TTL: 600},
 	}
@@ -90,6 +89,7 @@ func TestFormatRecords_EmptyID(t *testing.T) {
 	}
 }
 
+// TestFormatRecords_DifferentTypes 验证混合记录类型均可输出。
 func TestFormatRecords_DifferentTypes(t *testing.T) {
 	records := []RecordInfo{
 		{ID: "1", Name: "www.example.com", Type: "AAAA", Value: "::1", TTL: 600},
