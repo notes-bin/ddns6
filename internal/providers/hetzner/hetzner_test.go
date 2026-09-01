@@ -63,6 +63,36 @@ func TestClient(t *testing.T) {
 			},
 		},
 		{
+			name: "ModifyRecord",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "set_records") {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				json.NewEncoder(w).Encode(zoneResponse{Zone: zone{ID: 99, Name: "example.com."}})
+			},
+			run: func(t *testing.T, c *Client) {
+				err := c.ModifyRecord(t.Context(), ddns.RecordInfo{
+					Name: "www.example.com", Zone: "example.com", Type: "AAAA", Value: "2001:db8::2", TTL: 600,
+				})
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+			},
+		},
+		{
+			name: "ApiError",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				http.Error(w, "forbidden", http.StatusForbidden)
+			},
+			run: func(t *testing.T, c *Client) {
+				_, err := c.GetRecords(t.Context(), "www.example.com", "AAAA")
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+			},
+		},
+		{
 			name: "DeleteRecord",
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "remove_records") {
