@@ -532,7 +532,7 @@ func registerProviders() {
 					return err
 				}
 				iface := getString(cmd, "interface")
-				return ddns.RunService(domains, task, getDuration(cmd, "interval"), ddns.DefaultIPv6Fetchers, iface)
+				return ddns.RunService(domains, task, getDuration(cmd, "interval"), ddns.DefaultIPv6Fetchers(), iface)
 			},
 		}
 		for _, f := range p.flags {
@@ -701,7 +701,7 @@ func runServiceFromConfigHandler(cmd *cobra.Command, cfg *config.Config, domains
 		}
 	}
 
-	return ddns.RunService(domains, p, interval, ddns.DefaultIPv6Fetchers, iface)
+	return ddns.RunService(domains, p, interval, ddns.DefaultIPv6Fetchers(), iface)
 }
 
 // createProviderFromConfig 根据配置的 provider 类型和 auth 字段创建对应的 DNS 服务商。
@@ -729,9 +729,7 @@ func getString(cmd *cobra.Command, name string) string {
 }
 
 // getDuration 获取 duration 类型 flag 值。
-// 仅用于可选参数（如 --interval），必填参数请使用 requireFlags。
-// getDuration 获取 duration 类型 flag 值。
-// 调用方应确保 flag 已注册（必填参数通过 requireFlags 预验证）。
+// 仅用于可选参数（如 --interval）；调用方应确保 flag 已注册。
 func getDuration(cmd *cobra.Command, name string) time.Duration {
 	v, err := cmd.Flags().GetDuration(name)
 	if err != nil {

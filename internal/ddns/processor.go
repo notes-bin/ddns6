@@ -2,6 +2,7 @@ package ddns
 
 import (
 	"context"
+	"fmt"
 )
 
 // CollectMatchingRecords 查询 DNS 记录并收集匹配的记录。
@@ -29,7 +30,7 @@ func CollectMatchingRecords(ctx context.Context, p DNSProvider, domains []*Domai
 	for rootDomain, group := range rootGroups {
 		records, err := p.GetRecords(ctx, rootDomain, recordType)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("query records for %s: %w", rootDomain, err)
 		}
 
 		for _, r := range records {
