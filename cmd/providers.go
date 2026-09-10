@@ -40,6 +40,7 @@ import (
 	"github.com/notes-bin/ddns6/internal/providers/noip"
 	"github.com/notes-bin/ddns6/internal/providers/porkbun"
 	"github.com/notes-bin/ddns6/internal/providers/tencent"
+	"github.com/notes-bin/ddns6/pkg/ipaddr"
 )
 
 // providerFlag 描述单个运营商认证/选项 flag 的名称与帮助文案。
@@ -66,6 +67,11 @@ var restrictedProviders = map[string]bool{
 	"duckdns": true,
 	"he":      true,
 	"noip":    true,
+}
+
+// serviceRunner 启动 DDNS 服务；测试可替换以避免真实网络与长阻塞。
+var serviceRunner = func(domains []*ddns.Domain, p ddns.DNSProvider, interval time.Duration, fetchers []ipaddr.IPv6Fetcher, iface string) error {
+	return ddns.RunService(domains, p, interval, fetchers, iface)
 }
 
 // providerFactories 为全部 23 家运营商的工厂表，注册与配置模式均依赖此表。
@@ -528,7 +534,7 @@ func registerProviders() {
 					return err
 				}
 				iface := getString(cmd, "interface")
-				return ddns.RunService(domains, task, getDuration(cmd, "interval"), ddns.DefaultIPv6Fetchers(), iface)
+				return serviceRunner(domains, task, getDuration(cmd, "interval"), ddns.DefaultIPv6Fetchers(), iface)
 			},
 		}
 		for _, f := range p.flags {
@@ -679,7 +685,7 @@ func runServiceFromConfigHandler(cmd *cobra.Command, cfg *config.Config, domains
 		}
 	}
 
-	return ddns.RunService(domains, p, interval, ddns.DefaultIPv6Fetchers(), iface)
+	return serviceRunner(domains, p, interval, ddns.DefaultIPv6Fetchers(), iface)
 }
 
 // createProviderFromConfig 按 cfg.Provider 在工厂表中查找并调用 fromConfig。
