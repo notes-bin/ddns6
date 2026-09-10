@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -231,9 +232,7 @@ func (c *Client) call(ctx context.Context, command string, extra url.Values) (*a
 		"ClientIp": {c.clientIP},
 		"Command":  {command},
 	}
-	for k, v := range extra {
-		params[k] = v
-	}
+	maps.Copy(params, extra)
 	endpoint := c.baseURL + "?" + params.Encode()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {

@@ -14,6 +14,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -83,10 +84,10 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		return fmt.Errorf("failed to get existing records: %w", err)
 	}
 
-	for _, r := range existingRecords {
-		if r.Data == record.Value {
-			return nil
-		}
+	if slices.ContainsFunc(existingRecords, func(r DNSRecord) bool {
+		return r.Data == record.Value
+	}) {
+		return nil
 	}
 
 	newRecord := DNSRecord{
@@ -113,19 +114,14 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	}
 
 	// record.ID 在 GoDaddy 中用作旧记录值匹配（无独立记录 ID）。
-	var modified bool
-	for i, r := range existingRecords {
-		if r.Data == record.ID {
-			existingRecords[i].Data = record.Value
-			existingRecords[i].TTL = record.TTL
-			modified = true
-			break
-		}
-	}
-
-	if !modified {
+	i := slices.IndexFunc(existingRecords, func(r DNSRecord) bool {
+		return r.Data == record.ID
+	})
+	if i < 0 {
 		return fmt.Errorf("record not found")
 	}
+	existingRecords[i].Data = record.Value
+	existingRecords[i].TTL = record.TTL
 
 	return c.updateRecords(ctx, domain, subDomain, record.Type, existingRecords)
 }

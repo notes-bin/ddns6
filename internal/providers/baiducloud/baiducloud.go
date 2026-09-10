@@ -12,6 +12,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -76,16 +77,8 @@ type DNSRecord struct {
 
 // baiduListResponse 为 resolve/list 接口响应。
 type baiduListResponse struct {
-	Result []struct {
-		RecordID string `json:"recordId"`
-		Domain   string `json:"domain"`
-		RDType   string `json:"rdtype"`
-		RData    string `json:"rdata"`
-		TTL      int    `json:"ttl"`
-		View     string `json:"view"`
-		ZoneName string `json:"zoneName"`
-	} `json:"result"`
-	TotalCount int `json:"totalCount"`
+	Result     []DNSRecord `json:"result"`
+	TotalCount int         `json:"totalCount"`
 }
 
 // AddRecord 添加 DNS 记录。
@@ -122,11 +115,10 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	if raw, err := c.request(ctx, http.MethodPost, c.baseURL+"/v1/domain/resolve/list", listPayload); err == nil {
 		var listResp baiduListResponse
 		if json.Unmarshal(raw, &listResp) == nil {
-			for _, r := range listResp.Result {
-				if r.RecordID == record.ID {
-					recordView = r.View
-					break
-				}
+			if i := slices.IndexFunc(listResp.Result, func(r DNSRecord) bool {
+				return r.RecordID == record.ID
+			}); i >= 0 {
+				recordView = listResp.Result[i].View
 			}
 		}
 	}

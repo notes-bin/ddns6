@@ -3,6 +3,7 @@ package ddns
 import (
 	"context"
 	"fmt"
+	"slices"
 )
 
 // CollectMatchingRecords 查询 DNS 记录并收集匹配结果，供 list/clean 使用。
@@ -35,14 +36,9 @@ func CollectMatchingRecords(ctx context.Context, p DNSProvider, domains []*Domai
 
 		for _, r := range records {
 			if filterBySubdomain {
-				matched := false
-				for _, d := range group {
-					if RecordNameMatches(r.Name, d.FullDomain(), d.SubDomain) {
-						matched = true
-						break
-					}
-				}
-				if !matched {
+				if !slices.ContainsFunc(group, func(d *Domain) bool {
+					return RecordNameMatches(r.Name, d.FullDomain(), d.SubDomain)
+				}) {
 					continue
 				}
 			}
