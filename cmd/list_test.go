@@ -17,11 +17,27 @@ func TestFormatProviderList(t *testing.T) {
 			t.Errorf("missing provider %q", p.name)
 		}
 	}
-	if !strings.Contains(out, "duckdns") || !strings.Contains(out, "no") {
-		t.Error("expected duckdns marked no for RECORDS/CLEAN")
+	for _, line := range strings.Split(out, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 2 && fields[0] == "duckdns" && fields[1] != "no" {
+			t.Errorf("duckdns 应标记为 no: %q", line)
+		}
+		if len(fields) >= 2 && fields[0] == "tencent" && fields[1] != "yes" {
+			t.Errorf("tencent 应标记为 yes: %q", line)
+		}
 	}
 	if !strings.Contains(out, fmt.Sprintf("Total: %d providers", len(providerFactories))) {
 		t.Errorf("missing total line: %s", out)
+	}
+}
+
+// TestListCmd_RejectExtraArgs 验证 list 拒绝多余 positional 参数（旧 list provider 用法）。
+func TestListCmd_RejectExtraArgs(t *testing.T) {
+	initRootCmd()
+	withArgs(t, "ddns6", "list", "tencent")
+	err := rootCmd.Execute()
+	if err == nil {
+		t.Fatal("list tencent 应返回错误")
 	}
 }
 

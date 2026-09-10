@@ -11,6 +11,7 @@ import (
 // listCmd 列出项目内全部可用 DNS 运营商（不读配置、不访问网络）。
 var listCmd = &cobra.Command{
 	Use:   "list",
+	Args:  cobra.NoArgs,
 	Short: "列出可用的 DNS 运营商",
 	Long: `列出 ddns6 当前支持的全部 DNS 运营商。
 
