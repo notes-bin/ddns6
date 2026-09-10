@@ -1,6 +1,6 @@
 module github.com/notes-bin/ddns6
 
-go 1.25.2
+go 1.27.1
 
 require (
 	github.com/spf13/cobra v1.10.1

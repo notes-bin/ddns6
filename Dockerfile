@@ -3,7 +3,7 @@
 # ============================================================
 
 # ---------- 构建阶段 ----------
-FROM golang:1.25-alpine AS builder
+FROM golang:1.27.1-alpine AS builder
 
 WORKDIR /src
 
