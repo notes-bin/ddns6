@@ -52,6 +52,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -307,12 +308,11 @@ var runCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// 用户写 "run help" 时按帮助意图处理，而非配置文件模式
 		if len(args) > 0 && args[0] == "help" {
-			cmd.Help()
-			return nil
+			return cmd.Help()
 		}
 		if err := runWithConfig(cmd, "run", runServiceFromConfigHandler); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
-			os.Exit(1)
+			return err
 		}
 		return nil
 	},
@@ -350,8 +350,16 @@ var persistentFlags = []struct {
 	{"log-file", "string", "ddns6.log", "日志文件路径，设为空字符串仅输出到 stderr", "DDNS6_LOG_FILE"},
 }
 
+// rootInitOnce 保证 initRootCmd 只执行一次，避免 Execute 重复注册子命令。
+var rootInitOnce sync.Once
+
 // initRootCmd 注册 usage 模板、全局 flag、子命令及全部运营商命令。
 func initRootCmd() {
+	rootInitOnce.Do(doInitRootCmd)
+}
+
+// doInitRootCmd 执行实际的根命令初始化（由 rootInitOnce 保护）。
+func doInitRootCmd() {
 	rootCmd.SetUsageTemplate(usageTemplate)
 	rootCmd.SetHelpTemplate(usageTemplate)
 

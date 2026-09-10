@@ -45,12 +45,11 @@ var cleanCmd = &cobra.Command{
   ddns6 clean --yes`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) > 0 && args[0] == "help" {
-			cmd.Help()
-			return nil
+			return cmd.Help()
 		}
 		if err := runCleanWithConfig(cmd); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
-			os.Exit(1)
+			return err
 		}
 		return nil
 	},
