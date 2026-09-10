@@ -35,8 +35,9 @@
 //	│   ├── azure        Azure DNS
 //	│   ├── namecheap    Namecheap DNS
 //	│   └── dpi          DNSPod.com 国际版
-//	├── list     [provider] 列出 DNS 记录
-//	└── clean   [provider] 删除 DNS 记录
+//	├── list                 列出可用 DNS 运营商
+//	├── records [provider]   列出 DNS 记录
+//	└── clean   [provider]   删除 DNS 记录
 //
 // 使用方式：
 //   - 临时运行: ddns6 run tencent --domain example.com --subdomain www --secret-id xxx --secret-key yyy
@@ -454,12 +455,12 @@ func doInitRootCmd() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(runCmd)
-	rootCmd.AddCommand(listCmd)
+	rootCmd.AddCommand(recordsCmd)
 	rootCmd.AddCommand(cleanCmd)
 	rootCmd.AddCommand(checkCmd)
 
 	registerProviders()
-	registerListCommands()
+	registerRecordsCommands()
 	registerCleanCommands()
 }
 

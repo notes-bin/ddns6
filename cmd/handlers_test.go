@@ -53,7 +53,7 @@ func (m *mockDNS) deletedCount() int {
 	return len(m.deleted)
 }
 
-// listCleanFlags 为 handleList/handleClean 注册所需 flag。
+// listCleanFlags 为 handleRecords/handleClean 注册所需 flag。
 func listCleanFlags(t *testing.T) *cobra.Command {
 	t.Helper()
 	cmd := &cobra.Command{Use: "test"}
@@ -182,14 +182,14 @@ func TestBuildFilterInfo(t *testing.T) {
 	}
 }
 
-// TestHandleList_EmptyAndFound 覆盖无记录与有记录输出。
-func TestHandleList_EmptyAndFound(t *testing.T) {
+// TestHandleRecords_EmptyAndFound 覆盖无记录与有记录输出。
+func TestHandleRecords_EmptyAndFound(t *testing.T) {
 	domains := []*ddns.Domain{{Domain: "example.com", SubDomain: "www", Type: "AAAA"}}
 
 	t.Run("empty", func(t *testing.T) {
 		out := captureStdout(t, func() {
-			if err := handleList(listCleanFlags(t), domains, &mockDNS{}); err != nil {
-				t.Fatalf("handleList: %v", err)
+			if err := handleRecords(listCleanFlags(t), domains, &mockDNS{}); err != nil {
+				t.Fatalf("handleRecords: %v", err)
 			}
 		})
 		requireContains(t, out, "No records found")
@@ -203,15 +203,15 @@ func TestHandleList_EmptyAndFound(t *testing.T) {
 			{ID: "1", Name: "www.example.com", Type: "AAAA", Value: "2001:db8::1"},
 		}}
 		out := captureStdout(t, func() {
-			if err := handleList(cmd, domains, m); err != nil {
-				t.Fatalf("handleList: %v", err)
+			if err := handleRecords(cmd, domains, m); err != nil {
+				t.Fatalf("handleRecords: %v", err)
 			}
 		})
 		requireContains(t, out, "Found 1", "filtered by subdomain")
 	})
 
 	t.Run("query error", func(t *testing.T) {
-		if err := handleList(listCleanFlags(t), domains, &mockDNS{getErr: errors.New("boom")}); err == nil {
+		if err := handleRecords(listCleanFlags(t), domains, &mockDNS{getErr: errors.New("boom")}); err == nil {
 			t.Fatal("查询失败应返回错误")
 		}
 	})
@@ -391,7 +391,7 @@ func TestRequireFlags_InvalidFlag(t *testing.T) {
 // TestRunWithConfig_LoadError 验证无配置文件时 runWithConfig 报错。
 func TestRunWithConfig_LoadError(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	err := runWithConfig(&cobra.Command{}, "list", func(*cobra.Command, *config.Config, []*ddns.Domain, ddns.DNSProvider) error {
+	err := runWithConfig(&cobra.Command{}, "records", func(*cobra.Command, *config.Config, []*ddns.Domain, ddns.DNSProvider) error {
 		t.Fatal("配置缺失时不应调用 handler")
 		return nil
 	})
@@ -411,7 +411,7 @@ auth:
   api_token: "tok"
 `)
 	called := false
-	err := runWithConfig(&cobra.Command{}, "list", func(_ *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error {
+	err := runWithConfig(&cobra.Command{}, "records", func(_ *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error {
 		called = true
 		if cfg.Provider != "cloudflare" {
 			t.Errorf("provider = %q", cfg.Provider)
@@ -432,8 +432,8 @@ auth:
 	}
 }
 
-// TestRunListCleanWithConfig_Restricted 验证受限运营商拒绝 list/clean。
-func TestRunListCleanWithConfig_Restricted(t *testing.T) {
+// TestRunRecordsCleanWithConfig_Restricted 验证受限运营商拒绝 records/clean。
+func TestRunRecordsCleanWithConfig_Restricted(t *testing.T) {
 	writeTestConfig(t, `
 provider: duckdns
 domain: example.com
@@ -443,7 +443,7 @@ auth:
   token: "tok"
 `)
 	cmd := listCleanFlags(t)
-	requireErrContains(t, runListWithConfig(cmd), "does not support 'list'")
+	requireErrContains(t, runRecordsWithConfig(cmd), "does not support 'records'")
 	requireErrContains(t, runCleanWithConfig(cmd), "does not support 'clean'")
 }
 

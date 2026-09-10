@@ -13,9 +13,9 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-// listCmd 查询并打印 DNS 记录；默认过滤 AAAA，可通过 --type 调整。
-var listCmd = &cobra.Command{
-	Use:   "list [provider]",
+// recordsCmd 查询并打印 DNS 记录；默认过滤 AAAA，可通过 --type 调整。
+var recordsCmd = &cobra.Command{
+	Use:   "records [provider]",
 	Short: "列出 DNS 记录",
 	Long: `查询并列出 DNS 服务商下的域名解析记录。
 
@@ -26,18 +26,18 @@ var listCmd = &cobra.Command{
 
 示例:
   # 列出 AAAA 记录
-  ddns6 list tencent --domain example.com --subdomain www --secret-id xxx --secret-key yyy
+  ddns6 records tencent --domain example.com --subdomain www --secret-id xxx --secret-key yyy
 
   # 列出所有类型的记录
-  ddns6 list tencent --domain example.com --type ""
+  ddns6 records tencent --domain example.com --type ""
 
   # 从配置文件读取
-  ddns6 list`,
+  ddns6 records`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) > 0 && args[0] == "help" {
 			return cmd.Help()
 		}
-		err := runListWithConfig(cmd)
+		err := runRecordsWithConfig(cmd)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
 		}
@@ -45,17 +45,17 @@ var listCmd = &cobra.Command{
 	},
 }
 
-// registerListCommands 为 list 注册 --type 及各 provider 子命令。
-func registerListCommands() {
-	listCmd.Flags().String("type", "AAAA", "DNS 记录类型过滤（默认 AAAA，设为空字符串展示所有类型）")
+// registerRecordsCommands 为 records 注册 --type 及各 provider 子命令。
+func registerRecordsCommands() {
+	recordsCmd.Flags().String("type", "AAAA", "DNS 记录类型过滤（默认 AAAA，设为空字符串展示所有类型）")
 
-	registerProviderSubCommands(listCmd, "list", func(cmd *cobra.Command) {
+	registerProviderSubCommands(recordsCmd, "records", func(cmd *cobra.Command) {
 		cmd.Flags().String("type", "AAAA", "DNS 记录类型过滤（默认 AAAA，设为空字符串展示所有类型）")
-	}, handleList)
+	}, handleRecords)
 }
 
-// handleList 按 --type 收集记录并格式化输出；仅当用户显式传 --subdomain 时按子域名过滤。
-func handleList(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider) error {
+// handleRecords 按 --type 收集记录并格式化输出；仅当用户显式传 --subdomain 时按子域名过滤。
+func handleRecords(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider) error {
 	recordType, err := cmd.Flags().GetString("type")
 	if err != nil {
 		return fmt.Errorf("invalid --type flag: %w", err)
@@ -89,13 +89,13 @@ func handleList(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider) 
 	return nil
 }
 
-// runListWithConfig 走配置文件模式执行 list；受限运营商直接返回错误。
-func runListWithConfig(cmd *cobra.Command) error {
-	return runWithConfig(cmd, "list", func(cmd *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error {
+// runRecordsWithConfig 走配置文件模式执行 records；受限运营商直接返回错误。
+func runRecordsWithConfig(cmd *cobra.Command) error {
+	return runWithConfig(cmd, "records", func(cmd *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error {
 		if restrictedProviders[cfg.Provider] {
-			return fmt.Errorf("%s does not support 'list' via API - %s only provides update endpoints, use its web panel to manage records", cfg.Provider, cfg.Provider)
+			return fmt.Errorf("%s does not support 'records' via API - %s only provides update endpoints, use its web panel to manage records", cfg.Provider, cfg.Provider)
 		}
-		return handleList(cmd, domains, p)
+		return handleRecords(cmd, domains, p)
 	})
 }
 
