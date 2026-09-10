@@ -1,6 +1,6 @@
 # DDNS6 — IPv6 动态域名解析工具
 
-[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go)](go.mod)
+[![Go Version](https://img.shields.io/badge/Go-1.27.1+-00ADD8?logo=go)](go.mod)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 [![Test](https://github.com/notes-bin/ddns6/actions/workflows/test.yml/badge.svg)](https://github.com/notes-bin/ddns6/actions/workflows/test.yml)
 
@@ -314,7 +314,7 @@ subdomains:                  # 必填：子域名列表
 
 ## Docker 部署
 
-镜像为多阶段构建（`golang:1.25-alpine` → 固定 `alpine:3.21`），以非 root 用户 `ddns6`（uid 10001）运行，支持 `TARGETARCH` 多架构。Linux 上使用 Netlink 时需要主机网络命名空间。
+镜像为多阶段构建（`golang:1.27.1-alpine` → 固定 `alpine:3.21`），以非 root 用户 `ddns6`（uid 10001）运行，支持 `TARGETARCH` 多架构。Linux 上使用 Netlink 时需要主机网络命名空间。
 
 ### 前置条件
 
@@ -502,7 +502,7 @@ ddns6/
 
 ## 开发
 
-要求 Go **1.25+**（见 `go.mod`，当前 `1.25.2`）。
+要求 Go **1.27.1+**（见 `go.mod`）。
 
 ### 本地命令
 
