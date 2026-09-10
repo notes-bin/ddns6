@@ -161,10 +161,13 @@ func TestDo_ZeroAttempts(t *testing.T) {
 		return Retryable(fmt.Errorf("fail"))
 	})
 
+	// 0 attempts：循环不执行，返回 nil 且不调用 fn
 	if err != nil {
-		// 0 attempts：循环不执行，通常返回 nil；此处不强制断言返回值
+		t.Errorf("attempts=0 应返回 nil, 实际 %v", err)
 	}
-	_ = count
+	if count.Load() != 0 {
+		t.Errorf("attempts=0 不应调用 fn, 实际调用 %d 次", count.Load())
+	}
 }
 
 // TestDo_SingleAttempt 验证 attempts=1 失败时直接返回且无退避。
