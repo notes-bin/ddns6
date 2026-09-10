@@ -40,7 +40,6 @@ import (
 	"github.com/notes-bin/ddns6/internal/providers/noip"
 	"github.com/notes-bin/ddns6/internal/providers/porkbun"
 	"github.com/notes-bin/ddns6/internal/providers/tencent"
-	"github.com/notes-bin/ddns6/pkg/ipaddr"
 )
 
 // providerFlag 描述单个运营商认证/选项 flag 的名称与帮助文案。
@@ -70,9 +69,7 @@ var restrictedProviders = map[string]bool{
 }
 
 // serviceRunner 启动 DDNS 服务；测试可替换以避免真实网络与长阻塞。
-var serviceRunner = func(domains []*ddns.Domain, p ddns.DNSProvider, interval time.Duration, fetchers []ipaddr.IPv6Fetcher, iface string) error {
-	return ddns.RunService(domains, p, interval, fetchers, iface)
-}
+var serviceRunner = ddns.RunService
 
 // providerFactories 为全部 23 家运营商的工厂表，注册与配置模式均依赖此表。
 var providerFactories = []providerFactory{

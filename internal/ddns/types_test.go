@@ -42,14 +42,10 @@ func TestDomainStringAndAddrString(t *testing.T) {
 	}
 
 	s := d.String()
-	if !strings.Contains(s, "www.example.com") {
-		t.Errorf("String 应包含完整域名, got %q", s)
-	}
-	if !strings.Contains(s, "2001:db8::1") {
-		t.Errorf("String 应包含地址, got %q", s)
-	}
-	if !strings.Contains(s, "AAAA") {
-		t.Errorf("String 应包含类型, got %q", s)
+	for _, want := range []string{"www.example.com", "2001:db8::1", "AAAA"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("String 应包含 %q, got %q", want, s)
+		}
 	}
 }
 
