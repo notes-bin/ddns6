@@ -100,11 +100,7 @@ var rootCmd = &cobra.Command{
   Linux   通过 Netlink 监听内核地址变化事件，实时触发（10 秒防抖）
   其他    定时轮询（默认间隔 5 分钟，可通过 --interval 调整）
 
-支持的 DNS 服务商（23 个）:
-  tencent, cloudflare, alicloud, godaddy, huaweicloud,
-  duckdns, noip, he, dynv6, porkbun, digitalocean, baiducloud, dnspod,
-  desec, linode, namesilo, ionos, hetzner,
-  aws, gcloud, azure, namecheap, dpi
+支持的 DNS 服务商: 运行 ddns6 list 查看完整列表与能力说明。
 
 快速开始:
   1. 临时测试:  ddns6 run tencent --domain example.com --subdomain www --secret-id xxx --secret-key yyy
@@ -122,8 +118,8 @@ var rootCmd = &cobra.Command{
 			return
 		}
 
-		// version / init 不写日志文件，跳过 slog 初始化
-		if cmd.Name() == "version" || cmd.Name() == "init" {
+		// version / init / list 不写日志文件，跳过 slog 初始化
+		if cmd.Name() == "version" || cmd.Name() == "init" || cmd.Name() == "list" {
 			return
 		}
 
@@ -454,6 +450,7 @@ func doInitRootCmd() {
 
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(initCmd)
+	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(recordsCmd)
 	rootCmd.AddCommand(cleanCmd)
