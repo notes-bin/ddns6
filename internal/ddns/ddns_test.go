@@ -48,6 +48,7 @@ func TestIPv6Equal(t *testing.T) {
 		{name: "不同地址", a: net.ParseIP("::1"), b: "::2", want: false},
 		{name: "nil IP与无效字符串不匹配", a: nil, b: "invalid-ip", want: false},
 		{name: "不同无效地址", a: nil, b: "invalid-1", want: false},
+		{name: "nil IP与有效字符串", a: nil, b: "::1", want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
