@@ -147,24 +147,15 @@ func (c *Client) deleteRecordsByValue(ctx context.Context, domain, subDomain, rt
 		return fmt.Errorf("failed to get existing records: %w", err)
 	}
 
-	var newRecords []DNSRecord
-	var found bool
-	for _, record := range existingRecords {
-		if record.Data != value {
-			newRecords = append(newRecords, record)
-		} else {
-			found = true
-		}
+	newRecords := slices.DeleteFunc(slices.Clone(existingRecords), func(r DNSRecord) bool {
+		return r.Data == value
+	})
+	if len(newRecords) == len(existingRecords) {
+		return nil // 未找到匹配值
 	}
-
-	if !found {
-		return nil
-	}
-
 	if len(newRecords) == 0 {
 		return c.deleteRecords(ctx, domain, subDomain, rtype)
 	}
-
 	return c.updateRecords(ctx, domain, subDomain, rtype, newRecords)
 }
 

@@ -47,10 +47,11 @@ func CollectMatchingRecords(ctx context.Context, p DNSProvider, domains []*Domai
 				continue
 			}
 
-			if seen[r.Key()] {
+			key := r.Key()
+			if seen[key] {
 				continue
 			}
-			seen[r.Key()] = true
+			seen[key] = true
 			allRecords = append(allRecords, r)
 		}
 	}
