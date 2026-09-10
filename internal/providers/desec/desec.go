@@ -290,8 +290,8 @@ func (e *httpStatusError) Error() string {
 
 // isNotFound 判断错误是否为 HTTP 404。
 func isNotFound(err error) bool {
-	var he *httpStatusError
-	return errors.As(err, &he) && he.status == http.StatusNotFound
+	he, ok := errors.AsType[*httpStatusError](err)
+	return ok && he.status == http.StatusNotFound
 }
 
 // doRequest 执行 deSEC HTTP 请求。

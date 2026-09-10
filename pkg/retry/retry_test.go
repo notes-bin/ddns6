@@ -60,9 +60,9 @@ func TestRetryableError_Unwrap(t *testing.T) {
 	original := fmt.Errorf("inner error")
 	wrapped := Retryable(original)
 
-	var re *RetryableError
-	if !errors.As(wrapped, &re) {
-		t.Fatal("应该能 As 到 RetryableError")
+	re, ok := errors.AsType[*RetryableError](wrapped)
+	if !ok {
+		t.Fatal("应该能 AsType 到 RetryableError")
 	}
 
 	unwrapped := re.Unwrap()
