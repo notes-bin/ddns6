@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"os"
+	"runtime"
 	"sync"
 	"syscall"
 	"testing"
@@ -94,8 +95,15 @@ func TestPollingLoop_NonBlockingWhenFull(t *testing.T) {
 	}
 }
 
-// TestStartTrigger_Polling 验证 startTrigger 在取消后停止产生事件。
+// TestStartTrigger_Polling 验证非 Linux 平台 startTrigger 按 interval 轮询触发。
+//
+// Linux 走 Netlink（需真实地址事件 + 10s 防抖），不会按 interval 定期触发；
+// 轮询逻辑由 TestPollingLoop_* 覆盖，取消行为见 TestStartTrigger_Cancel。
 func TestStartTrigger_Polling(t *testing.T) {
+	if runtime.GOOS == "linux" {
+		t.Skip("Linux 使用 netlink 事件触发，不按 interval 轮询")
+	}
+
 	ctx, cancel := context.WithCancel(t.Context())
 	ch := startTrigger(ctx, 15*time.Millisecond, "")
 
@@ -107,6 +115,15 @@ func TestStartTrigger_Polling(t *testing.T) {
 	cancel()
 	// 取消后短暂等待，确保 goroutine 可退出（无断言挂起）
 	time.Sleep(30 * time.Millisecond)
+}
+
+// TestStartTrigger_Cancel 验证 startTrigger 在 context 取消后可退出（各平台）。
+func TestStartTrigger_Cancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	_ = startTrigger(ctx, 15*time.Millisecond, "")
+	cancel()
+	// 给监听 goroutine 退出时间；若取消路径死锁，后续套件或超时会暴露
+	time.Sleep(50 * time.Millisecond)
 }
 
 // TestSyncAllDomains_FailFast 验证 failFast 时首个错误立即返回。
