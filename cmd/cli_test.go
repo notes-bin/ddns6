@@ -124,7 +124,7 @@ func TestExecute_UnknownCommand(t *testing.T) {
 	}
 }
 
-// TestRegisteredCommands 验证 init 后 run/list/clean 已挂载运营商子命令。
+// TestRegisteredCommands 验证 init 后 run/records/clean 已挂载运营商子命令。
 func TestRegisteredCommands(t *testing.T) {
 	initRootCmd()
 
@@ -133,8 +133,8 @@ func TestRegisteredCommands(t *testing.T) {
 	}{
 		{"run", "tencent"},
 		{"run", "duckdns"},
-		{"list", "cloudflare"},
-		{"list", "duckdns"},
+		{"records", "cloudflare"},
+		{"records", "duckdns"},
 		{"clean", "tencent"},
 	} {
 		parent := findCommand(rootCmd, tt.parent)
@@ -146,7 +146,7 @@ func TestRegisteredCommands(t *testing.T) {
 		}
 	}
 
-	duck := findCommand(findCommand(rootCmd, "list"), "duckdns")
+	duck := findCommand(findCommand(rootCmd, "records"), "duckdns")
 	requireErrContains(t, duck.RunE(duck, nil), "does not support")
 }
 

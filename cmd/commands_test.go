@@ -38,21 +38,21 @@ func TestProviderSubcommandRunE(t *testing.T) {
 		}
 	})
 
-	t.Run("list missing flags", func(t *testing.T) {
-		withArgs(t, "ddns6", "list", "cloudflare", "--domain", "example.com", "--log-file", "")
+	t.Run("records missing flags", func(t *testing.T) {
+		withArgs(t, "ddns6", "records", "cloudflare", "--domain", "example.com", "--log-file", "")
 		if err := rootCmd.Execute(); err == nil {
 			t.Fatal("缺少 api-token 应失败")
 		}
 	})
 
-	t.Run("list success hits API", func(t *testing.T) {
+	t.Run("records success hits API", func(t *testing.T) {
 		withArgs(t,
-			"ddns6", "list", "cloudflare",
+			"ddns6", "records", "cloudflare",
 			"--domain", "example.com",
 			"--api-token", "fake-token",
 			"--log-file", "",
 		)
-		// 假 token 通常导致 API 错误，但 RunE 与 handleList 路径已执行
+		// 假 token 通常导致 API 错误，但 RunE 与 handleRecords 路径已执行
 		_ = rootCmd.Execute()
 	})
 
@@ -62,8 +62,8 @@ func TestProviderSubcommandRunE(t *testing.T) {
 	})
 }
 
-// TestRunListCleanWithConfig_Success 覆盖非受限运营商的配置文件 list/clean 成功路径。
-func TestRunListCleanWithConfig_Success(t *testing.T) {
+// TestRunRecordsCleanWithConfig_Success 覆盖非受限运营商的配置文件 records/clean 成功路径。
+func TestRunRecordsCleanWithConfig_Success(t *testing.T) {
 	writeTestConfig(t, `
 provider: cloudflare
 domain: example.com
@@ -76,7 +76,7 @@ auth:
 	cmd.Flags().Set("yes", "true")
 	cmd.Flags().Set("dry-run", "true")
 
-	_ = runListWithConfig(cmd)
+	_ = runRecordsWithConfig(cmd)
 	_ = runCleanWithConfig(cmd)
 }
 
@@ -107,12 +107,12 @@ interval: 5m
 	}
 }
 
-// TestRunCmd_HelpArg 覆盖 run/list/clean 的 help 参数分支。
+// TestRunCmd_HelpArg 覆盖 run/records/clean 的 help 参数分支。
 func TestRunCmd_HelpArg(t *testing.T) {
 	initRootCmd()
 	for _, args := range [][]string{
 		{"ddns6", "run", "help"},
-		{"ddns6", "list", "help"},
+		{"ddns6", "records", "help"},
 		{"ddns6", "clean", "help"},
 	} {
 		withArgs(t, args...)
@@ -173,7 +173,7 @@ func TestCreateDomainConfigs_FlagErrors(t *testing.T) {
 func TestExecute_CommandFailed(t *testing.T) {
 	initRootCmd()
 	t.Setenv("HOME", t.TempDir())
-	withArgs(t, "ddns6", "list", "--log-file", "")
+	withArgs(t, "ddns6", "records", "--log-file", "")
 	requireErrContains(t, Execute(), "Command failed")
 }
 
@@ -260,7 +260,7 @@ func TestInitCmd(t *testing.T) {
 // TestPersistentPreRun_Logging 覆盖日志初始化（含 debug）。
 func TestPersistentPreRun_Logging(t *testing.T) {
 	initRootCmd()
-	withArgs(t, "ddns6", "list", "duckdns", "--log-file", filepath.Join(t.TempDir(), "t.log"), "--debug")
+	withArgs(t, "ddns6", "records", "duckdns", "--log-file", filepath.Join(t.TempDir(), "t.log"), "--debug")
 	_ = rootCmd.Execute()
 }
 
@@ -274,7 +274,7 @@ subdomains:
 auth:
   token: "x"
 `)
-	err := runWithConfig(&cobra.Command{}, "list", func(*cobra.Command, *config.Config, []*ddns.Domain, ddns.DNSProvider) error {
+	err := runWithConfig(&cobra.Command{}, "records", func(*cobra.Command, *config.Config, []*ddns.Domain, ddns.DNSProvider) error {
 		t.Fatal("不应调用 handler")
 		return nil
 	})
