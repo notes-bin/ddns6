@@ -267,20 +267,7 @@ var runCmd = &cobra.Command{
   2. 环境变量 DDNS6_*（如 DDNS6_DOMAIN、DDNS6_SUBDOMAIN）
   3. ~/.ddns6/config.yaml 配置文件
 
-支持的运营商:
-  tencent      腾讯云 DNSPod (API v3)
-  cloudflare   Cloudflare DNS
-  alicloud     阿里云 DNS
-  godaddy      GoDaddy DNS
-  huaweicloud  华为云 DNS
-  duckdns      DuckDNS (免费 DDNS 服务)
-  noip         No-IP (经典 DDNS 服务)
-  he           Hurricane Electric (免费 DNS 托管)
-  dynv6        Dynv6 (免费 IPv6 DDNS)
-  porkbun      Porkbun DNS API
-  digitalocean DigitalOcean DNS API
-  baiducloud   百度云 DNS
-  dnspod       DNSPod (旧版 API)
+支持的运营商: 运行 ddns6 list 查看完整列表与能力说明。
 
 示例:
   # 临时运行（单子域名）
