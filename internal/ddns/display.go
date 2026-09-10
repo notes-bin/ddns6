@@ -6,7 +6,7 @@ import (
 	"text/tabwriter"
 )
 
-// FormatRecords 将 DNS 记录列表格式化为制表符对齐的表格文本，供 list/clean 输出。
+// FormatRecords 将 DNS 记录列表格式化为制表符对齐的表格文本，供 records/clean 输出。
 //
 // 输出示例：
 //

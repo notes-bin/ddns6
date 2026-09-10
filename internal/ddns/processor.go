@@ -6,7 +6,7 @@ import (
 	"slices"
 )
 
-// CollectMatchingRecords 查询 DNS 记录并收集匹配结果，供 list/clean 使用。
+// CollectMatchingRecords 查询 DNS 记录并收集匹配结果，供 records/clean 使用。
 //
 // 流程：按根域名分组（每组只查一次 API）-> 匹配子域名 -> 去重 -> 汇总。
 //
