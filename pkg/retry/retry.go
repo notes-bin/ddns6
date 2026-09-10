@@ -53,8 +53,8 @@ func Retryable(err error) error {
 
 // IsRetryable 判断 err（含包装链）是否为 RetryableError。
 func IsRetryable(err error) bool {
-	var re *RetryableError
-	return errors.As(err, &re)
+	_, ok := errors.AsType[*RetryableError](err)
+	return ok
 }
 
 // Do 执行 fn，遇 RetryableError 时按指数退避重试。
@@ -79,8 +79,8 @@ func Do(ctx context.Context, attempts int, baseDelay time.Duration, fn func(cont
 			return nil
 		}
 
-		var re *RetryableError
-		if !errors.As(err, &re) {
+		re, ok := errors.AsType[*RetryableError](err)
+		if !ok {
 			return err
 		}
 
