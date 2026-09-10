@@ -56,7 +56,7 @@ var checkCmd = &cobra.Command{
 			}
 			if factory == nil {
 				fmt.Printf("Unknown provider: %s\n", provider)
-				fmt.Println("Available providers: tencent, cloudflare, alicloud, godaddy, huaweicloud, duckdns, noip, he, dynv6, porkbun, digitalocean, baiducloud, dnspod")
+				fmt.Println("Available providers: run 'ddns6 list' to see the full list")
 				return nil
 			}
 			fmt.Printf("Provider '%s' is valid\n", provider)
@@ -156,7 +156,7 @@ func checkFromConfig(cfg *config.Config) error {
 	}
 	if factory == nil {
 		fmt.Printf("Unknown provider '%s' in config\n", cfg.Provider)
-		fmt.Println("Available: tencent, cloudflare, alicloud, godaddy, huaweicloud, duckdns, noip, he, dynv6, porkbun, digitalocean, baiducloud, dnspod")
+		fmt.Println("Available providers: run 'ddns6 list' to see the full list")
 		return nil
 	}
 	fmt.Printf("Provider '%s' is valid\n", cfg.Provider)

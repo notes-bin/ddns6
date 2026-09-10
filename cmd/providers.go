@@ -1,6 +1,6 @@
 package cmd
 
-// 本文件集中注册 23 家 DNS 运营商工厂，并挂载到 run / list / clean / init。
+// 本文件集中注册 23 家 DNS 运营商工厂，并挂载到 run / records / clean / init。
 //
 // 新增运营商步骤：
 //  1. 在 internal/providers/<name>/ 实现 ddns.DNSProvider
@@ -51,7 +51,7 @@ type providerFlag struct {
 // providerFactory 定义一家 DNS 运营商的 CLI 与配置文件两种创建路径。
 //
 // run 从命令行 flag 构造域名列表与 Provider；fromConfig 从 config.Config 构造。
-// noListClean 为 true 时 list/clean 仅注册提示命令（API 无查询/删除能力）。
+// noListClean 为 true 时 records/clean 仅注册提示命令（API 无查询/删除能力）。
 type providerFactory struct {
 	name        string
 	short       string
@@ -61,7 +61,7 @@ type providerFactory struct {
 	fromConfig  func(cfg *config.Config) (ddns.DNSProvider, error)
 }
 
-// restrictedProviders 标记 API 仅提供更新、不支持 list/clean 的运营商名。
+// restrictedProviders 标记 API 仅提供更新、不支持 records/clean 的运营商名。
 var restrictedProviders = map[string]bool{
 	"duckdns": true,
 	"he":      true,
@@ -541,7 +541,7 @@ func registerProviders() {
 	}
 }
 
-// providerCmdHandler 为 list/clean 等 provider 子命令的业务回调类型。
+// providerCmdHandler 为 records/clean 等 provider 子命令的业务回调类型。
 type providerCmdHandler func(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider) error
 
 // registerProviderSubCommands 复用 providerFactories 的认证 flag 与 run，为 parent 挂载子命令。
@@ -600,7 +600,7 @@ func registerProviderSubCommands(parent *cobra.Command, commandName string, extr
 	}
 }
 
-// registerRestrictedCommand 为仅支持更新的运营商注册 list/clean 占位命令，运行时返回明确错误。
+// registerRestrictedCommand 为仅支持更新的运营商注册 records/clean 占位命令，运行时返回明确错误。
 func registerRestrictedCommand(parent *cobra.Command, commandName string, pd *providerFactory) {
 	cmd := &cobra.Command{
 		Use:   pd.name,
@@ -647,7 +647,7 @@ func requireFlags(cmd *cobra.Command, flags []providerFlag) error {
 // --- 配置文件模式 ---
 
 // runWithConfig 加载 ~/.ddns6/config.yaml，构造域名与 Provider，再交给 handler。
-// commandName 写入加载失败时的提示（如 "run" / "list" / "clean"）。
+// commandName 写入加载失败时的提示（如 "run" / "records" / "clean"）。
 func runWithConfig(cmd *cobra.Command, commandName string, handler func(cmd *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error) error {
 	cfg, err := config.Load()
 	if err != nil {

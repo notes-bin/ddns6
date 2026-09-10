@@ -116,7 +116,17 @@ ddns6 check tencent --domain example.com --secret-id xxx --secret-key yyy
 
 检查项：配置文件解析 → Provider 名称 → 认证参数完整性 → API 连通性。
 
-### `ddns6 list [provider]`
+### `ddns6 list`
+
+列出全部可用 DNS 运营商（不读配置、不访问网络）。
+
+输出表格包含 CLI 名称、是否支持 `records`/`clean`，以及简要说明。
+
+```bash
+ddns6 list
+```
+
+### `ddns6 records [provider]`
 
 列出 DNS 记录。
 
@@ -128,16 +138,16 @@ ddns6 check tencent --domain example.com --secret-id xxx --secret-key yyy
 
 ```bash
 # 列出 AAAA 记录
-ddns6 list tencent --domain example.com --subdomain www --secret-id xxx --secret-key yyy
+ddns6 records tencent --domain example.com --subdomain www --secret-id xxx --secret-key yyy
 
 # 列出所有类型
-ddns6 list tencent --domain example.com --type "" --secret-id xxx --secret-key yyy
+ddns6 records tencent --domain example.com --type "" --secret-id xxx --secret-key yyy
 
 # 不带 --subdomain 则展示该域名下匹配类型的全部记录
-ddns6 list tencent --domain example.com --secret-id xxx --secret-key yyy
+ddns6 records tencent --domain example.com --secret-id xxx --secret-key yyy
 ```
 
-**受限运营商**：`duckdns`、`he`、`noip` 的 API 仅提供更新端点，不支持记录查询。对上述运营商执行 `list` 会返回明确错误提示，请使用各服务商 Web 面板管理记录。
+**受限运营商**：`duckdns`、`he`、`noip` 的 API 仅提供更新端点，不支持记录查询。对上述运营商执行 `records` 会返回明确错误提示，请使用各服务商 Web 面板管理记录。
 
 ### `ddns6 clean [provider]`
 
@@ -212,7 +222,7 @@ yum install bash-completion -y
 
 共 **23 家**，注册于 `cmd/providers.go` 的 `providerFactories`。
 
-| 运营商 | CLI 名称 | 必填参数 | 配置文件字段 (`auth`) | list/clean | 说明 |
+| 运营商 | CLI 名称 | 必填参数 | 配置文件字段 (`auth`) | records/clean | 说明 |
 |--------|---------|---------|----------------------|------------|------|
 | 腾讯云 DNSPod | `tencent` | `--secret-id` `--secret-key` | `secret_id` `secret_key` | 支持 | API v3 |
 | Cloudflare | `cloudflare` | `--api-token` | `api_token` | 支持 | 需 DNS:Edit 权限 |
@@ -238,37 +248,7 @@ yum install bash-completion -y
 | Namecheap | `namecheap` | `--api-key` `--username` `--client-ip` | `api_key` `username` `client_ip` | 支持 | 需 API 白名单 IP |
 | DNSPod 国际版 | `dpi` | `--login-token` | `login_token` | 支持 | 格式 `ID,Key` |
 
-各运营商详细参数运行 `ddns6 run <name> --help` 查看。新增供应商可参考 [acme.sh dnsapi](https://github.com/acmesh-official/acme.sh/tree/master/dnsapi) 实现。
-
-### acme.sh 对照表
-
-以下对照 [acme.sh](https://github.com/acmesh-official/acme.sh) `dnsapi` 脚本名称，便于从 ACME 证书自动化迁移凭据理解：
-
-| ddns6 CLI | acme.sh 脚本 | 备注 |
-|-----------|-------------|------|
-| `tencent` | `dns_tencent` | 腾讯云 DNSPod API v3 |
-| `dnspod` | `dns_dp` | DNSPod 旧版（国内） |
-| `dpi` | `dns_dpi` | DNSPod.com 国际版 |
-| `cloudflare` | `dns_cf` | |
-| `alicloud` | `dns_ali` | |
-| `godaddy` | `dns_gd` | |
-| `huaweicloud` | `dns_huaweicloud` | |
-| `baiducloud` | `dns_baidu` | |
-| `digitalocean` | `dns_dgon` | |
-| `duckdns` | `dns_duckdns` | 受限：无 list/clean |
-| `he` | `dns_he` | 受限：无 list/clean |
-| `noip` | `dns_noip` | 受限：无 list/clean |
-| `dynv6` | `dns_dynv6` | |
-| `porkbun` | `dns_porkbun` | |
-| `desec` | `dns_desec` | |
-| `linode` | `dns_linode_v4` | |
-| `namesilo` | `dns_namesilo` | |
-| `ionos` | `dns_ionos` | |
-| `hetzner` | `dns_hetzner` | |
-| `aws` | `dns_aws` | AWS SigV4 |
-| `gcloud` | `dns_gcloud` | |
-| `azure` | `dns_azure` | |
-| `namecheap` | `dns_namecheap` | |
+各运营商详细参数运行 `ddns6 run <name> --help` 查看。
 
 ### 阿里云 V3 签名
 
@@ -470,7 +450,7 @@ ddns6/
 ├── cmd/                       # CLI 命令定义
 │   ├── root.go                # 根命令、全局参数、环境变量
 │   ├── providers.go           # 23 家 provider 工厂注册
-│   ├── check.go / list.go / clean.go / init.go
+│   ├── check.go / list.go / records.go / clean.go / init.go
 │   └── ...
 ├── internal/
 │   ├── config/                # 配置加载与生成
@@ -561,7 +541,7 @@ ddns6 check tencent --domain example.com --secret-id xxx --secret-key yyy
 **Q: 支持 A 记录（IPv4）吗？**  
 不支持。本项目专注 IPv6 DDNS（名称中的「6」即此意）。
 
-**Q: 为什么 duckdns / he / noip 不能 list 或 clean？**  
+**Q: 为什么 duckdns / he / noip 不能 records 或 clean？**  
 这三家 API 仅提供 DDNS 更新端点，无记录查询/删除接口；CLI 会注册占位命令并返回明确错误。
 
 **Q: Docker 为什么要 `--network host`？**  

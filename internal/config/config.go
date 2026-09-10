@@ -1,6 +1,6 @@
 // Package config 管理 DDNS6 配置文件（~/.ddns6/config.yaml）。
 //
-// 配置由 ddns6 init 生成模板，或手动创建；ddns6 run/check/list/clean 等命令通过 Load 读取。
+// 配置由 ddns6 init 生成模板，或手动创建；ddns6 run/check/records/list/clean 等命令通过 Load 读取。
 //
 // 配置文件格式（YAML）：
 //
