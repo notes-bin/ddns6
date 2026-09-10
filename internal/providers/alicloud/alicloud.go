@@ -277,14 +277,8 @@ func (c *Client) makeV1Request(ctx context.Context, params map[string]string) ([
 	reqParams["SignatureVersion"] = "1.0"
 	reqParams["SignatureNonce"] = fmt.Sprintf("%d", time.Now().UnixNano())
 
-	var keys []string
-	for k := range reqParams {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
-
 	var queryParts []string
-	for _, k := range keys {
+	for _, k := range slices.Sorted(maps.Keys(reqParams)) {
 		queryParts = append(queryParts, fmt.Sprintf("%s=%s", k, url.QueryEscape(reqParams[k])))
 	}
 	queryString := strings.Join(queryParts, "&")
