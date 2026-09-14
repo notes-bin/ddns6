@@ -160,7 +160,7 @@ ddns6/
 | `docker-compose.yml` | 新增 provider 对应的 Compose 服务示例（如适用） |
 | `.env.example` | 补充环境变量占位与注释 |
 | `docs/providers.md` | 新增运营商认证字段、CLI 示例、配置 YAML 示例 |
-| `README.md` | Task 5 落地后更新运营商列表与快速入门（当前可先改 compose / env / providers 文档） |
+| `README.md` | 更新运营商列表、快速入门示例及相关 Compose 说明 |
 
 字段命名约定：CLI 使用 kebab-case（如 `--secret-id`），配置文件 `auth` 块使用 snake_case（如 `secret_id`）。
 
@@ -179,6 +179,6 @@ make build
 
 - **格式化**：提交前执行 `make fmt`（或 `gofmt -w`），保持与仓库风格一致
 - **测试**：新逻辑应补充或更新 `_test.go`；涉及并发路径时注意 `-race` 可通过
-- **文档同步**：代码行为、CLI flag、配置字段变更时，同步更新 `docs/providers.md`、`docs/deployment.md` 及（Task 5 完成后）`README.md`
+- **文档同步**：代码行为、CLI flag、配置字段变更时，同步更新 `README.md`、`docs/providers.md`、`docs/deployment.md`
 - **提交前检查**：至少运行与 CI 相同的 `go vet` 与 `go test -race` 命令
 - **版本发布**：合并到 `main` 后由维护者打 `v*` tag 触发 `release.yml` 自动构建 Release
