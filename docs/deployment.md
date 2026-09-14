@@ -4,7 +4,7 @@
 
 ## 配置文件
 
-默认路径：`~/.ddns6/config.yaml`。可用 `ddns6 init <provider>` 交互生成，或手动编辑。
+默认路径：`~/.ddns6/config.yaml`。可用 `ddns6 init <provider>` 按 flag 生成配置模板，或手动编辑。
 
 ### 字段说明
 
@@ -13,8 +13,8 @@
 | `provider` | 是 | DNS 运营商 CLI 名称（如 `tencent`、`cloudflare`） |
 | `auth` | 是 | 认证凭据，键名为 snake_case（如 `secret_id`）；各运营商字段见 [`docs/providers.md`](providers.md) |
 | `domain` | 是 | 根域名（如 `example.com`） |
-| `subdomains` | 是 | 子域名列表（如 `["www", "@"]`）；缺省时默认为 `["@"]` |
-| `interval` | 否 | 非 Linux 平台轮询间隔（如 `5m`、`10m`）；默认 `5m`。Linux 由 Netlink 事件驱动，此字段无效 |
+| `subdomains` | 否 | 子域名列表（如 `["www", "@"]`）；可选，缺省时默认为 `["@"]` |
+| `interval` | 否 | 轮询间隔（如 `5m`、`10m`）；默认 `5m`。非 Linux 始终使用；Linux 在正常 Netlink 事件模式下不使用，当 Netlink 失败并回退轮询时生效（见 [`docs/architecture.md`](architecture.md)） |
 | `interface` | 否 | 监听的网络接口（仅 Linux Netlink 模式，如 `ppp0`）；留空则监听所有接口 |
 | `ttl` | 否 | DNS 记录 TTL（秒）；默认 `600` |
 
@@ -60,6 +60,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+# 可选：User=ddns6 以非 root 用户运行（需保证该用户可读配置与二进制）
 ExecStart=/usr/local/bin/ddns6 run
 Restart=always
 RestartSec=5

@@ -27,7 +27,7 @@
 | No-IP | `noip` | `--username` `--password` | `username` `password` | 受限 | 经典 DDNS，API 仅更新 |
 | Hurricane Electric | `he` | `--password` | `password` | 受限 | HE DNS DDNS Key，API 仅更新 |
 | Dynv6 | `dynv6` | `--token` | `token` | 支持 | 免费 IPv6 DDNS |
-| Porkbun | `porkbun` | `--api-key` `--api-secret` | `api_key` `api_secret` | 支持 | |
+| Porkbun | `porkbun` | `--api-key` `--api-secret` | `api_key` `api_secret` | 支持 | API Key + Secret Key |
 | DigitalOcean | `digitalocean` | `--token` | `token` | 支持 | API Token 需 write 权限 |
 | 百度云 BCD | `baiducloud` | `--access-key` `--secret-key` | `access_key` `secret_key` | 支持 | |
 | DNSPod 旧版 | `dnspod` | `--login-token` | `login_token` | 支持 | 格式 `ID,Token` |
@@ -62,11 +62,11 @@ subdomains:                  # 子域名列表
   - "www"
   - "@"                      # 根域名本身
 # ttl: 600                   # 可选，默认 600
-# interval: 5m               # 可选，非 Linux 轮询间隔
+# interval: 5m               # 可选；非 Linux 轮询，或 Linux Netlink 回退时使用
 # interface: ppp0            # 可选，Linux Netlink 监听网卡
 ```
 
-建议执行 `chmod 600 ~/.ddns6/config.yaml`。也可用 `ddns6 init <provider>` 交互生成初始配置。
+建议执行 `chmod 600 ~/.ddns6/config.yaml`。也可用 `ddns6 init <provider>` 按 flag 生成配置模板。
 
 ### 腾讯云 DNSPod（tencent）
 
