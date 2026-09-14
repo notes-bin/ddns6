@@ -19,7 +19,7 @@
 - 地址变化后 10 秒防抖，减少重拨等抖动导致的频繁更新
 - 23 家运营商；一次可更新多个子域名
 - 配置优先级：命令行 > `DDNS6_*` 环境变量 > `~/.ddns6/config.yaml`
-- 提供 `check` / `list` / `records` / `clean`；Docker 镜像按非 root 与最小权限加固
+- 提供 `check` / `list` / `records` / `clean`；Docker 镜像以非 root 用户运行并限制权限
 
 ## 快速开始
 

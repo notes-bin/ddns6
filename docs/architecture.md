@@ -49,7 +49,7 @@ flowchart TD
 
 | 平台 / 场景 | 机制 | 说明 |
 |-------------|------|------|
-| Linux（默认） | Netlink `RTM_NEWADDR` | 订阅内核地址新增事件；仅处理**全局单播 IPv6**（忽略 IPv4、link-local、ULA 等） |
+| Linux（默认） | Netlink `RTM_NEWADDR` | 订阅内核地址新增事件；仅处理 IPv6 且 `IP.IsGlobalUnicast()` 为真的地址（过滤 IPv4、link-local、loopback 等非全局单播）。**注意：** Go 中 ULA（`fc00::`/`fd00::`）通常 `IsGlobalUnicast()==true`，当前实现仍可能因 ULA 事件触发 |
 | 非 Linux | 定时轮询 | 按 `--interval` / 配置 `interval` 周期触发；**默认 5 分钟** |
 | Linux Netlink 失败 | 回退轮询 | 订阅失败、指定网卡解析失败、或 update channel 关闭时，改用与配置相同的 `interval` 轮询 |
 
