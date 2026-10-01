@@ -118,7 +118,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 		return fmt.Errorf("desec rrset not found for %s %s", sub, record.Type)
 	}
 
-	oldValue := recordValueFromID(record)
+	oldValue := record.ValueFromID()
 
 	newRecords := make([]string, 0, len(records))
 	replaced := false
@@ -155,7 +155,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 		return err
 	}
 
-	oldValue := recordValueFromID(record)
+	oldValue := record.ValueFromID()
 
 	newRecords := make([]string, 0, len(records))
 	for _, v := range records {
@@ -279,14 +279,6 @@ func (c *Client) findZone(ctx context.Context, fulldomain, zoneHint string) (zon
 		}
 	}
 	return "", "", fmt.Errorf("desec zone not found for %s", fulldomain)
-}
-
-// recordValueFromID 从 RecordInfo.ID 提取旧记录值。
-func recordValueFromID(record ddns.RecordInfo) string {
-	if _, value, ok := strings.Cut(record.ID, "|"); ok {
-		return value
-	}
-	return record.Value
 }
 
 // splitRecord 将 RecordInfo 拆分为 zone 与 deSEC subname。
