@@ -78,7 +78,7 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 	ip, err := ipaddr.IPv6Addr(ctx, fetchers...)
 	if err != nil {
 		metrics.IncIPv6Fetch(false)
-		slog.Error("initial IPv6 fetch failed", "module", "ddns", "err", httputil.ErrForLog(err))
+		// 只返回：由 CLI 边界打印，避免启动失败双打日志
 		return fmt.Errorf("initial ipv6 fetch failed: %w", err)
 	}
 	metrics.IncIPv6Fetch(true)
@@ -87,8 +87,7 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 	// 首次同步 fail-fast：任一子域名失败则终止启动
 	if err := syncAllDomains(ctx, domains, ip, p, true); err != nil {
 		metrics.IncSync(false)
-		slog.Error("initial sync failed", "module", "ddns", "err", httputil.ErrForLog(err))
-		return err
+		return fmt.Errorf("initial sync failed: %w", err)
 	}
 	metrics.IncSync(true)
 	metrics.MarkSuccess()
