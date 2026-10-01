@@ -6,6 +6,7 @@ import (
 	"net"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -312,5 +313,71 @@ func TestRunService_GracefulShutdown(t *testing.T) {
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("runService 未在超时前退出")
+	}
+}
+
+// blockingFetcher 首次 Fetch 阻塞至 release 关闭，用于测试 dirty 补跑。
+type blockingFetcher struct {
+	ip      net.IP
+	release <-chan struct{}
+	calls   atomic.Int32
+}
+
+func (f *blockingFetcher) Fetch(ctx context.Context) (net.IP, error) {
+	n := f.calls.Add(1)
+	if n == 1 {
+		select {
+		case <-f.release:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	return f.ip, nil
+}
+
+// TestRunSyncWithDirtyRetry_RerunsAfterSkip 验证同步期间 dirty 置位后会补跑。
+func TestRunSyncWithDirtyRetry_RerunsAfterSkip(t *testing.T) {
+	domains := []*Domain{{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}}
+	m := &mockProvider{
+		records: []RecordInfo{
+			{ID: "1", Name: "www.example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600},
+		},
+	}
+	release := make(chan struct{})
+	fetcher := &blockingFetcher{ip: net.ParseIP("2001:db8::2"), release: release}
+
+	var syncing, dirty atomic.Bool
+	syncing.Store(true)
+
+	done := make(chan struct{})
+	go func() {
+		runSyncWithDirtyRetry(t.Context(), &syncing, &dirty, domains, m, []ipaddr.IPv6Fetcher{fetcher})
+		close(done)
+	}()
+
+	// 等到首次 Fetch 已进入阻塞
+	deadline := time.After(2 * time.Second)
+	for fetcher.calls.Load() < 1 {
+		select {
+		case <-deadline:
+			t.Fatal("未进入首次 Fetch")
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+
+	dirty.Store(true) // 模拟跳过触发
+	close(release)
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("runSyncWithDirtyRetry 未结束")
+	}
+
+	if got := fetcher.calls.Load(); got < 2 {
+		t.Fatalf("dirty 补跑后 Fetch 次数应 >= 2，got %d", got)
+	}
+	if syncing.Load() {
+		t.Fatal("结束后 syncing 应为 false")
 	}
 }
