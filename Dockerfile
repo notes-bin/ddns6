@@ -34,13 +34,16 @@ FROM alpine:3.21
 
 RUN apk --no-cache add ca-certificates tzdata \
     && addgroup -g 10001 -S ddns6 \
-    && adduser -u 10001 -S -G ddns6 -H -D ddns6
+    && adduser -u 10001 -S -G ddns6 -H -D ddns6 \
+    && mkdir -p /home/ddns6 \
+    && chown -R 10001:10001 /home/ddns6
 
 WORKDIR /app
 
-COPY --from=builder --chown=ddns6:ddns6 /out/ddns6 /app/ddns6
+COPY --from=builder --chown=10001:10001 /out/ddns6 /app/ddns6
 
-USER ddns6:ddns6
+# 使用数字 UID/GID，避免不同发行版用户名解析差异
+USER 10001:10001
 
 # 只读根文件系统下可能需要临时目录（compose 可挂 tmpfs）
 # 默认禁用落盘日志：只读根 FS 无法在 WORKDIR 创建 ddns6.log

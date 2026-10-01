@@ -19,6 +19,10 @@ x-ddns6: &ddns6
   build:
     context: .
     dockerfile: Dockerfile
+    args:
+      VERSION: ${VERSION:-dev}
+      COMMIT: ${COMMIT:-none}
+      BUILD_TIME: ${BUILD_TIME:-unknown}
   network_mode: host
   restart: unless-stopped
   # 禁止提权；只读根 FS；临时目录用 tmpfs

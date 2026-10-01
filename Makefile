@@ -64,7 +64,11 @@ release: clean
 
 # Docker 构建
 docker-build:
-	docker build -t ddns6 .
+	docker build -t ddns6 \
+	  --build-arg VERSION=$(VERSION) \
+	  --build-arg COMMIT=$(shell git rev-parse HEAD) \
+	  --build-arg BUILD_TIME=$(BUILD_TIME) \
+	  .
 
 # Docker 直接运行（推荐挂载配置文件，避免密钥进 argv）
 docker-run:

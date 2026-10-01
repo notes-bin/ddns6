@@ -13,6 +13,7 @@
 
 # 构建产物与日志
 bin/
+dist/
 ddns6
 ddns6_*
 *.tar.gz
