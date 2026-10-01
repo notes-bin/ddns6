@@ -206,15 +206,13 @@ func TestDo_ContextCancelled(t *testing.T) {
 // TestDo_ContextCancelledDuringBackoff 验证退避等待期间取消可中断。
 func TestDo_ContextCancelledDuringBackoff(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
 	var count atomic.Int32
 
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		cancel()
-	}()
-
 	err := Do(ctx, 5, 100*time.Millisecond, func(ctx context.Context) error {
-		count.Add(1)
+		if count.Add(1) == 1 {
+			cancel() // 首次失败后取消，打断后续退避
+		}
 		return Retryable(fmt.Errorf("fail"))
 	})
 
