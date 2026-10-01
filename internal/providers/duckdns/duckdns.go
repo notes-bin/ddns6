@@ -125,7 +125,7 @@ func (c *Client) update(ctx context.Context, domain, ip string) error {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		slog.Error("DuckDNS API request failed", "module", "duckdns", "domain", domain, "err", err)
+		slog.Debug("DuckDNS API request failed", "module", "duckdns", "domain", domain, "err", err)
 		return fmt.Errorf("duckdns request failed: %w", err)
 	}
 	defer resp.Body.Close()
@@ -141,7 +141,7 @@ func (c *Client) update(ctx context.Context, domain, ip string) error {
 		return nil
 	}
 
-	slog.Error("DuckDNS API returned unexpected response",
+	slog.Debug("DuckDNS API returned unexpected response",
 		"module", "duckdns",
 		"domain", domain, "response", response)
 	return fmt.Errorf("duckdns update failed: %s", response)

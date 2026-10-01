@@ -113,8 +113,8 @@ type DNSPod struct {
 // Option 客户端配置选项。
 type Option func(*DNSPod)
 
-// New 创建腾讯云 DNS 客户端。
-func New(secretID, secretKey string, options ...Option) *DNSPod {
+// NewClient 创建腾讯云 DNS 客户端。
+func NewClient(secretID, secretKey string, options ...Option) *DNSPod {
 	client := &DNSPod{
 		secretID:  secretID,
 		secretKey: secretKey,
@@ -122,9 +122,9 @@ func New(secretID, secretKey string, options ...Option) *DNSPod {
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
-				ForceAttemptHTTP2:  false,
-				IdleConnTimeout:    90 * time.Second,
-				MaxIdleConns:       100,
+				ForceAttemptHTTP2:   false,
+				IdleConnTimeout:     90 * time.Second,
+				MaxIdleConns:        100,
 				MaxIdleConnsPerHost: 10,
 			},
 		},
@@ -171,7 +171,7 @@ func (ds *DNSPod) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		RecordType: record.Type,
 		RecordLine: defaultRecordLine,
 		Value:      record.Value,
-		TTL:        record.TTL,
+		TTL:        ddns.RecordTTL(record.TTL),
 	}
 
 	response := new(Response)
@@ -219,7 +219,7 @@ func (ds *DNSPod) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 				Name:  record.Name,
 				Type:  record.Type,
 				Value: record.Value,
-				TTL:   record.TTL,
+				TTL:   ddns.RecordTTL(record.TTL),
 			})
 		}
 
@@ -236,7 +236,7 @@ func (ds *DNSPod) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		}
 	}
 
-	slog.Error("failed to add Tencent DNS record",
+	slog.Debug("failed to add Tencent DNS record",
 		"module", "tencent",
 		"domain", record.Name, "type", record.Type, "err", err)
 	return err
@@ -265,13 +265,13 @@ func (ds *DNSPod) ModifyRecord(ctx context.Context, record ddns.RecordInfo) erro
 		RecordType: record.Type,
 		RecordLine: defaultRecordLine,
 		Value:      record.Value,
-		TTL:        record.TTL,
+		TTL:        ddns.RecordTTL(record.TTL),
 	}
 
 	response := new(Response)
 	err = ds.makeRequest(ctx, "ModifyRecord", payload, response)
 	if err != nil {
-		slog.Error("failed to modify Tencent DNS record",
+		slog.Debug("failed to modify Tencent DNS record",
 			"module", "tencent",
 			"domain", record.Name, "record_id", record.ID, "err", err)
 	}
@@ -298,7 +298,7 @@ func (ds *DNSPod) DeleteRecord(ctx context.Context, record ddns.RecordInfo) erro
 	response := new(Response)
 	err = ds.makeRequest(ctx, "DeleteRecord", payload, response)
 	if err != nil {
-		slog.Error("failed to delete Tencent DNS record",
+		slog.Debug("failed to delete Tencent DNS record",
 			"module", "tencent",
 			"domain", record.Name, "record_id", record.ID, "err", err)
 	}
@@ -503,7 +503,7 @@ func (ds *DNSPod) makeRequest(ctx context.Context, action string, payload any, r
 
 	resp, err := ds.httpClient.Do(req)
 	if err != nil {
-		slog.Error("Tencent API request failed", "module", "tencent", "action", action, "err", err)
+		slog.Debug("Tencent API request failed", "module", "tencent", "action", action, "err", err)
 		return fmt.Errorf("api request failed: %w", err)
 	}
 	defer resp.Body.Close()
@@ -517,7 +517,7 @@ func (ds *DNSPod) makeRequest(ctx context.Context, action string, payload any, r
 	slog.Debug("Tencent API response", "module", "tencent", "action", action, "status", resp.StatusCode)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		slog.Error("Tencent API returned error status",
+		slog.Debug("Tencent API returned error status",
 			"module", "tencent",
 			"action", action, "status", resp.StatusCode)
 		return fmt.Errorf("api request failed with status %d: %s", resp.StatusCode, string(bodyBytes))
@@ -541,7 +541,7 @@ func (ds *DNSPod) makeRequest(ctx context.Context, action string, payload any, r
 		} `json:"Error"`
 	}
 	if err := json.Unmarshal(apiResponse.Response, &errResp); err == nil && errResp.Error.Code != "" {
-		slog.Error("Tencent API business error",
+		slog.Debug("Tencent API business error",
 			"module", "tencent",
 			"action", action, "code", errResp.Error.Code,
 			"message", errResp.Error.Message)

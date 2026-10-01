@@ -19,10 +19,10 @@ import (
 
 // V3Request V3 签名机制的请求参数。
 type V3Request struct {
-	// AccessKeyID 阿里云 AccessKey ID
-	AccessKeyID string
-	// AccessKeySecret 阿里云 AccessKey Secret
-	AccessKeySecret string
+	// accessKeyID 阿里云 AccessKey ID
+	accessKeyID string
+	// accessKeySecret 阿里云 AccessKey Secret
+	accessKeySecret string
 	// SecurityToken 可选：STS 临时安全令牌（使用 RAM 角色时必填）
 	SecurityToken string
 	// Method HTTP 方法（GET / POST / PUT / DELETE）
@@ -104,14 +104,14 @@ func SignV3(ctx context.Context, req *V3Request) (*http.Request, error) {
 	stringToSign := fmt.Sprintf("ACS3-HMAC-SHA256\n%s", hashedCanonicalRequest)
 
 	// === 4. 计算 Signature ===
-	mac := hmac.New(sha256.New, []byte(req.AccessKeySecret))
+	mac := hmac.New(sha256.New, []byte(req.accessKeySecret))
 	mac.Write([]byte(stringToSign))
 	signature := hex.EncodeToString(mac.Sum(nil))
 
 	// === 5. 构建 Authorization ===
 	authorization := fmt.Sprintf(
 		"ACS3-HMAC-SHA256 Credential=%s,SignedHeaders=%s,Signature=%s",
-		req.AccessKeyID, signedHeaders, signature,
+		req.accessKeyID, signedHeaders, signature,
 	)
 	headers["Authorization"] = authorization
 

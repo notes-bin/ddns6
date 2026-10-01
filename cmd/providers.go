@@ -85,10 +85,10 @@ var providerFactories = []providerFactory{
 			if err != nil {
 				return nil, nil, err
 			}
-			return domains, tencent.New(getString(cmd, "secret-id"), getString(cmd, "secret-key")), nil
+			return domains, tencent.NewClient(getString(cmd, "secret-id"), getString(cmd, "secret-key")), nil
 		},
 		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
-			return tencent.New(cfg.Auth["secret_id"], cfg.Auth["secret_key"]), nil
+			return tencent.NewClient(cfg.Auth["secret_id"], cfg.Auth["secret_key"]), nil
 		},
 	},
 	{

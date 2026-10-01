@@ -113,7 +113,7 @@ func (c *Client) update(ctx context.Context, hostname, ip string) error {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		slog.Error("HE DNS API request failed", "module", "he", "hostname", hostname, "err", err)
+		slog.Debug("HE DNS API request failed", "module", "he", "hostname", hostname, "err", err)
 		return fmt.Errorf("he dns request failed: %w", err)
 	}
 	defer resp.Body.Close()
@@ -142,7 +142,7 @@ func (c *Client) update(ctx context.Context, hostname, ip string) error {
 	case response == "!":
 		return fmt.Errorf("he dns abuse detected")
 	default:
-		slog.Error("HE DNS API returned unexpected response",
+		slog.Debug("HE DNS API returned unexpected response",
 			"module", "he",
 			"hostname", hostname, "response", response)
 		return fmt.Errorf("he dns update failed: %s", response)
