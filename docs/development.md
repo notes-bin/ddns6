@@ -71,15 +71,15 @@ ddns6/
 │   ├── cli/                         # Cobra：run / init / check / list / records / clean …
 │   │   └── providers.go             # 23 家 providerFactories
 │   ├── config/                      # 配置读写；Unix 0600 fail-closed
-│   ├── crypto/                      # 签名辅助
+│   ├── digest/                      # HMAC/SHA256 签名辅助
 │   ├── ddns/                        # 触发、单飞同步、records/clean
 │   ├── httputil/                    # HTTP 客户端、脱敏、有界读体
 │   ├── metrics/                     # 可选 loopback Prometheus
-│   └── providers/                   # 各运营商 DNS API
+│   ├── providers/                   # 各运营商 DNS API
+│   └── retry/                       # 指数退避重试（暂未接入调用方）
 ├── pkg/
 │   ├── domainutil/                  # SplitDomain、ZoneCandidates
-│   ├── ipaddr/                      # IPv6 多源竞速
-│   └── retry/                  # 指数退避重试
+│   └── ipaddr/                      # IPv6 多源竞速
 ├── docs/                            # 用户手册（不含 superpowers 流程稿）
 ├── .github/workflows/
 │   ├── test.yml
