@@ -249,12 +249,16 @@ func (c *Client) findZone(ctx context.Context, fulldomain, zoneHint string) (zon
 }
 
 // accessToken 获取或刷新 OAuth2 访问令牌。
+// HTTP 刷新在锁外执行，写入前再次检查，避免并发调用整段串行阻塞。
 func (c *Client) accessToken(ctx context.Context) (string, error) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if c.token != "" && time.Now().Before(c.tokenExpiry) {
-		return c.token, nil
+		tok := c.token
+		c.mu.Unlock()
+		return tok, nil
 	}
+	c.mu.Unlock()
+
 	form := url.Values{
 		"grant_type":    {"client_credentials"},
 		"client_id":     {c.clientID},
@@ -285,6 +289,13 @@ func (c *Client) accessToken(ctx context.Context) (string, error) {
 	}
 	if err := json.Unmarshal(body, &tok); err != nil {
 		return "", err
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	// 双检：刷新期间其他 goroutine 可能已写入更新令牌
+	if c.token != "" && time.Now().Before(c.tokenExpiry) {
+		return c.token, nil
 	}
 	c.token = tok.AccessToken
 	c.tokenExpiry = time.Now().Add(time.Duration(tok.ExpiresIn-60) * time.Second)
