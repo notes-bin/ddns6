@@ -48,7 +48,7 @@ func NewClient(accessKeyID, secretAccessKey string, options ...Option) *Client {
 		secretAccessKey: secretAccessKey,
 		host:            defaultHost,
 		scheme:          "https",
-		httpClient:      &http.Client{Timeout: 30 * time.Second},
+		httpClient:      httputil.NewHTTPClient(30 * time.Second),
 	}
 	for _, opt := range options {
 		opt(c)
@@ -184,7 +184,8 @@ func (c *Client) change(ctx context.Context, info ddns.RecordInfo, action string
       <ResourceRecords><ResourceRecord><Value>%s</Value></ResourceRecord></ResourceRecords>
     </ResourceRecordSet>
   </Change></Changes></ChangeBatch>
-</ChangeResourceRecordSetsRequest>`, action, rrName, info.Type, ttl, info.Value)
+</ChangeResourceRecordSetsRequest>`,
+		xmlEscape(action), xmlEscape(rrName), xmlEscape(info.Type), ttl, xmlEscape(info.Value))
 
 	_, err = c.doRequest(ctx, http.MethodPost, "/2013-04-01"+zoneID+"/rrset/", nil, []byte(xmlBody))
 	return err
@@ -274,11 +275,18 @@ type httpStatusError struct {
 }
 
 func (e *httpStatusError) Error() string {
-	return fmt.Sprintf("Route53 API error: status %d, body: %s", e.status, e.body)
+	return fmt.Sprintf("Route53 API error: status %d, body: %s", e.status, httputil.TruncateForLog(e.body))
 }
 
 // isNotFound 判断错误是否为 HTTP 404。
 func isNotFound(err error) bool {
 	he, ok := errors.AsType[*httpStatusError](err)
 	return ok && he.status == http.StatusNotFound
+}
+
+// xmlEscape 对 Route53 XML 请求体字段做转义，防止出站 XML 注入。
+func xmlEscape(s string) string {
+	var b strings.Builder
+	_ = xml.EscapeText(&b, []byte(s))
+	return b.String()
 }
