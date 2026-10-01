@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"net"
 	"slices"
+	"strings"
 	"sync"
 )
 
@@ -48,6 +49,16 @@ type RecordInfo struct {
 // Key 返回用于去重的唯一键（ID+Name+Type+Value）。
 func (r RecordInfo) Key() string {
 	return r.ID + "|" + r.Name + "|" + r.Type + "|" + r.Value
+}
+
+// ValueFromID 从复合 ID（格式 "任意前缀|值"）解析旧记录值；无分隔符则回退到 Value。
+//
+// deSEC / Hetzner 等运营商在 Modify 时用 ID 携带旧值以构造替换请求。
+func (r RecordInfo) ValueFromID() string {
+	if _, value, ok := strings.Cut(r.ID, "|"); ok {
+		return value
+	}
+	return r.Value
 }
 
 // DNSProvider 定义 DNS 服务商的记录增删改查接口。

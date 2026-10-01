@@ -160,7 +160,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 		return err
 	}
 
-	oldValue := recordValueFromID(record)
+	oldValue := record.ValueFromID()
 
 	payload, err := json.Marshal(map[string]any{
 		"records": []map[string]string{
@@ -242,14 +242,6 @@ func (c *Client) resolveRRNameWithZoneFromRecord(ctx context.Context, name, zone
 		rr = "@"
 	}
 	return id, zone, rr, nil
-}
-
-// recordValueFromID 从 RecordInfo.ID 提取旧记录值。
-func recordValueFromID(record ddns.RecordInfo) string {
-	if _, value, ok := strings.Cut(record.ID, "|"); ok {
-		return value
-	}
-	return record.Value
 }
 
 // httpStatusError 表示 Hetzner API 返回的非 2xx 响应。
