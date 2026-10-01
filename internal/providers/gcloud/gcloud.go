@@ -46,7 +46,7 @@ func NewClient(project, accessToken string, options ...Option) *Client {
 		project:    project,
 		token:      accessToken,
 		baseURL:    defaultBaseURL,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient: httputil.NewHTTPClient(30 * time.Second),
 	}
 	for _, opt := range options {
 		opt(c)
@@ -100,7 +100,9 @@ func (c *Client) AddRecord(ctx context.Context, info ddns.RecordInfo) error {
 
 // ModifyRecord 修改 DNS 记录。
 func (c *Client) ModifyRecord(ctx context.Context, info ddns.RecordInfo) error {
-	if err := c.applyChange(ctx, info, "delete"); err != nil && !isNotFound(err) {
+	old := info
+	old.Value = info.ValueFromID()
+	if err := c.applyChange(ctx, old, "delete"); err != nil && !isNotFound(err) {
 		return err
 	}
 	return c.applyChange(ctx, info, "add")
