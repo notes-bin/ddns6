@@ -45,8 +45,9 @@ import (
 
 // providerFlag 描述单个运营商认证/选项 flag 的名称与帮助文案。
 type providerFlag struct {
-	name  string
-	usage string
+	name     string
+	usage    string
+	optional bool // true 时 requireFlags 不强制非空（如 sign-version、session-token）
 }
 
 // providerFactory 定义一家 DNS 运营商的 CLI 与配置文件两种创建路径。
@@ -77,8 +78,8 @@ var providerFactories = []providerFactory{
 	{
 		name: "tencent", short: "Tencent Cloud DNS (DNSPod API v3) - 需 --secret-id 和 --secret-key",
 		flags: []providerFlag{
-			{"secret-id", "Tencent Cloud SecretID (必填，从 https://console.cloud.tencent.com/cam 获取)"},
-			{"secret-key", "Tencent Cloud SecretKey (必填)"},
+			{name: "secret-id", usage: "Tencent Cloud SecretID (必填，从 https://console.cloud.tencent.com/cam 获取)"},
+			{name: "secret-key", usage: "Tencent Cloud SecretKey (必填)"},
 		},
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
@@ -94,7 +95,7 @@ var providerFactories = []providerFactory{
 	{
 		name: "cloudflare", short: "Cloudflare DNS - 需 --api-token",
 		flags: []providerFlag{
-			{"api-token", "Cloudflare API Token (必填，需具有 DNS:Edit 权限)"},
+			{name: "api-token", usage: "Cloudflare API Token (必填，需具有 DNS:Edit 权限)"},
 		},
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
@@ -110,9 +111,9 @@ var providerFactories = []providerFactory{
 	{
 		name: "alicloud", short: "Alibaba Cloud DNS - 需 --access-key-id 和 --access-key-secret",
 		flags: []providerFlag{
-			{"access-key-id", "Alibaba Cloud Access Key ID (必填，从 RAM 用户获取)"},
-			{"access-key-secret", "Alibaba Cloud Access Key Secret (必填)"},
-			{"sign-version", "签名版本：v3（默认，ACS3-HMAC-SHA256）或 v1（HMAC-SHA1）"},
+			{name: "access-key-id", usage: "Alibaba Cloud Access Key ID (必填，从 RAM 用户获取)"},
+			{name: "access-key-secret", usage: "Alibaba Cloud Access Key Secret (必填)"},
+			{name: "sign-version", usage: "签名版本：v3（默认，ACS3-HMAC-SHA256）或 v1（HMAC-SHA1）", optional: true},
 		},
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
@@ -136,8 +137,8 @@ var providerFactories = []providerFactory{
 	{
 		name: "godaddy", short: "GoDaddy DNS - 需 --api-key 和 --api-secret",
 		flags: []providerFlag{
-			{"api-key", "GoDaddy API Key (必填，从 GoDaddy Developer Portal 获取)"},
-			{"api-secret", "GoDaddy API Secret (必填)"},
+			{name: "api-key", usage: "GoDaddy API Key (必填，从 GoDaddy Developer Portal 获取)"},
+			{name: "api-secret", usage: "GoDaddy API Secret (必填)"},
 		},
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
@@ -153,8 +154,8 @@ var providerFactories = []providerFactory{
 	{
 		name: "huaweicloud", short: "Huawei Cloud DNS - 需 --access-key 和 --secret-key",
 		flags: []providerFlag{
-			{"access-key", "Huawei Cloud Access Key (必填，从 IAM 用户获取)"},
-			{"secret-key", "Huawei Cloud Secret Key (必填)"},
+			{name: "access-key", usage: "Huawei Cloud Access Key (必填，从 IAM 用户获取)"},
+			{name: "secret-key", usage: "Huawei Cloud Secret Key (必填)"},
 		},
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
@@ -170,7 +171,7 @@ var providerFactories = []providerFactory{
 	{
 		name: "duckdns", short: "DuckDNS (free DDNS) - 需 --token",
 		flags: []providerFlag{
-			{"token", "DuckDNS API Token (必填)"},
+			{name: "token", usage: "DuckDNS API Token (必填)"},
 		},
 		noListClean: true,
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
@@ -187,8 +188,8 @@ var providerFactories = []providerFactory{
 	{
 		name: "noip", short: "No-IP (classic DDNS) - 需 --username 和 --password",
 		flags: []providerFlag{
-			{"username", "No-IP Username (必填)"},
-			{"password", "No-IP Password (必填)"},
+			{name: "username", usage: "No-IP Username (必填)"},
+			{name: "password", usage: "No-IP Password (必填)"},
 		},
 		noListClean: true,
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
@@ -205,7 +206,7 @@ var providerFactories = []providerFactory{
 	{
 		name: "he", short: "Hurricane Electric DNS (free DNS hosting) - 需 --password",
 		flags: []providerFlag{
-			{"password", "HE DNS DDNS Key (必填，从 dns.he.net 获取)"},
+			{name: "password", usage: "HE DNS DDNS Key (必填，从 dns.he.net 获取)"},
 		},
 		noListClean: true,
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
@@ -222,7 +223,7 @@ var providerFactories = []providerFactory{
 	{
 		name: "dynv6", short: "Dynv6 (free IPv6 DDNS) - 需 --token",
 		flags: []providerFlag{
-			{"token", "Dynv6 API Token (必填)"},
+			{name: "token", usage: "Dynv6 API Token (必填)"},
 		},
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
@@ -238,8 +239,8 @@ var providerFactories = []providerFactory{
 	{
 		name: "porkbun", short: "Porkbun DNS API - 需 --api-key 和 --api-secret",
 		flags: []providerFlag{
-			{"api-key", "Porkbun API Key (必填)"},
-			{"api-secret", "Porkbun Secret API Key (必填)"},
+			{name: "api-key", usage: "Porkbun API Key (必填)"},
+			{name: "api-secret", usage: "Porkbun Secret API Key (必填)"},
 		},
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
@@ -255,7 +256,7 @@ var providerFactories = []providerFactory{
 	{
 		name: "digitalocean", short: "DigitalOcean DNS API - 需 --token",
 		flags: []providerFlag{
-			{"token", "DigitalOcean API Token (必填，需具有 write 权限)"},
+			{name: "token", usage: "DigitalOcean API Token (必填，需具有 write 权限)"},
 		},
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
@@ -271,8 +272,8 @@ var providerFactories = []providerFactory{
 	{
 		name: "baiducloud", short: "Baidu Cloud DNS - 需 --access-key 和 --secret-key",
 		flags: []providerFlag{
-			{"access-key", "Baidu Cloud Access Key (必填)"},
-			{"secret-key", "Baidu Cloud Secret Key (必填)"},
+			{name: "access-key", usage: "Baidu Cloud Access Key (必填)"},
+			{name: "secret-key", usage: "Baidu Cloud Secret Key (必填)"},
 		},
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
@@ -288,7 +289,7 @@ var providerFactories = []providerFactory{
 	{
 		name: "dnspod", short: "DNSPod (legacy API) - 需 --login-token",
 		flags: []providerFlag{
-			{"login-token", "DNSPod Login Token (必填，格式: ID,Token)"},
+			{name: "login-token", usage: "DNSPod Login Token (必填，格式: ID,Token)"},
 		},
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
@@ -304,7 +305,7 @@ var providerFactories = []providerFactory{
 	{
 		name: "desec", short: "deSEC.io DNS - 需 --token",
 		flags: []providerFlag{
-			{"token", "deSEC API Token (必填)"},
+			{name: "token", usage: "deSEC API Token (必填)"},
 		},
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
@@ -320,7 +321,7 @@ var providerFactories = []providerFactory{
 	{
 		name: "linode", short: "Linode (Akamai) DNS API v4 - 需 --api-key",
 		flags: []providerFlag{
-			{"api-key", "Linode Personal Access Token (必填)"},
+			{name: "api-key", usage: "Linode Personal Access Token (必填)"},
 		},
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
@@ -336,7 +337,7 @@ var providerFactories = []providerFactory{
 	{
 		name: "namesilo", short: "NameSilo DNS - 需 --api-key",
 		flags: []providerFlag{
-			{"api-key", "NameSilo API Key (必填)"},
+			{name: "api-key", usage: "NameSilo API Key (必填)"},
 		},
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
@@ -352,8 +353,8 @@ var providerFactories = []providerFactory{
 	{
 		name: "ionos", short: "IONOS DNS - 需 --prefix 和 --secret",
 		flags: []providerFlag{
-			{"prefix", "IONOS API Key Prefix (必填)"},
-			{"secret", "IONOS API Key Secret (必填)"},
+			{name: "prefix", usage: "IONOS API Key Prefix (必填)"},
+			{name: "secret", usage: "IONOS API Key Secret (必填)"},
 		},
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
@@ -369,7 +370,7 @@ var providerFactories = []providerFactory{
 	{
 		name: "hetzner", short: "Hetzner Cloud DNS - 需 --token",
 		flags: []providerFlag{
-			{"token", "Hetzner Cloud API Token (必填，需 DNS 权限)"},
+			{name: "token", usage: "Hetzner Cloud API Token (必填，需 DNS 权限)"},
 		},
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
@@ -385,9 +386,9 @@ var providerFactories = []providerFactory{
 	{
 		name: "aws", short: "AWS Route 53 - 需 --access-key-id 和 --secret-access-key",
 		flags: []providerFlag{
-			{"access-key-id", "AWS Access Key ID (必填)"},
-			{"secret-access-key", "AWS Secret Access Key (必填)"},
-			{"session-token", "AWS Session Token（可选，IAM Role/STS）"},
+			{name: "access-key-id", usage: "AWS Access Key ID (必填)"},
+			{name: "secret-access-key", usage: "AWS Secret Access Key (必填)"},
+			{name: "session-token", usage: "AWS Session Token（可选，IAM Role/STS）", optional: true},
 		},
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
@@ -411,8 +412,8 @@ var providerFactories = []providerFactory{
 	{
 		name: "gcloud", short: "Google Cloud DNS - 需 --project 和 --access-token",
 		flags: []providerFlag{
-			{"project", "GCP 项目 ID (必填)"},
-			{"access-token", "OAuth2 Access Token (必填，可用 gcloud auth print-access-token 获取)"},
+			{name: "project", usage: "GCP 项目 ID (必填)"},
+			{name: "access-token", usage: "OAuth2 Access Token (必填，可用 gcloud auth print-access-token 获取)"},
 		},
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
@@ -428,10 +429,10 @@ var providerFactories = []providerFactory{
 	{
 		name: "azure", short: "Azure DNS - 需 --subscription-id、--tenant-id、--client-id、--client-secret",
 		flags: []providerFlag{
-			{"subscription-id", "Azure Subscription ID (必填)"},
-			{"tenant-id", "Azure Tenant ID (必填)"},
-			{"client-id", "Azure App/Client ID (必填)"},
-			{"client-secret", "Azure Client Secret (必填)"},
+			{name: "subscription-id", usage: "Azure Subscription ID (必填)"},
+			{name: "tenant-id", usage: "Azure Tenant ID (必填)"},
+			{name: "client-id", usage: "Azure App/Client ID (必填)"},
+			{name: "client-secret", usage: "Azure Client Secret (必填)"},
 		},
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
@@ -457,9 +458,9 @@ var providerFactories = []providerFactory{
 	{
 		name: "namecheap", short: "Namecheap DNS - 需 --api-key、--username、--client-ip",
 		flags: []providerFlag{
-			{"api-key", "Namecheap API Key (必填)"},
-			{"username", "Namecheap Username (必填)"},
-			{"client-ip", "Namecheap API 白名单 IP (必填)"},
+			{name: "api-key", usage: "Namecheap API Key (必填)"},
+			{name: "username", usage: "Namecheap Username (必填)"},
+			{name: "client-ip", usage: "Namecheap API 白名单 IP (必填)"},
 		},
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
@@ -479,7 +480,7 @@ var providerFactories = []providerFactory{
 	{
 		name: "dpi", short: "DNSPod.com 国际版 - 需 --login-token (ID,Key)",
 		flags: []providerFlag{
-			{"login-token", "DNSPod 国际版 Login Token，格式 ID,Key (必填)"},
+			{name: "login-token", usage: "DNSPod 国际版 Login Token，格式 ID,Key (必填)"},
 		},
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
@@ -631,9 +632,12 @@ func formatSampleFlags(flags []providerFlag) string {
 	return b.String()
 }
 
-// requireFlags 校验给定字符串 flag 均已提供非空值；供 RunE 在业务逻辑前调用。
+// requireFlags 校验必填字符串 flag 均已提供非空值；optional 标记的 flag 跳过。
 func requireFlags(cmd *cobra.Command, flags []providerFlag) error {
 	for _, f := range flags {
+		if f.optional {
+			continue
+		}
 		v, err := cmd.Flags().GetString(f.name)
 		if err != nil {
 			return fmt.Errorf("invalid --%s flag: %w", f.name, err)
@@ -690,10 +694,27 @@ func runServiceFromConfigHandler(cmd *cobra.Command, cfg *config.Config, domains
 func createProviderFromConfig(cfg *config.Config) (ddns.DNSProvider, error) {
 	for _, p := range providerFactories {
 		if p.name == cfg.Provider {
+			if err := requireConfigAuth(cfg, p); err != nil {
+				return nil, err
+			}
 			return p.fromConfig(cfg)
 		}
 	}
 	return nil, fmt.Errorf("unsupported provider: %s", cfg.Provider)
+}
+
+// requireConfigAuth 校验配置模式必填认证字段非空（与 CLI requireFlags 对齐）。
+func requireConfigAuth(cfg *config.Config, p providerFactory) error {
+	for _, f := range p.flags {
+		if f.optional {
+			continue
+		}
+		key := strings.ReplaceAll(f.name, "-", "_")
+		if strings.TrimSpace(cfg.Auth[key]) == "" {
+			return fmt.Errorf("config auth.%s is required for provider %s", key, p.name)
+		}
+	}
+	return nil
 }
 
 // --- flag / 域名辅助 ---
