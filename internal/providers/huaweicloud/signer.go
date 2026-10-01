@@ -7,7 +7,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"fmt"
-	"github.com/notes-bin/ddns6/internal/crypto"
+	"github.com/notes-bin/ddns6/internal/digest"
 	"github.com/notes-bin/ddns6/internal/httputil"
 	"io"
 	"maps"
@@ -166,7 +166,7 @@ func hexEncodeSHA256Hash(body []byte) (string, error) {
 	if body == nil {
 		body = []byte("")
 	}
-	return crypto.SHA256Hex(body), nil
+	return digest.SHA256Hex(body), nil
 }
 
 // authHeaderValue 组装 Authorization 头值。
