@@ -48,11 +48,7 @@ var cleanCmd = &cobra.Command{
 		if len(args) > 0 && args[0] == "help" {
 			return cmd.Help()
 		}
-		err := runCleanWithConfig(cmd)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
-		}
-		return err
+		return runCleanWithConfig(cmd)
 	},
 }
 
