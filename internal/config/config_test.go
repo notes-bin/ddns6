@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -23,7 +24,7 @@ func writeConfig(t *testing.T, dir, content string) {
 	if err := os.MkdirAll(cfgDir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(cfgDir, "config.yaml"), []byte(content), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(cfgDir, "config.yaml"), []byte(content), 0600); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -349,5 +350,38 @@ func TestGenerate_DefaultParams(t *testing.T) {
 	}
 	if !strings.Contains(content, "example.com") {
 		t.Error("生成内容应包含 example.com")
+	}
+}
+
+// TestLoad_RejectsWorldReadable 验证过宽权限时拒绝加载。
+func TestLoad_RejectsWorldReadable(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows 不检查 Unix 权限位")
+	}
+	tmpDir := t.TempDir()
+	configDirForTest(t, tmpDir)
+	cfgDir := filepath.Join(tmpDir, ".ddns6")
+	if err := os.MkdirAll(cfgDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(cfgDir, "config.yaml")
+	content := yamlLines(
+		"provider: tencent",
+		"domain: example.com",
+		"subdomains:",
+		`  - "@"`,
+		"auth:",
+		`  secret_id: "x"`,
+		`  secret_key: "y"`,
+	)
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Load()
+	if err == nil {
+		t.Fatal("过宽权限时应拒绝加载")
+	}
+	if !strings.Contains(err.Error(), "world/group-readable") {
+		t.Fatalf("错误应提示权限过宽: %v", err)
 	}
 }

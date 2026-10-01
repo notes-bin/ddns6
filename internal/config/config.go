@@ -23,12 +23,23 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"text/template"
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
 	"gopkg.in/yaml.v3"
 )
+
+// yamlScalar 将字符串编码为可安全嵌入模板的 YAML 标量（含引号）。
+func yamlScalar(s string) string {
+	out, err := yaml.Marshal(s)
+	if err != nil {
+		// 回退：转义双引号
+		return `"` + strings.ReplaceAll(s, `"`, `\"`) + `"`
+	}
+	return strings.TrimSpace(string(out))
+}
 
 // Config 表示 ~/.ddns6/config.yaml 的完整配置结构。
 type Config struct {
@@ -76,12 +87,12 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("cannot read config file %s: %w", path, err)
 	}
 
-	// Unix 上权限过宽时仅警告，不阻断加载（凭据可能泄露）
+	// Unix 上拒绝 group/other 可读的配置文件，避免明文凭据泄露
 	if runtime.GOOS != "windows" {
 		if fi, err := os.Stat(path); err == nil {
 			if fi.Mode().Perm()&0077 != 0 {
-				fmt.Fprintf(os.Stderr, "Warning: config file %s has world/group-readable permissions (%03o), consider 'chmod 600'\n",
-					path, fi.Mode().Perm())
+				return nil, fmt.Errorf("config file %s has world/group-readable permissions (%03o); run 'chmod 600 %s' and retry",
+					path, fi.Mode().Perm(), path)
 			}
 		}
 	}
@@ -151,12 +162,12 @@ const configTemplate = `# DDNS6 配置文件
 # 必填：DNS 运营商名称
 # 支持: tencent, cloudflare, alicloud, godaddy, huaweicloud, duckdns,
 #       noip, he, dynv6, porkbun, digitalocean, baiducloud, dnspod
-provider: "{{.Provider}}"
+provider: {{yamlScalar .Provider}}
 
 # 必填：运营商认证凭据（不同运营商字段不同）
 {{if .Auth}}auth:
 {{- range $k, $v := .Auth}}
-  {{$k}}: "{{$v}}"{{end}}
+  {{$k}}: {{yamlScalar $v}}{{end}}
 {{else}}auth: {}
   # tencent 示例：
   # secret_id: "your-secret-id"
@@ -168,23 +179,23 @@ provider: "{{.Provider}}"
   # access_key_secret: "your-access-key-secret"
 {{end}}
 # 必填：根域名
-domain: "{{.Domain}}"
+domain: {{yamlScalar .Domain}}
 
 # 必填：子域名列表（可多个，每个占一行）
 # 使用 "@" 表示根域名
 subdomains:{{if .Subdomains}}{{range .Subdomains}}
-  - "{{.}}"{{end}}{{else}}
+  - {{yamlScalar .}}{{end}}{{else}}
   - "@"{{end}}
 
 # 可选：非 Linux 平台的轮询间隔
 # 格式：数字+单位（s=秒, m=分, h=时），默认 5m
 # Linux 平台由 Netlink 事件驱动，此选项无效
-{{if .Interval}}interval: {{.Interval}}{{else}}# interval: 5m{{end}}
+{{if .Interval}}interval: {{yamlScalar .Interval}}{{else}}# interval: 5m{{end}}
 
 # 可选：监听的网络接口（仅 Linux Netlink 模式有效）
 # 指定后只监听该接口的 IPv6 地址变化
 # 不指定则监听所有接口
-{{if .Interface}}interface: {{.Interface}}{{else}}# interface: ppp0{{end}}
+{{if .Interface}}interface: {{yamlScalar .Interface}}{{else}}# interface: ppp0{{end}}
 
 # 可选：DNS 记录 TTL，单位秒，默认 600
 {{if .TTL}}ttl: {{.TTL}}{{else}}# ttl: 600{{end}}
@@ -203,7 +214,7 @@ func Generate(params InitParams) error {
 		return err
 	}
 
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("cannot create config directory %s: %w", dir, err)
 	}
 
@@ -211,7 +222,9 @@ func Generate(params InitParams) error {
 		return fmt.Errorf("config file already exists at %s", path)
 	}
 
-	tmpl, err := template.New("config").Parse(configTemplate)
+	tmpl, err := template.New("config").Funcs(template.FuncMap{
+		"yamlScalar": yamlScalar,
+	}).Parse(configTemplate)
 	if err != nil {
 		return fmt.Errorf("internal error: failed to parse config template: %w", err)
 	}
@@ -219,7 +232,7 @@ func Generate(params InitParams) error {
 	if err := tmpl.Execute(&buf, params); err != nil {
 		return fmt.Errorf("cannot render config: %w", err)
 	}
-	if err := os.WriteFile(path, buf.Bytes(), 0644); err != nil {
+	if err := os.WriteFile(path, buf.Bytes(), 0600); err != nil {
 		return fmt.Errorf("cannot write config file %s: %w", path, err)
 	}
 
