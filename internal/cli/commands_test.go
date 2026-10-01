@@ -336,3 +336,10 @@ func TestCheckFromConfig_EmptySubdomainsAndBadInterval(t *testing.T) {
 	})
 	requireContains(t, out, "subdomains: none", "parse error")
 }
+
+// TestCheckCmd_RestrictedProvider 验证 duckdns/he/noip 的 check 不伪造成功。
+func TestCheckCmd_RestrictedProvider(t *testing.T) {
+	initRootCmd()
+	withArgs(t, "ddns6", "check", "duckdns", "--domain", "x.duckdns.org", "--log-file", "")
+	requireErrContains(t, rootCmd.Execute(), "does not support 'check'")
+}

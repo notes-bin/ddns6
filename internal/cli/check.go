@@ -62,6 +62,12 @@ var checkCmd = &cobra.Command{
 			}
 			fmt.Printf("Provider '%s' is valid\n", provider)
 
+			if factory.noListClean || restrictedProviders[provider] {
+				fmt.Printf("\nProvider '%s' does not support connectivity check via GetRecords\n", provider)
+				fmt.Println("(update-only API; use 'ddns6 run' to verify updates, or the provider web panel)")
+				return fmt.Errorf("%s does not support 'check' via api - %s only provides update endpoints", provider, provider)
+			}
+
 			fmt.Println("\n--- Auth Check ---")
 			missingAuth := false
 			for _, f := range factory.flags {
@@ -168,6 +174,12 @@ func checkFromConfig(ctx context.Context, cfg *config.Config) error {
 		return fmt.Errorf("unknown provider: %s", cfg.Provider)
 	}
 	fmt.Printf("Provider '%s' is valid\n", cfg.Provider)
+
+	if factory.noListClean || restrictedProviders[cfg.Provider] {
+		fmt.Printf("\nProvider '%s' does not support connectivity check via GetRecords\n", cfg.Provider)
+		fmt.Println("(update-only API; use 'ddns6 run' to verify updates, or the provider web panel)")
+		return fmt.Errorf("%s does not support 'check' via api - %s only provides update endpoints", cfg.Provider, cfg.Provider)
+	}
 
 	fmt.Println("\n--- API Connectivity Test ---")
 	providerClient, err := factory.fromConfig(cfg)
