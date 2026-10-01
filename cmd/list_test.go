@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// TestFormatProviderList 验证运营商表格含全部工厂名且受限为 no。
+// TestFormatProviderList 验证运营商表格含全部工厂名，且受限运营商标记为 no。
 func TestFormatProviderList(t *testing.T) {
 	out := formatProviderList(providerFactories)
 	if !strings.Contains(out, "NAME") || !strings.Contains(out, "RECORDS/CLEAN") {
@@ -31,7 +31,7 @@ func TestFormatProviderList(t *testing.T) {
 	}
 }
 
-// TestListCmd_RejectExtraArgs 验证 list 拒绝多余 positional 参数（旧 list provider 用法）。
+// TestListCmd_RejectExtraArgs 验证 list 拒绝多余位置参数（兼容旧「list provider」用法）。
 func TestListCmd_RejectExtraArgs(t *testing.T) {
 	initRootCmd()
 	withArgs(t, "ddns6", "list", "tencent")
@@ -41,7 +41,7 @@ func TestListCmd_RejectExtraArgs(t *testing.T) {
 	}
 }
 
-// TestListCmd_Execute 验证 ddns6 list 成功且输出含 tencent。
+// TestListCmd_Execute 验证 ddns6 list 成功执行且输出包含 tencent。
 func TestListCmd_Execute(t *testing.T) {
 	initRootCmd()
 	out := captureStdout(t, func() {

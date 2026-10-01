@@ -15,6 +15,7 @@ import (
 
 // recordsCmd 查询并打印 DNS 记录；默认过滤 AAAA，可通过 --type 调整。
 var recordsCmd = &cobra.Command{
+
 	Use:   "records [provider]",
 	Short: "列出 DNS 记录",
 	Long: `查询并列出 DNS 服务商下的域名解析记录。
@@ -45,8 +46,9 @@ var recordsCmd = &cobra.Command{
 	},
 }
 
-// registerRecordsCommands 为 records 注册 --type 及各 provider 子命令。
+// registerRecordsCommands 为 records 注册 --type 及各运营商子命令。
 func registerRecordsCommands() {
+
 	recordsCmd.Flags().String("type", "AAAA", "DNS 记录类型过滤（默认 AAAA，设为空字符串展示所有类型）")
 
 	registerProviderSubCommands(recordsCmd, "records", func(cmd *cobra.Command) {
@@ -91,6 +93,7 @@ func handleRecords(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvide
 
 // runRecordsWithConfig 走配置文件模式执行 records；受限运营商直接返回错误。
 func runRecordsWithConfig(cmd *cobra.Command) error {
+
 	return runWithConfig(cmd, "records", func(cmd *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error {
 		if restrictedProviders[cfg.Provider] {
 			return fmt.Errorf("%s does not support 'records' via api - %s only provides update endpoints, use its web panel to manage records", cfg.Provider, cfg.Provider)
@@ -101,6 +104,7 @@ func runRecordsWithConfig(cmd *cobra.Command) error {
 
 // recordTypeDesc 将记录类型转为列表标题用语；空类型表示全部记录。
 func recordTypeDesc(t string) string {
+
 	if t == "" {
 		return "DNS records"
 	}
@@ -109,6 +113,7 @@ func recordTypeDesc(t string) string {
 
 // buildFilterInfo 将域名列表去重后的 FQDN 拼成过滤条件描述。
 func buildFilterInfo(domains []*ddns.Domain) string {
+
 	seen := make(map[string]bool)
 	var parts []string
 	for _, d := range domains {

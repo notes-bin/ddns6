@@ -9,13 +9,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// TestPrintVersion 验证版本输出包含 Version/Commit/BuildAt。
+// TestPrintVersion 验证版本输出包含 Version/Commit/BuildAt 三行。
 func TestPrintVersion(t *testing.T) {
 	out := captureStdout(t, printVersion)
 	requireContains(t, out, "Version:", "Commit:", "BuildAt:")
 }
 
-// TestApplyEnvOverrides 验证环境变量覆盖未在命令行设置的 flag。
+// TestApplyEnvOverrides 验证环境变量可覆盖尚未被命令行设置的 flag。
 func TestApplyEnvOverrides(t *testing.T) {
 	initRootCmd()
 
@@ -63,7 +63,7 @@ func TestApplyEnvOverrides(t *testing.T) {
 	}
 }
 
-// TestApplyEnvOverrides_BoolFalseAndBadInt 覆盖 bool=false 与非法 int 忽略。
+// TestApplyEnvOverrides_BoolFalseAndBadInt 验证 DEBUG=0 生效，且非法 TTL 环境变量被忽略。
 func TestApplyEnvOverrides_BoolFalseAndBadInt(t *testing.T) {
 	initRootCmd()
 
@@ -89,7 +89,7 @@ func TestApplyEnvOverrides_BoolFalseAndBadInt(t *testing.T) {
 	}
 }
 
-// TestExecute_Version 验证 CLI 入口 version 子命令。
+// TestExecute_Version 验证 CLI 入口可执行 version 子命令。
 func TestExecute_Version(t *testing.T) {
 	withArgs(t, "ddns6", "version")
 	out := captureStdout(t, func() {
@@ -100,7 +100,7 @@ func TestExecute_Version(t *testing.T) {
 	requireContains(t, out, "Version:")
 }
 
-// TestExecute_UnknownCommand 验证未知命令打印帮助并返回 nil。
+// TestExecute_UnknownCommand 验证未知命令打印帮助且返回 nil（不视为致命错误）。
 func TestExecute_UnknownCommand(t *testing.T) {
 	initRootCmd()
 	withArgs(t, "ddns6", "not-a-real-command")

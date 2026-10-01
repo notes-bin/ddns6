@@ -10,8 +10,9 @@ import (
 	"github.com/notes-bin/ddns6/internal/config"
 )
 
-// TestBuildDomains_AllSubdomains 验证多子域名均生成正确 Domain 字段。
+// TestBuildDomains_AllSubdomains 验证多子域名均生成正确的 Domain 字段。
 func TestBuildDomains_AllSubdomains(t *testing.T) {
+
 	domains := buildDomains("example.com", []string{"www", "@", "api"}, 600)
 	if len(domains) != 3 {
 		t.Fatalf("期望 3 个域名, 得到 %d", len(domains))
@@ -41,8 +42,9 @@ func TestBuildDomains_AllSubdomains(t *testing.T) {
 	}
 }
 
-// TestBuildDomains_EmptySubdomains 验证空子域名列表返回长度为 0 的非 nil 切片。
+// TestBuildDomains_EmptySubdomains 验证空子域名列表返回长度 0 的非 nil 切片。
 func TestBuildDomains_EmptySubdomains(t *testing.T) {
+
 	domains := buildDomains("example.com", []string{}, 300)
 	if domains == nil {
 		t.Fatal("buildDomains 不应返回 nil")
@@ -54,6 +56,7 @@ func TestBuildDomains_EmptySubdomains(t *testing.T) {
 
 // TestBuildDomains_ZeroTTL 验证 TTL=0 原样写入，不做默认替换。
 func TestBuildDomains_ZeroTTL(t *testing.T) {
+
 	domains := buildDomains("example.com", []string{"www"}, 0)
 	if len(domains) != 1 {
 		t.Fatalf("期望 1 个域名, 得到 %d", len(domains))
@@ -65,6 +68,7 @@ func TestBuildDomains_ZeroTTL(t *testing.T) {
 
 // TestBuildDomains_TypeIsAlwaysAAAA 验证 Domain.Type 固定为 AAAA。
 func TestBuildDomains_TypeIsAlwaysAAAA(t *testing.T) {
+
 	domains := buildDomains("example.com", []string{"www"}, 600)
 	if len(domains) != 1 {
 		t.Fatalf("期望 1 个域名, 得到 %d", len(domains))
@@ -76,6 +80,7 @@ func TestBuildDomains_TypeIsAlwaysAAAA(t *testing.T) {
 
 // TestFormatProviderFlags_Empty 验证空 flag 列表格式化为空串。
 func TestFormatProviderFlags_Empty(t *testing.T) {
+
 	result := formatProviderFlags([]providerFlag{})
 	if result != "" {
 		t.Errorf("空 flag 列表应返回空字符串, 得到 %q", result)
@@ -84,6 +89,7 @@ func TestFormatProviderFlags_Empty(t *testing.T) {
 
 // TestFormatProviderFlags_Single 验证单 flag 的名称与 usage 出现在输出中。
 func TestFormatProviderFlags_Single(t *testing.T) {
+
 	flags := []providerFlag{
 		{name: "api-token", usage: "Cloudflare API Token"},
 	}
@@ -98,6 +104,7 @@ func TestFormatProviderFlags_Single(t *testing.T) {
 
 // TestFormatProviderFlags_Multiple 验证多 flag 均出现在格式化文本中。
 func TestFormatProviderFlags_Multiple(t *testing.T) {
+
 	flags := []providerFlag{
 		{name: "secret-id", usage: "Secret ID"},
 		{name: "secret-key", usage: "Secret Key"},
@@ -113,6 +120,7 @@ func TestFormatProviderFlags_Multiple(t *testing.T) {
 
 // TestFormatSampleFlags_Empty 验证空列表的示例片段为空串。
 func TestFormatSampleFlags_Empty(t *testing.T) {
+
 	result := formatSampleFlags([]providerFlag{})
 	if result != "" {
 		t.Errorf("空 flag 列表应返回空字符串, 得到 %q", result)
@@ -121,6 +129,7 @@ func TestFormatSampleFlags_Empty(t *testing.T) {
 
 // TestFormatSampleFlags_Single 验证单 flag 示例为 " --name YOUR_name" 形式。
 func TestFormatSampleFlags_Single(t *testing.T) {
+
 	flags := []providerFlag{
 		{name: "api-token"},
 	}
@@ -133,6 +142,7 @@ func TestFormatSampleFlags_Single(t *testing.T) {
 
 // TestFormatSampleFlags_Multiple 验证多 flag 示例均包含对应 --name。
 func TestFormatSampleFlags_Multiple(t *testing.T) {
+
 	flags := []providerFlag{
 		{name: "secret-id"},
 		{name: "secret-key"},
@@ -148,6 +158,7 @@ func TestFormatSampleFlags_Multiple(t *testing.T) {
 
 // TestRequireFlags_AllPresent 验证全部必填 flag 已设置时不报错。
 func TestRequireFlags_AllPresent(t *testing.T) {
+
 	cmd := &cobra.Command{}
 	cmd.Flags().String("api-token", "", "")
 	cmd.Flags().String("domain", "", "")
@@ -168,6 +179,7 @@ func TestRequireFlags_AllPresent(t *testing.T) {
 
 // TestRequireFlags_MissingRequired 验证缺失必填 flag 时错误信息包含 flag 名。
 func TestRequireFlags_MissingRequired(t *testing.T) {
+
 	cmd := &cobra.Command{}
 	cmd.Flags().String("api-token", "", "")
 
@@ -184,6 +196,7 @@ func TestRequireFlags_MissingRequired(t *testing.T) {
 
 // TestRequireFlags_EmptyFlags 验证空校验列表恒成功。
 func TestRequireFlags_EmptyFlags(t *testing.T) {
+
 	cmd := &cobra.Command{}
 	err := requireFlags(cmd, []providerFlag{})
 	if err != nil {
@@ -193,6 +206,7 @@ func TestRequireFlags_EmptyFlags(t *testing.T) {
 
 // TestCreateProviderFromConfig_Unsupported 验证未知 provider 返回 unsupported 错误。
 func TestCreateProviderFromConfig_Unsupported(t *testing.T) {
+
 	cfg := &config.Config{
 		Provider: "invalid_provider",
 		Domain:   "example.com",
@@ -208,6 +222,7 @@ func TestCreateProviderFromConfig_Unsupported(t *testing.T) {
 
 // TestCreateProviderFromConfig_EmptyProvider 验证空 provider 名视为不支持。
 func TestCreateProviderFromConfig_EmptyProvider(t *testing.T) {
+
 	cfg := &config.Config{
 		Provider: "",
 		Domain:   "example.com",
@@ -220,6 +235,7 @@ func TestCreateProviderFromConfig_EmptyProvider(t *testing.T) {
 
 // TestGetString_NotRegistered 验证未注册 flag 时 getString 返回空串。
 func TestGetString_NotRegistered(t *testing.T) {
+
 	cmd := &cobra.Command{}
 	result := getString(cmd, "non-existent")
 	if result != "" {
@@ -229,6 +245,7 @@ func TestGetString_NotRegistered(t *testing.T) {
 
 // TestGetString_RegisteredNotSet 验证已注册未赋值时返回空串。
 func TestGetString_RegisteredNotSet(t *testing.T) {
+
 	cmd := &cobra.Command{}
 	cmd.Flags().String("token", "", "")
 	result := getString(cmd, "token")
@@ -239,6 +256,7 @@ func TestGetString_RegisteredNotSet(t *testing.T) {
 
 // TestGetString_Set 验证已设置字符串 flag 可正确读出。
 func TestGetString_Set(t *testing.T) {
+
 	cmd := &cobra.Command{}
 	cmd.Flags().String("token", "", "")
 	cmd.Flags().Set("token", "abc123")
@@ -250,6 +268,7 @@ func TestGetString_Set(t *testing.T) {
 
 // TestGetDuration_NotRegistered 验证未注册 duration 时回退为 5 分钟。
 func TestGetDuration_NotRegistered(t *testing.T) {
+
 	cmd := &cobra.Command{}
 	result := getDuration(cmd, "interval")
 	if result != 5*time.Minute {
@@ -259,6 +278,7 @@ func TestGetDuration_NotRegistered(t *testing.T) {
 
 // TestGetDuration_Set 验证已设置 duration 可正确解析。
 func TestGetDuration_Set(t *testing.T) {
+
 	cmd := &cobra.Command{}
 	cmd.Flags().Duration("interval", 5*time.Minute, "")
 	cmd.Flags().Set("interval", "10m")
@@ -270,6 +290,7 @@ func TestGetDuration_Set(t *testing.T) {
 
 // TestCreateDomainConfigs_NoDomain 验证缺少 --domain 时报错。
 func TestCreateDomainConfigs_NoDomain(t *testing.T) {
+
 	cmd := &cobra.Command{}
 	cmd.Flags().String("domain", "", "")
 	cmd.Flags().StringArray("subdomain", []string{"@"}, "")
@@ -286,6 +307,7 @@ func TestCreateDomainConfigs_NoDomain(t *testing.T) {
 
 // TestCreateDomainConfigs_Success 验证完整 flag 可构造期望 Domain。
 func TestCreateDomainConfigs_Success(t *testing.T) {
+
 	cmd := &cobra.Command{}
 	cmd.Flags().String("domain", "", "")
 	cmd.Flags().StringArray("subdomain", []string{"@"}, "")
@@ -310,6 +332,7 @@ func TestCreateDomainConfigs_Success(t *testing.T) {
 
 // TestRestrictedProviders_Contains 验证 duckdns/he/noip 均在受限表中。
 func TestRestrictedProviders_Contains(t *testing.T) {
+
 	expected := map[string]bool{"duckdns": true, "he": true, "noip": true}
 	for name := range expected {
 		if !restrictedProviders[name] {
@@ -320,6 +343,7 @@ func TestRestrictedProviders_Contains(t *testing.T) {
 
 // TestNotRestricted 验证常见完整 API 运营商不在受限表中。
 func TestNotRestricted(t *testing.T) {
+
 	notRestricted := []string{"tencent", "cloudflare", "alicloud", "godaddy"}
 	for _, name := range notRestricted {
 		if restrictedProviders[name] {

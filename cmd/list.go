@@ -8,8 +8,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// listCmd 列出项目内全部可用 DNS 运营商（不读配置、不访问网络）。
+// listCmd 列出内置全部可用 DNS 运营商（不读配置、不访问网络）。
 var listCmd = &cobra.Command{
+
 	Use:   "list",
 	Args:  cobra.NoArgs,
 	Short: "列出可用的 DNS 运营商",
@@ -26,8 +27,9 @@ var listCmd = &cobra.Command{
 	},
 }
 
-// formatProviderList 按注册顺序格式化运营商表格。
+// formatProviderList 按注册顺序把运营商格式化为表格文本。
 func formatProviderList(factories []providerFactory) string {
+
 	var b strings.Builder
 	w := tabwriter.NewWriter(&b, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(w, "NAME\tRECORDS/CLEAN\tDESCRIPTION")
