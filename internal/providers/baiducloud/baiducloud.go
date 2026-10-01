@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	urlpkg "net/url"
 	"slices"
 	"strings"
 	"time"
@@ -116,15 +117,18 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 
 	var recordView string
 	listPayload := map[string]any{"domain": rootDomain, "pageNum": 1, "pageSize": 1000}
-	if raw, err := c.request(ctx, http.MethodPost, c.baseURL+"/v1/domain/resolve/list", listPayload); err == nil {
-		var listResp baiduListResponse
-		if json.Unmarshal(raw, &listResp) == nil {
-			if i := slices.IndexFunc(listResp.Result, func(r dnsRecord) bool {
-				return r.RecordID == record.ID
-			}); i >= 0 {
-				recordView = listResp.Result[i].View
-			}
-		}
+	raw, listErr := c.request(ctx, http.MethodPost, c.baseURL+"/v1/domain/resolve/list", listPayload)
+	if listErr != nil {
+		return fmt.Errorf("baiducloud list records before modify failed: %w", listErr)
+	}
+	var listResp baiduListResponse
+	if err := json.Unmarshal(raw, &listResp); err != nil {
+		return fmt.Errorf("baiducloud decode list response failed: %w", err)
+	}
+	if i := slices.IndexFunc(listResp.Result, func(r dnsRecord) bool {
+		return r.RecordID == record.ID
+	}); i >= 0 {
+		recordView = listResp.Result[i].View
 	}
 
 	payload := map[string]any{
@@ -167,7 +171,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 		slog.Warn("BaiduCloud delete via POST failed, trying alternative endpoint",
 			"module", "baiducloud", "error", err)
 
-		altURL := fmt.Sprintf("%s/v1/dns/zone/%s/record/%s", c.baseURL, rootDomain, record.ID)
+		altURL := fmt.Sprintf("%s/v1/dns/zone/%s/record/%s", c.baseURL, urlpkg.PathEscape(rootDomain), urlpkg.PathEscape(record.ID))
 		_, err2 := c.request(ctx, http.MethodDelete, altURL, nil)
 		if err2 != nil {
 			return fmt.Errorf("baiducloud delete record failed: primary: %w, fallback: %w", err, err2)
