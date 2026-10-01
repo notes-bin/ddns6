@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -38,11 +37,7 @@ var recordsCmd = &cobra.Command{
 		if len(args) > 0 && args[0] == "help" {
 			return cmd.Help()
 		}
-		err := runRecordsWithConfig(cmd)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
-		}
-		return err
+		return runRecordsWithConfig(cmd)
 	},
 }
 

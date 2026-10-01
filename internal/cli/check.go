@@ -90,7 +90,6 @@ var checkCmd = &cobra.Command{
 			fmt.Println("\n--- API Connectivity Test ---")
 			domains, providerClient, err := factory.run(cmd)
 			if err != nil {
-				fmt.Printf("Failed to create provider: %v\n", err)
 				return fmt.Errorf("failed to create provider: %w", err)
 			}
 
@@ -99,7 +98,6 @@ var checkCmd = &cobra.Command{
 
 			records, err := ddns.CollectMatchingRecords(ctx, providerClient, domains, "AAAA", false)
 			if err != nil {
-				fmt.Printf("API test failed: %v\n", err)
 				return fmt.Errorf("API test failed: %w", err)
 			}
 
@@ -109,7 +107,6 @@ var checkCmd = &cobra.Command{
 
 		cfg, err := config.Load()
 		if err != nil {
-			fmt.Printf("Config load failed: %v\n", err)
 			return fmt.Errorf("config load failed: %w", err)
 		}
 		fmt.Printf("Config loaded successfully\n\n")
@@ -175,7 +172,6 @@ func checkFromConfig(ctx context.Context, cfg *config.Config) error {
 	fmt.Println("\n--- API Connectivity Test ---")
 	providerClient, err := factory.fromConfig(cfg)
 	if err != nil {
-		fmt.Printf("Failed to create provider: %v\n", err)
 		return fmt.Errorf("failed to create provider: %w", err)
 	}
 
@@ -185,7 +181,6 @@ func checkFromConfig(ctx context.Context, cfg *config.Config) error {
 
 	records, err := ddns.CollectMatchingRecords(ctx, providerClient, domains, "AAAA", false)
 	if err != nil {
-		fmt.Printf("API test failed: %v\n", err)
 		return fmt.Errorf("API test failed: %w", err)
 	}
 
