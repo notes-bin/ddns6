@@ -20,7 +20,7 @@ func TestClient_GetRecords(t *testing.T) {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
 		json.NewEncoder(w).Encode(map[string]any{
-			"domain_records": []DomainRecord{
+			"domain_records": []domainRecord{
 				{ID: 1, Type: "AAAA", Name: "www", Data: "2001:db8::1", TTL: 600},
 			},
 		})
@@ -50,7 +50,7 @@ func TestClient_AddRecord(t *testing.T) {
 			t.Errorf("expected POST, got %s", r.Method)
 		}
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]any{"domain_record": DomainRecord{ID: 2}})
+		json.NewEncoder(w).Encode(map[string]any{"domain_record": domainRecord{ID: 2}})
 	}))
 	defer server.Close()
 
@@ -71,7 +71,7 @@ func TestClient_ModifyRecord(t *testing.T) {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]any{"domain_record": DomainRecord{ID: 42}})
+		json.NewEncoder(w).Encode(map[string]any{"domain_record": domainRecord{ID: 42}})
 	}))
 	defer server.Close()
 

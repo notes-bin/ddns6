@@ -14,13 +14,13 @@ import (
 func TestClient_GetRecords_Zone(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v2/zones" && r.Method == http.MethodGet {
-			json.NewEncoder(w).Encode([]Zone{
+			json.NewEncoder(w).Encode([]zone{
 				{ID: "zone1", Name: "example.com", IPv6: "2001:db8::1"},
 			})
 			return
 		}
 		if r.URL.Path == "/api/v2/zones/zone1" && r.Method == http.MethodGet {
-			json.NewEncoder(w).Encode(Zone{ID: "zone1", Name: "example.com", IPv6: "2001:db8::1"})
+			json.NewEncoder(w).Encode(zone{ID: "zone1", Name: "example.com", IPv6: "2001:db8::1"})
 			return
 		}
 		t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
@@ -44,13 +44,13 @@ func TestClient_GetRecords_Zone(t *testing.T) {
 func TestClient_GetRecords_Subdomain(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v2/zones" && r.Method == http.MethodGet {
-			json.NewEncoder(w).Encode([]Zone{
+			json.NewEncoder(w).Encode([]zone{
 				{ID: "zone1", Name: "example.com"},
 			})
 			return
 		}
 		if r.URL.Path == "/api/v2/zones/zone1/records" && r.Method == http.MethodGet {
-			json.NewEncoder(w).Encode([]Record{
+			json.NewEncoder(w).Encode([]dnsRecord{
 				{ID: "rec1", Type: "AAAA", Name: "www", Data: "2001:db8::1"},
 			})
 			return
@@ -76,14 +76,14 @@ func TestClient_GetRecords_Subdomain(t *testing.T) {
 func TestClient_AddRecord(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v2/zones" && r.Method == http.MethodGet {
-			json.NewEncoder(w).Encode([]Zone{
+			json.NewEncoder(w).Encode([]zone{
 				{ID: "zone1", Name: "example.com"},
 			})
 			return
 		}
 		if r.URL.Path == "/api/v2/zones/zone1/records" && r.Method == http.MethodPost {
 			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(Record{ID: "new-rec", Type: "AAAA", Name: "www", Data: "2001:db8::1"})
+			json.NewEncoder(w).Encode(dnsRecord{ID: "new-rec", Type: "AAAA", Name: "www", Data: "2001:db8::1"})
 			return
 		}
 		t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
@@ -101,14 +101,14 @@ func TestClient_AddRecord(t *testing.T) {
 func TestClient_ModifyRecord(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v2/zones" && r.Method == http.MethodGet {
-			json.NewEncoder(w).Encode([]Zone{
+			json.NewEncoder(w).Encode([]zone{
 				{ID: "zone1", Name: "example.com"},
 			})
 			return
 		}
 		if r.URL.Path == "/api/v2/zones/zone1/records/rec1" && r.Method == http.MethodPatch {
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(Record{ID: "rec1", Type: "AAAA", Data: "2001:db8::2"})
+			json.NewEncoder(w).Encode(dnsRecord{ID: "rec1", Type: "AAAA", Data: "2001:db8::2"})
 			return
 		}
 		t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
@@ -126,7 +126,7 @@ func TestClient_ModifyRecord(t *testing.T) {
 func TestClient_DeleteRecord(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v2/zones" && r.Method == http.MethodGet {
-			json.NewEncoder(w).Encode([]Zone{
+			json.NewEncoder(w).Encode([]zone{
 				{ID: "zone1", Name: "example.com"},
 			})
 			return
@@ -149,7 +149,7 @@ func TestClient_DeleteRecord(t *testing.T) {
 // TestClient_ZoneNotFound 验证 zone 不存在时 GetRecords 报错。
 func TestClient_ZoneNotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode([]Zone{})
+		json.NewEncoder(w).Encode([]zone{})
 	}))
 	defer server.Close()
 

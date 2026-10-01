@@ -34,9 +34,9 @@ var _ ddns.DNSProvider = (*Client)(nil)
 type Client struct {
 	accessKeyID     string
 	accessKeySecret string
-	BaseURL         string
+	baseURL         string
 	httpClient      *http.Client
-	SignVersion     string // 签名版本："v1"（默认，HMAC-SHA1）或 "v3"（ACS3-HMAC-SHA256）
+	signVersion     string // 签名版本："v1"（默认，HMAC-SHA1）或 "v3"（ACS3-HMAC-SHA256）
 }
 
 // Option 客户端配置选项。
@@ -47,9 +47,9 @@ func NewClient(accessKeyID, accessKeySecret string, options ...Option) *Client {
 	client := &Client{
 		accessKeyID:     accessKeyID,
 		accessKeySecret: accessKeySecret,
-		BaseURL:         "https://alidns.aliyuncs.com/",
+		baseURL:         "https://alidns.aliyuncs.com/",
 		httpClient:      &http.Client{Timeout: 30 * time.Second},
-		SignVersion:     "v1",
+		signVersion:     "v1",
 	}
 
 	for _, option := range options {
@@ -62,7 +62,7 @@ func NewClient(accessKeyID, accessKeySecret string, options ...Option) *Client {
 // WithBaseURL 设置自定义 API 地址（测试用）。
 func WithBaseURL(baseURL string) Option {
 	return func(c *Client) {
-		c.BaseURL = baseURL
+		c.baseURL = baseURL
 	}
 }
 
@@ -76,12 +76,12 @@ func WithHTTPClient(httpClient *http.Client) Option {
 // WithSignVersion 设置签名版本："v1"（默认，HMAC-SHA1）或 "v3"（ACS3-HMAC-SHA256）。
 func WithSignVersion(version string) Option {
 	return func(c *Client) {
-		c.SignVersion = version
+		c.signVersion = version
 	}
 }
 
-// DNSRecord 表示阿里云 DNS 记录。
-type DNSRecord struct {
+// dnsRecord 表示阿里云 DNS 记录。
+type dnsRecord struct {
 	RecordID string `json:"RecordId"`
 	Domain   string `json:"DomainName"`
 	RR       string `json:"RR"`
@@ -168,7 +168,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 
 	var result struct {
 		DomainRecords struct {
-			Record []DNSRecord `json:"Record"`
+			Record []dnsRecord `json:"Record"`
 		} `json:"DomainRecords"`
 	}
 
@@ -194,8 +194,8 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return records, nil
 }
 
-// GetDomainRecord 查询单条 DNS 记录详情。
-func (c *Client) GetDomainRecord(ctx context.Context, fulldomain, recordID string) (*DNSRecord, error) {
+// getDomainRecord 查询单条 DNS 记录详情。
+func (c *Client) getDomainRecord(ctx context.Context, fulldomain, recordID string) (*dnsRecord, error) {
 	params := map[string]string{
 		"Action":   "DescribeDomainRecordInfo",
 		"RecordId": recordID,
@@ -206,7 +206,7 @@ func (c *Client) GetDomainRecord(ctx context.Context, fulldomain, recordID strin
 		return nil, err
 	}
 
-	var record DNSRecord
+	var record dnsRecord
 	if err := json.Unmarshal(resp, &record); err != nil {
 		return nil, err
 	}
@@ -260,9 +260,9 @@ func (c *Client) getRootDomain(ctx context.Context, domain, zoneHint string) (st
 	return domain, "@", nil
 }
 
-// makeRequest 根据 SignVersion 选择签名方式发起认证请求。
+// makeRequest 根据 signVersion 选择签名方式发起认证请求。
 func (c *Client) makeRequest(ctx context.Context, params map[string]string) ([]byte, error) {
-	if c.SignVersion == "v3" {
+	if c.signVersion == "v3" {
 		return c.makeV3Request(ctx, params)
 	}
 	return c.makeV1Request(ctx, params)
@@ -300,7 +300,7 @@ func (c *Client) makeV1Request(ctx context.Context, params map[string]string) ([
 	signature = url.QueryEscape(signature)
 
 	// 不记录完整 URL，以免泄露签名与 AccessKeyId
-	fullURL := fmt.Sprintf("%s?%s&Signature=%s", c.BaseURL, queryString, signature)
+	fullURL := fmt.Sprintf("%s?%s&Signature=%s", c.baseURL, queryString, signature)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)
 	if err != nil {
@@ -352,7 +352,7 @@ func (c *Client) makeV3Request(ctx context.Context, params map[string]string) ([
 	}
 	slog.Debug("Alibaba Cloud API V3 request", "module", "alicloud", "action", action)
 
-	u, err := url.Parse(c.BaseURL)
+	u, err := url.Parse(c.baseURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid base url: %w", err)
 	}

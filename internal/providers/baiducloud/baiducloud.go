@@ -67,8 +67,8 @@ func WithHTTPClient(httpClient *http.Client) Option {
 	}
 }
 
-// DNSRecord 百度云 DNS 记录。
-type DNSRecord struct {
+// dnsRecord 百度云 DNS 记录。
+type dnsRecord struct {
 	RecordID string `json:"recordId,omitempty"`
 	Domain   string `json:"domain"`
 	RDType   string `json:"rdtype"`
@@ -80,7 +80,7 @@ type DNSRecord struct {
 
 // baiduListResponse 为 resolve/list 接口响应。
 type baiduListResponse struct {
-	Result     []DNSRecord `json:"result"`
+	Result     []dnsRecord `json:"result"`
 	TotalCount int         `json:"totalCount"`
 }
 
@@ -118,7 +118,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	if raw, err := c.request(ctx, http.MethodPost, c.baseURL+"/v1/domain/resolve/list", listPayload); err == nil {
 		var listResp baiduListResponse
 		if json.Unmarshal(raw, &listResp) == nil {
-			if i := slices.IndexFunc(listResp.Result, func(r DNSRecord) bool {
+			if i := slices.IndexFunc(listResp.Result, func(r dnsRecord) bool {
 				return r.RecordID == record.ID
 			}); i >= 0 {
 				recordView = listResp.Result[i].View

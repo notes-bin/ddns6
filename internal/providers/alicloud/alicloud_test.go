@@ -87,9 +87,9 @@ func TestGetDomainRecord(t *testing.T) {
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(ts.URL))
 
-	record, err := client.GetDomainRecord(t.Context(), "test.example.com", "123456")
+	record, err := client.getDomainRecord(t.Context(), "test.example.com", "123456")
 	if err != nil {
-		t.Errorf("GetDomainRecord failed: %v", err)
+		t.Errorf("getDomainRecord failed: %v", err)
 	}
 
 	if record.RecordID != "123456" {

@@ -33,9 +33,9 @@ type Client struct {
 	apiKey     string
 	email      string
 	apiToken   string
-	AccountID  string
-	ZoneID     string
-	BaseURL    string
+	accountID  string
+	zoneID     string
+	baseURL    string
 	httpClient *http.Client
 	zoneCache  sync.Map // zone 名称 -> zone ID
 }
@@ -46,7 +46,7 @@ type Option func(*Client)
 // NewClient 创建 Cloudflare DNS 客户端。
 func NewClient(options ...Option) *Client {
 	client := &Client{
-		BaseURL:    "https://api.cloudflare.com/client/v4",
+		baseURL:    "https://api.cloudflare.com/client/v4",
 		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}
 
@@ -75,21 +75,21 @@ func WithAPIToken(apiToken string) Option {
 // WithAccountID 设置账户 ID。
 func WithAccountID(accountID string) Option {
 	return func(c *Client) {
-		c.AccountID = accountID
+		c.accountID = accountID
 	}
 }
 
 // WithZoneID 设置 Zone ID。
 func WithZoneID(zoneID string) Option {
 	return func(c *Client) {
-		c.ZoneID = zoneID
+		c.zoneID = zoneID
 	}
 }
 
 // WithBaseURL 设置自定义 API 基址（测试用）。
 func WithBaseURL(baseURL string) Option {
 	return func(c *Client) {
-		c.BaseURL = strings.TrimSuffix(baseURL, "/")
+		c.baseURL = strings.TrimSuffix(baseURL, "/")
 	}
 }
 
@@ -100,8 +100,8 @@ func WithHTTPClient(httpClient *http.Client) Option {
 	}
 }
 
-// DNSRecord 表示 Cloudflare DNS 记录。
-type DNSRecord struct {
+// dnsRecord 表示 Cloudflare DNS 记录。
+type dnsRecord struct {
 	ID      string `json:"id,omitempty"`
 	Type    string `json:"type"`
 	Name    string `json:"name"`
@@ -139,7 +139,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		return nil
 	}
 
-	cfRecord := DNSRecord{
+	cfRecord := dnsRecord{
 		Type:    record.Type,
 		Name:    record.Name,
 		Content: record.Value,
@@ -204,8 +204,8 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return result, nil
 }
 
-// GetDomainRecord 查询单条 DNS 记录详情。
-func (c *Client) GetDomainRecord(ctx context.Context, fulldomain, recordID string) (*DNSRecord, error) {
+// getDomainRecord 查询单条 DNS 记录详情。
+func (c *Client) getDomainRecord(ctx context.Context, fulldomain, recordID string) (*dnsRecord, error) {
 	zoneID, err := c.getZoneID(ctx, fulldomain, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get zone id: %w", err)
@@ -223,8 +223,8 @@ type resultInfo struct {
 }
 
 // listDNSRecords 分页获取指定类型和名称的 DNS 记录（公共分页逻辑）。
-func (c *Client) listDNSRecords(ctx context.Context, zoneID, name, rtype, content string) ([]DNSRecord, *resultInfo, error) {
-	var allRecords []DNSRecord
+func (c *Client) listDNSRecords(ctx context.Context, zoneID, name, rtype, content string) ([]dnsRecord, *resultInfo, error) {
+	var allRecords []dnsRecord
 	var lastInfo *resultInfo
 	page := 1
 
@@ -237,7 +237,7 @@ func (c *Client) listDNSRecords(ctx context.Context, zoneID, name, rtype, conten
 		if content != "" {
 			query.Set("content", content)
 		}
-		reqURL := fmt.Sprintf("%s/zones/%s/dns_records?%s", c.BaseURL, zoneID, query.Encode())
+		reqURL := fmt.Sprintf("%s/zones/%s/dns_records?%s", c.baseURL, zoneID, query.Encode())
 
 		records, info, err := c.listRequest(ctx, reqURL)
 		if err != nil {
@@ -256,13 +256,13 @@ func (c *Client) listDNSRecords(ctx context.Context, zoneID, name, rtype, conten
 }
 
 // getRecords 获取指定类型的 DNS 记录。
-func (c *Client) getRecords(ctx context.Context, zoneID, name, rtype, content string) ([]DNSRecord, error) {
+func (c *Client) getRecords(ctx context.Context, zoneID, name, rtype, content string) ([]dnsRecord, error) {
 	records, _, err := c.listDNSRecords(ctx, zoneID, name, rtype, content)
 	return records, err
 }
 
 // listRequest 执行 GET 请求并返回记录与分页信息。
-func (c *Client) listRequest(ctx context.Context, reqURL string) ([]DNSRecord, *resultInfo, error) {
+func (c *Client) listRequest(ctx context.Context, reqURL string) ([]dnsRecord, *resultInfo, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
 	if err != nil {
 		return nil, nil, err
@@ -296,7 +296,7 @@ func (c *Client) listRequest(ctx context.Context, reqURL string) ([]DNSRecord, *
 	var apiResp struct {
 		Success    bool           `json:"success"`
 		Errors     []ErrorDetails `json:"errors"`
-		Result     []DNSRecord    `json:"result"`
+		Result     []dnsRecord    `json:"result"`
 		ResultInfo *resultInfo    `json:"result_info"`
 	}
 
@@ -315,27 +315,27 @@ func (c *Client) listRequest(ctx context.Context, reqURL string) ([]DNSRecord, *
 }
 
 // getRecordByID 根据记录 ID 获取 DNS 记录。
-func (c *Client) getRecordByID(ctx context.Context, zoneID, recordID string) (*DNSRecord, error) {
-	url := fmt.Sprintf("%s/zones/%s/dns_records/%s", c.BaseURL, zoneID, recordID)
-	var result DNSRecord
+func (c *Client) getRecordByID(ctx context.Context, zoneID, recordID string) (*dnsRecord, error) {
+	url := fmt.Sprintf("%s/zones/%s/dns_records/%s", c.baseURL, zoneID, recordID)
+	var result dnsRecord
 	err := c.makeRequest(ctx, "GET", url, nil, &result)
 	return &result, err
 }
 
 // updateDNSRecord 更新 DNS 记录。
-func (c *Client) updateDNSRecord(ctx context.Context, zoneID, recordID string, record DNSRecord) (*DNSRecord, error) {
+func (c *Client) updateDNSRecord(ctx context.Context, zoneID, recordID string, record dnsRecord) (*dnsRecord, error) {
 	slog.Info("updating Cloudflare DNS record",
 		"module", "cloudflare",
 		"record_id", recordID, "type", record.Type, "zone_id", zoneID)
 
-	url := fmt.Sprintf("%s/zones/%s/dns_records/%s", c.BaseURL, zoneID, recordID)
+	url := fmt.Sprintf("%s/zones/%s/dns_records/%s", c.baseURL, zoneID, recordID)
 
 	body, err := json.Marshal(record)
 	if err != nil {
 		return nil, err
 	}
 
-	var result DNSRecord
+	var result dnsRecord
 	err = c.makeRequest(ctx, "PUT", url, bytes.NewBuffer(body), &result)
 	if err != nil {
 		slog.Debug("failed to update Cloudflare DNS record",
@@ -350,8 +350,8 @@ func (c *Client) updateDNSRecord(ctx context.Context, zoneID, recordID string, r
 // 优先顺序：配置的 ZoneID > zoneHint 缓存/直查 > 对 domain 后缀探测。
 // 配置了 ZoneID 时直接返回，不再每次校验详情（避免多余 API）。
 func (c *Client) getZoneID(ctx context.Context, domain, zoneHint string) (string, error) {
-	if c.ZoneID != "" {
-		return c.ZoneID, nil
+	if c.zoneID != "" {
+		return c.zoneID, nil
 	}
 
 	root, _ := domainutil.SplitDomain(domain, zoneHint)
@@ -359,8 +359,10 @@ func (c *Client) getZoneID(ctx context.Context, domain, zoneHint string) (string
 		root = domain
 	}
 
-	if id, ok := c.zoneCache.Load(root); ok {
-		return id.(string), nil
+	if v, ok := c.zoneCache.Load(root); ok {
+		if id, ok := v.(string); ok {
+			return id, nil
+		}
 	}
 
 	// 已知根域名时直接按名查找，避免逐级后缀探测
@@ -398,10 +400,10 @@ func (c *Client) findZoneID(ctx context.Context, zone string) (string, error) {
 	query := url.Values{}
 	query.Set("name", zone)
 	query.Set("status", "active")
-	if c.AccountID != "" {
-		query.Set("account.id", c.AccountID)
+	if c.accountID != "" {
+		query.Set("account.id", c.accountID)
 	}
-	reqURL := fmt.Sprintf("%s/zones?%s", c.BaseURL, query.Encode())
+	reqURL := fmt.Sprintf("%s/zones?%s", c.baseURL, query.Encode())
 
 	var result []struct {
 		ID   string `json:"id"`
@@ -423,34 +425,20 @@ func (c *Client) findZoneID(ctx context.Context, zone string) (string, error) {
 	return "", fmt.Errorf("zone not found")
 }
 
-// getZoneDetails 获取指定 Zone 的详情。
-func (c *Client) getZoneDetails(ctx context.Context, zoneID string) (map[string]any, error) {
-	url := fmt.Sprintf("%s/zones/%s", c.BaseURL, zoneID)
-	var result map[string]any
-	err := c.makeRequest(ctx, "GET", url, nil, &result)
-	return result, err
-}
-
-// getTxtRecords 获取匹配名称（及可选内容）的 TXT 记录。
-func (c *Client) getTxtRecords(ctx context.Context, zoneID, name, content string) ([]DNSRecord, error) {
-	records, _, err := c.listDNSRecords(ctx, zoneID, name, "TXT", content)
-	return records, err
-}
-
 // createDNSRecord 创建 DNS 记录。
-func (c *Client) createDNSRecord(ctx context.Context, zoneID string, record DNSRecord) (*DNSRecord, error) {
+func (c *Client) createDNSRecord(ctx context.Context, zoneID string, record dnsRecord) (*dnsRecord, error) {
 	slog.Info("creating Cloudflare DNS record",
 		"module", "cloudflare",
 		"type", record.Type, "name", record.Name, "zone_id", zoneID)
 
-	url := fmt.Sprintf("%s/zones/%s/dns_records", c.BaseURL, zoneID)
+	url := fmt.Sprintf("%s/zones/%s/dns_records", c.baseURL, zoneID)
 
 	body, err := json.Marshal(record)
 	if err != nil {
 		return nil, err
 	}
 
-	var result DNSRecord
+	var result dnsRecord
 	err = c.makeRequest(ctx, "POST", url, bytes.NewBuffer(body), &result)
 	if err != nil {
 		slog.Debug("failed to create Cloudflare DNS record",
@@ -464,7 +452,7 @@ func (c *Client) createDNSRecord(ctx context.Context, zoneID string, record DNSR
 func (c *Client) deleteDNSRecord(ctx context.Context, zoneID, recordID string) error {
 	slog.Info("deleting Cloudflare DNS record", "module", "cloudflare", "record_id", recordID, "zone_id", zoneID)
 
-	url := fmt.Sprintf("%s/zones/%s/dns_records/%s", c.BaseURL, zoneID, recordID)
+	url := fmt.Sprintf("%s/zones/%s/dns_records/%s", c.baseURL, zoneID, recordID)
 	err := c.makeRequest(ctx, "DELETE", url, nil, nil)
 	if err != nil {
 		slog.Debug("failed to delete Cloudflare DNS record", "module", "cloudflare", "record_id", recordID, "err", err)
