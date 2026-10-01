@@ -119,15 +119,16 @@ func NewClient(secretID, secretKey string, options ...Option) *DNSPod {
 		secretID:  secretID,
 		secretKey: secretKey,
 		apiURL:    "https://dnspod.tencentcloudapi.com",
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-			Transport: &http.Transport{
+		httpClient: func() *http.Client {
+			c := httputil.NewHTTPClient(30 * time.Second)
+			c.Transport = &http.Transport{
 				ForceAttemptHTTP2:   false,
 				IdleConnTimeout:     90 * time.Second,
 				MaxIdleConns:        100,
 				MaxIdleConnsPerHost: 10,
-			},
-		},
+			}
+			return c
+		}(),
 	}
 
 	for _, option := range options {
@@ -189,21 +190,28 @@ func (ds *DNSPod) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		slog.Debug("record already exists, querying existing records",
 			"module", "tencent", "domain", domain, "type", record.Type)
 
-		records, qErr := ds.describeRecords(ctx, domain, "@")
+		records, qErr := ds.describeRecords(ctx, domain, subDomain)
 		if qErr != nil {
 			return fmt.Errorf("failed to query existing record after duplicate: %w", qErr)
 		}
 
-		// 遍历所有记录，查找匹配目标类型的记录。
-		// 不严格限制 SubDomain 值，兼容 Tencent API 的不同返回格式。
-		// 根域名记录 SubDomain 可能为 "@"、"" 或根域名本身（如 "notes-bin.top"）。
+		wantSub := subDomain
+		if wantSub == "" {
+			wantSub = "@"
+		}
+		// 遍历匹配目标子域名与类型的记录
 		for _, r := range records {
 			if r.RecordType != record.Type {
 				continue
 			}
-			// 排除非根域名的子域名记录（如 www、mail 等），
-			// 防止在存在多个 AAAA 记录时修改错误的记录
-			if r.SubDomain != "@" && r.SubDomain != "" && r.SubDomain != domain {
+			got := r.SubDomain
+			if got == "" {
+				got = "@"
+			}
+			// 根域名记录可能返回 "@"、"" 或根域名本身
+			match := strings.EqualFold(got, wantSub) ||
+				(wantSub == "@" && (got == "@" || got == "" || strings.EqualFold(got, domain)))
+			if !match {
 				continue
 			}
 			if r.Value == record.Value {
