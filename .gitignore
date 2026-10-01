@@ -65,7 +65,9 @@ coverage.txt
 bin/
 
 # ============================================================
-# Project specific
+# Project specific / AI tooling
 # ============================================================
 CLAUDE.md
 .claude
+.superpowers/
+docs/superpowers/
