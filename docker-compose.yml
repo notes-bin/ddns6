@@ -3,8 +3,8 @@
 #
 # 使用方式：
 #   1. cp .env.example .env，填入配置（勿提交 .env）
-#   2. 推荐：取消注释 ddns6-config（配置文件模式，密钥不进进程参数）
-#   3. 或：取消注释某一 CLI provider 服务
+#   2. 默认启用 ddns6-config（配置文件模式，密钥不进进程参数）
+#   3. 或：取消注释某一 CLI provider 服务（仅受控环境）
 #   4. docker compose up -d
 #
 # 安全约定（对齐 docker-patterns）：
@@ -35,30 +35,30 @@ x-ddns6: &ddns6
       required: false
 
 services:
-  # ---------- 配置文件模式（推荐） ----------
+  # ---------- 配置文件模式（推荐，默认启用） ----------
   # 将主机 ~/.ddns6 挂载到容器 HOME；密钥留在文件中，不进入 argv
-  # ddns6-config:
-  #   <<: *ddns6
-  #   volumes:
-  #     - ${HOME}/.ddns6:/home/ddns6/.ddns6:ro
-  #   command: ["run"]
+  ddns6-config:
+    <<: *ddns6
+    volumes:
+      - ${HOME}/.ddns6:/home/ddns6/.ddns6:ro
+    command: ["run"]
 
-  # ---------- 命令行模式（一次只启用一个） ----------
-  # 注意：密钥会出现在容器命令行参数中，仅适合本地/受控环境。
+  # ---------- 命令行模式（一次只启用一个；默认全部注释） ----------
+  # 注意：密钥会出现在容器命令行参数中，仅适合本地/受控环境，不推荐生产。
 
   # 腾讯云 DNSPod (API v3)
-  ddns6-tencent:
-    <<: *ddns6
-    command:
-      - run
-      - tencent
-      - --secret-id=${TENCENT_SECRET_ID}
-      - --secret-key=${TENCENT_SECRET_KEY}
-      - --domain=${DOMAIN}
-      - --subdomain=${SUBDOMAIN:-@}
-      - --interface=${INTERFACE:-}
-      - --ttl=${TTL:-600}
-      - --interval=${INTERVAL:-5m}
+  # ddns6-tencent:
+  #   <<: *ddns6
+  #   command:
+  #     - run
+  #     - tencent
+  #     - --secret-id=${TENCENT_SECRET_ID}
+  #     - --secret-key=${TENCENT_SECRET_KEY}
+  #     - --domain=${DOMAIN}
+  #     - --subdomain=${SUBDOMAIN:-@}
+  #     - --interface=${INTERFACE:-}
+  #     - --ttl=${TTL:-600}
+  #     - --interval=${INTERVAL:-5m}
 
   # 阿里云 DNS
   # ddns6-alicloud:
