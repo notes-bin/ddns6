@@ -85,7 +85,7 @@ var checkCmd = &cobra.Command{
 				return nil
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			ctx, cancel := context.WithTimeout(commandContext(cmd), 15*time.Second)
 			defer cancel()
 
 			records, err := ddns.CollectMatchingRecords(ctx, providerClient, domains, "AAAA", false)
@@ -105,12 +105,14 @@ var checkCmd = &cobra.Command{
 		}
 		fmt.Printf("Config loaded successfully\n\n")
 
-		return checkFromConfig(cfg)
+		return checkFromConfig(commandContext(cmd), cfg)
 	},
 }
 
 // checkFromConfig 校验配置字段完整性后，用 fromConfig 创建 Provider 并探测 AAAA。
-func checkFromConfig(cfg *config.Config) error {
+//
+// ctx 为父 context（通常为 cmd.Context()），其上叠加 15s 超时用于 API 探测。
+func checkFromConfig(ctx context.Context, cfg *config.Config) error {
 	fmt.Println("--- Config Validation ---")
 	if cfg.Provider != "" {
 		fmt.Printf("provider: %s\n", cfg.Provider)
@@ -169,7 +171,7 @@ func checkFromConfig(cfg *config.Config) error {
 	}
 
 	domains := buildDomains(cfg.Domain, cfg.Subdomains, cfg.EffectiveTTL())
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
 	records, err := ddns.CollectMatchingRecords(ctx, providerClient, domains, "AAAA", false)

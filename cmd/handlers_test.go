@@ -322,7 +322,7 @@ func TestCheckFromConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			out := captureStdout(t, func() {
-				if err := checkFromConfig(tt.cfg); err != nil {
+				if err := checkFromConfig(t.Context(), tt.cfg); err != nil {
 					t.Fatalf("checkFromConfig: %v", err)
 				}
 			})
@@ -342,7 +342,7 @@ func TestCheckFromConfig_APIPath(t *testing.T) {
 		TTL:        300,
 	}
 	out := captureStdout(t, func() {
-		if err := checkFromConfig(cfg); err != nil {
+		if err := checkFromConfig(t.Context(), cfg); err != nil {
 			t.Fatalf("checkFromConfig: %v", err)
 		}
 	})

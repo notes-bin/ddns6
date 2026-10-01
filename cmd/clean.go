@@ -83,7 +83,7 @@ func handleClean(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider)
 		return fmt.Errorf("invalid --yes flag: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(commandContext(cmd), 60*time.Second)
 	defer cancel()
 
 	toDelete, err := ddns.CollectMatchingRecords(ctx, p, domains, recordType, true)
