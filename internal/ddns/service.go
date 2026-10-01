@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -82,13 +83,19 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 		"domain_count", len(domains),
 		"mode", platformTriggerMode())
 
-	// 跟踪进行中的同步，关机时等待其结束（或超时）
+	// 跟踪进行中的同步：单飞避免密集触发叠多层；关机时 WaitGroup 等待结束
 	var syncWG sync.WaitGroup
+	var syncing atomic.Bool
 
 	for {
 		select {
 		case <-triggerCh:
+			if !syncing.CompareAndSwap(false, true) {
+				slog.Debug("sync already in progress, skipping trigger", "module", "ddns")
+				continue
+			}
 			syncWG.Go(func() {
+				defer syncing.Store(false)
 				ip, err := ipaddr.IPv6Addr(ctx, fetchers...)
 				if err != nil {
 					slog.Error("failed to get IPv6 address on trigger", "module", "ddns", "err", err)
