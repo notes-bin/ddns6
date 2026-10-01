@@ -116,7 +116,7 @@ func TestGetZoneID(t *testing.T) {
 
 	client := NewClient(WithAPIToken("test-token"), WithBaseURL(ts.URL))
 
-	zoneID, err := client.getZoneID(t.Context(), "test.example.com")
+	zoneID, err := client.getZoneID(t.Context(), "test.example.com", "example.com")
 	if err != nil {
 		t.Errorf("getZoneID failed: %v", err)
 	}

@@ -24,6 +24,7 @@ import (
 
 	"github.com/notes-bin/ddns6/internal/ddns"
 	"github.com/notes-bin/ddns6/internal/httputil"
+	"github.com/notes-bin/ddns6/pkg/domainutil"
 )
 
 // 编译期断言：Client 实现 ddns.DNSProvider。
@@ -91,7 +92,7 @@ type DNSRecord struct {
 
 // AddRecord 添加 DNS 记录。
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
-	domain, subDomain, err := c.getRootDomain(ctx, record.Name)
+	domain, subDomain, err := c.getRootDomain(ctx, record.Name, record.Zone)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %w", err)
 	}
@@ -112,7 +113,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 
 // ModifyRecord 修改 DNS 记录。
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
-	_, subDomain, err := c.getRootDomain(ctx, record.Name)
+	_, subDomain, err := c.getRootDomain(ctx, record.Name, record.Zone)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %w", err)
 	}
@@ -143,7 +144,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 
 // GetRecords 查询 DNS 记录，返回通用 RecordInfo 列表。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	domain, subDomain, err := c.getRootDomain(ctx, fulldomain)
+	domain, subDomain, err := c.getRootDomain(ctx, fulldomain, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root domain: %w", err)
 	}
@@ -214,7 +215,13 @@ func (c *Client) GetDomainRecord(ctx context.Context, fulldomain, recordID strin
 }
 
 // getRootDomain 逐级探测账户内根域名，返回根域名与主机记录（RR）。
-func (c *Client) getRootDomain(ctx context.Context, domain string) (string, string, error) {
+// 有 zoneHint 时直接拆分，跳过 API 探测。
+func (c *Client) getRootDomain(ctx context.Context, domain, zoneHint string) (string, string, error) {
+	if zoneHint != "" {
+		root, sub := domainutil.SplitDomain(domain, zoneHint)
+		return root, sub, nil
+	}
+
 	parts := strings.Split(domain, ".")
 	for i := range len(parts) - 1 {
 		h := strings.Join(parts[i+1:], ".")

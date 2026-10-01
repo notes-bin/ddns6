@@ -77,7 +77,7 @@ func TestClient(t *testing.T) {
 				fmt.Fprint(w, listDomainsOK)
 			},
 			run: func(t *testing.T, c *Client) {
-				zone, sub, err := c.findZone(t.Context(), "www.other.net")
+				zone, sub, err := c.findZone(t.Context(), "www.other.net", "")
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}

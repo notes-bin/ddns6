@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
@@ -33,6 +34,7 @@ type Client struct {
 	apiKey     string
 	baseURL    string
 	httpClient *http.Client
+	zoneCache  sync.Map // zone 名称存在即为已知（值为 struct{}）
 }
 
 // Option 客户端配置选项。
@@ -163,7 +165,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 
 // GetRecords 查询 DNS 记录。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	zone, _, err := c.findZone(ctx, fulldomain)
+	zone, _, err := c.findZone(ctx, fulldomain, "")
 	if err != nil {
 		return nil, err
 	}
@@ -209,7 +211,18 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 }
 
 // findZone 查找 fulldomain 对应的 NameSilo zone 与子名。
-func (c *Client) findZone(ctx context.Context, fulldomain string) (zone, sub string, err error) {
+// 有 zoneHint 或缓存命中时跳过 listDomains 后缀探测。
+func (c *Client) findZone(ctx context.Context, fulldomain, zoneHint string) (zone, sub string, err error) {
+	root, sub := domainutil.SplitDomain(fulldomain, zoneHint)
+	if root == "" {
+		root = strings.TrimSuffix(fulldomain, ".")
+		sub = "@"
+	}
+	rootKey := strings.ToLower(root)
+	if _, ok := c.zoneCache.Load(rootKey); ok {
+		return root, sub, nil
+	}
+
 	params := url.Values{
 		"version": {"1"},
 		"type":    {"xml"},
@@ -228,17 +241,23 @@ func (c *Client) findZone(ctx context.Context, fulldomain string) (zone, sub str
 		return "", "", fmt.Errorf("namesilo listdomains failed: code %d, detail: %s", reply.Reply.Code, reply.Reply.Detail)
 	}
 
+	for _, d := range reply.Reply.Domains.Domain {
+		c.zoneCache.Store(strings.ToLower(strings.TrimSuffix(d, ".")), struct{}{})
+	}
+
+	if _, ok := c.zoneCache.Load(rootKey); ok {
+		return root, sub, nil
+	}
+
 	parts := strings.Split(strings.TrimSuffix(fulldomain, "."), ".")
 	for i := range len(parts) - 1 {
 		candidate := strings.Join(parts[i+1:], ".")
-		for _, d := range reply.Reply.Domains.Domain {
-			if strings.EqualFold(strings.TrimSuffix(d, "."), candidate) {
-				sub = strings.Join(parts[:i+1], ".")
-				if sub == "" {
-					sub = "@"
-				}
-				return candidate, sub, nil
+		if _, ok := c.zoneCache.Load(strings.ToLower(candidate)); ok {
+			sub = strings.Join(parts[:i+1], ".")
+			if sub == "" {
+				sub = "@"
 			}
+			return candidate, sub, nil
 		}
 	}
 	return "", "", fmt.Errorf("namesilo zone not found for %s", fulldomain)

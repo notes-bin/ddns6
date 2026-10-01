@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
@@ -35,6 +36,7 @@ type Client struct {
 	token      string
 	baseURL    string
 	httpClient *http.Client
+	zoneCache  sync.Map // zone 名称存在即为已知（值为 struct{}）
 }
 
 // Option 客户端配置选项。
@@ -173,9 +175,12 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 
 // GetRecords 查询 DNS 记录。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	zone, sub, err := c.findZone(ctx, fulldomain)
+	zone, sub, err := c.findZone(ctx, fulldomain, "")
 	if err != nil {
 		return nil, err
+	}
+	if sub == "@" {
+		sub = ""
 	}
 
 	body, err := c.doRequest(ctx, http.MethodGet, fmt.Sprintf("/domains/%s/rrsets/%s/%s/", zone, url.PathEscape(sub), recordType), nil)
@@ -237,7 +242,18 @@ func (c *Client) putRRSets(ctx context.Context, zone string, sets []rrset) error
 }
 
 // findZone 查找 fulldomain 对应的 deSEC zone 与子名。
-func (c *Client) findZone(ctx context.Context, fulldomain string) (zone, sub string, err error) {
+// 有 zoneHint 或缓存命中时跳过 list domains 后缀探测。
+func (c *Client) findZone(ctx context.Context, fulldomain, zoneHint string) (zone, sub string, err error) {
+	root, sub := domainutil.SplitDomain(fulldomain, zoneHint)
+	if root == "" {
+		root = strings.TrimSuffix(fulldomain, ".")
+		sub = "@"
+	}
+	root = strings.ToLower(root)
+	if _, ok := c.zoneCache.Load(root); ok {
+		return root, sub, nil
+	}
+
 	body, err := c.doRequest(ctx, http.MethodGet, "/domains/", nil)
 	if err != nil {
 		return "", "", err
@@ -246,18 +262,23 @@ func (c *Client) findZone(ctx context.Context, fulldomain string) (zone, sub str
 	if err := json.Unmarshal(body, &domains); err != nil {
 		return "", "", fmt.Errorf("failed to decode desec domains: %w", err)
 	}
+	for _, d := range domains {
+		c.zoneCache.Store(strings.ToLower(d.Name), struct{}{})
+	}
+
+	if _, ok := c.zoneCache.Load(root); ok {
+		return root, sub, nil
+	}
 
 	parts := strings.Split(strings.ToLower(strings.TrimSuffix(fulldomain, ".")), ".")
 	for i := range len(parts) - 1 {
 		candidate := strings.Join(parts[i+1:], ".")
-		for _, d := range domains {
-			if strings.EqualFold(d.Name, candidate) {
-				sub = strings.Join(parts[:i+1], ".")
-				if sub == "" {
-					sub = "@"
-				}
-				return candidate, sub, nil
+		if _, ok := c.zoneCache.Load(candidate); ok {
+			sub = strings.Join(parts[:i+1], ".")
+			if sub == "" {
+				sub = "@"
 			}
+			return candidate, sub, nil
 		}
 	}
 	return "", "", fmt.Errorf("desec zone not found for %s", fulldomain)

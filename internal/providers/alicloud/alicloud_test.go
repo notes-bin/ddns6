@@ -107,7 +107,7 @@ func TestGetRootDomain(t *testing.T) {
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(ts.URL))
 
-	_, _, err := client.getRootDomain(t.Context(), "test.example.com")
+	_, _, err := client.getRootDomain(t.Context(), "test.example.com", "")
 	if err != nil {
 		t.Errorf("getRootDomain failed: %v", err)
 	}

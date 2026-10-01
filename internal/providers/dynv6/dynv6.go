@@ -14,10 +14,12 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
 	"github.com/notes-bin/ddns6/internal/httputil"
+	"github.com/notes-bin/ddns6/pkg/domainutil"
 )
 
 // 编译期断言：Client 实现 ddns.DNSProvider。
@@ -32,6 +34,7 @@ type Client struct {
 	token      string
 	baseURL    string
 	httpClient *http.Client
+	zoneCache  sync.Map // zone 名称 -> zone ID
 }
 
 // Option 客户端配置选项。
@@ -83,7 +86,7 @@ type Record struct {
 
 // AddRecord 添加 DNS 记录。
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
-	zoneID, subDomain, err := c.resolveZone(ctx, record.Name)
+	zoneID, subDomain, err := c.resolveZone(ctx, record.Name, record.Zone)
 	if err != nil {
 		return fmt.Errorf("failed to resolve zone: %w", err)
 	}
@@ -133,7 +136,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 
 // ModifyRecord 修改 DNS 记录。
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
-	zoneID, _, err := c.resolveZone(ctx, record.Name)
+	zoneID, _, err := c.resolveZone(ctx, record.Name, record.Zone)
 	if err != nil {
 		return fmt.Errorf("failed to resolve zone: %w", err)
 	}
@@ -178,7 +181,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 
 // DeleteRecord 删除 DNS 记录。
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
-	zoneID, _, err := c.resolveZone(ctx, record.Name)
+	zoneID, _, err := c.resolveZone(ctx, record.Name, record.Zone)
 	if err != nil {
 		return fmt.Errorf("failed to resolve zone: %w", err)
 	}
@@ -212,7 +215,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 
 // GetRecords 查询 DNS 记录。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	zoneID, subDomain, err := c.resolveZone(ctx, fulldomain)
+	zoneID, subDomain, err := c.resolveZone(ctx, fulldomain, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve zone: %w", err)
 	}
@@ -275,7 +278,21 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 }
 
 // resolveZone 解析域名对应的 Zone ID 和子域名。
-func (c *Client) resolveZone(ctx context.Context, domain string) (string, string, error) {
+// 有 zoneHint 时优先按缓存/精确名匹配，避免重复 list zones。
+func (c *Client) resolveZone(ctx context.Context, domain, zoneHint string) (string, string, error) {
+	root, sub := domainutil.SplitDomain(domain, zoneHint)
+	if root == "" {
+		root = domain
+		sub = ""
+	}
+	if sub == "@" {
+		sub = ""
+	}
+
+	if id, ok := c.zoneCache.Load(root); ok {
+		return id.(string), sub, nil
+	}
+
 	url := c.baseURL + "/api/v2/zones"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -298,19 +315,25 @@ func (c *Client) resolveZone(ctx context.Context, domain string) (string, string
 		return "", "", fmt.Errorf("failed to decode zones: %w", err)
 	}
 
-	// 从右到左匹配 Zone 名称
+	// 先精确匹配 root，再后缀回退
+	for _, z := range zones {
+		c.zoneCache.Store(z.Name, z.ID)
+	}
+	if id, ok := c.zoneCache.Load(root); ok {
+		slog.Debug("resolved Dynv6 zone", "module", "dynv6", "zone", root, "zone_id", id, "subdomain", sub)
+		return id.(string), sub, nil
+	}
+
 	parts := strings.Split(domain, ".")
 	for i := range len(parts) {
 		zoneName := strings.Join(parts[i:], ".")
-		for _, z := range zones {
-			if z.Name == zoneName {
-				subDomain := ""
-				if i > 0 {
-					subDomain = strings.Join(parts[:i], ".")
-				}
-				slog.Debug("resolved Dynv6 zone", "module", "dynv6", "zone", zoneName, "zone_id", z.ID, "subdomain", subDomain)
-				return z.ID, subDomain, nil
+		if id, ok := c.zoneCache.Load(zoneName); ok {
+			subDomain := ""
+			if i > 0 {
+				subDomain = strings.Join(parts[:i], ".")
 			}
+			slog.Debug("resolved Dynv6 zone", "module", "dynv6", "zone", zoneName, "zone_id", id, "subdomain", subDomain)
+			return id.(string), subDomain, nil
 		}
 	}
 
