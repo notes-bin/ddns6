@@ -23,8 +23,7 @@ func SplitDomain(fulldomain, rootDomain string) (root, subDomain string) {
 		if fulldomain == rootDomain {
 			return rootDomain, "@"
 		}
-		if strings.HasSuffix(fulldomain, "."+rootDomain) && len(fulldomain) > len(rootDomain)+1 {
-			subDomain = strings.TrimSuffix(fulldomain, "."+rootDomain)
+		if subDomain, ok := strings.CutSuffix(fulldomain, "."+rootDomain); ok && subDomain != "" {
 			return rootDomain, subDomain
 		}
 		// fulldomain 不含 rootDomain 后缀时降级到下方旧逻辑

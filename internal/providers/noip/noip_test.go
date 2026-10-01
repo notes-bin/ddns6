@@ -18,10 +18,11 @@ func TestClient_AddRecord(t *testing.T) {
 		}
 		// 验证 Basic Auth
 		auth := r.Header.Get("Authorization")
-		if !strings.HasPrefix(auth, "Basic ") {
+		encoded, ok := strings.CutPrefix(auth, "Basic ")
+		if !ok {
 			t.Error("expected Basic Auth")
 		}
-		decoded, _ := base64.StdEncoding.DecodeString(strings.TrimPrefix(auth, "Basic "))
+		decoded, _ := base64.StdEncoding.DecodeString(encoded)
 		if string(decoded) != "user:pass" {
 			t.Errorf("expected user:pass, got %s", decoded)
 		}
