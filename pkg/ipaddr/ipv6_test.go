@@ -151,6 +151,35 @@ func TestIPv6Addr_NoFetchers(t *testing.T) {
 	}
 }
 
+// hungFetcher 忽略 ctx，阻塞到 stop 关闭；用于验证 IPv6Addr 的 ctx.Done 分支。
+type hungFetcher struct{ stop chan struct{} }
+
+func (h *hungFetcher) Fetch(context.Context) (net.IP, error) {
+	<-h.stop
+	return nil, errors.New("stopped")
+}
+
+// TestIPv6Addr_ParentCancel 验证忽略 ctx 的 fetcher 下，父取消仍立即返回。
+func TestIPv6Addr_ParentCancel(t *testing.T) {
+	stop := make(chan struct{})
+	defer close(stop)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+
+	start := time.Now()
+	_, err := ipaddr.IPv6Addr(ctx, &hungFetcher{stop: stop})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("父 context 取消时应返回 Canceled, got %v", err)
+	}
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Fatalf("取消后应立即返回, 耗时 %v", elapsed)
+	}
+}
+
 // TestIPv6Addr_SingleFetcher 验证单个 fetcher 成功路径。
 func TestIPv6Addr_SingleFetcher(t *testing.T) {
 	testIP := net.ParseIP("2001:db8::1")
