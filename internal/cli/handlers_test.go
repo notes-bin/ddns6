@@ -328,28 +328,32 @@ func TestCheckFromConfig(t *testing.T) {
 		name   string
 		cfg    *config.Config
 		substr string
+		errStr string
 	}{
-		{name: "empty provider", cfg: &config.Config{}, substr: "provider: empty"},
-		{name: "empty domain", cfg: &config.Config{Provider: "tencent"}, substr: "domain: empty"},
-		{name: "empty auth", cfg: &config.Config{Provider: "tencent", Domain: "example.com", Subdomains: []string{"@"}}, substr: "auth: empty"},
+		{name: "empty provider", cfg: &config.Config{}, substr: "provider: empty", errStr: "provider is empty"},
+		{name: "empty domain", cfg: &config.Config{Provider: "tencent"}, substr: "domain: empty", errStr: "domain is empty"},
+		{name: "empty auth", cfg: &config.Config{Provider: "tencent", Domain: "example.com", Subdomains: []string{"@"}}, substr: "auth: empty", errStr: "auth is empty"},
 		{name: "unknown provider", cfg: &config.Config{
 			Provider: "not-real", Domain: "example.com", Subdomains: []string{"@"},
 			Auth: map[string]string{"k": "v"},
-		}, substr: "Unknown provider"},
+		}, substr: "Unknown provider", errStr: "unknown provider"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var gotErr error
 			out := captureStdout(t, func() {
-				if err := checkFromConfig(t.Context(), tt.cfg); err != nil {
-					t.Fatalf("checkFromConfig: %v", err)
-				}
+				gotErr = checkFromConfig(t.Context(), tt.cfg)
 			})
 			requireContains(t, out, tt.substr)
+			if gotErr == nil {
+				t.Fatal("校验失败应返回错误")
+			}
+			requireErrContains(t, gotErr, tt.errStr)
 		})
 	}
 }
 
-// TestCheckFromConfig_APIPath 验证完整校验路径会发起 API（假凭据失败仍返回 nil）。
+// TestCheckFromConfig_APIPath 验证完整校验路径会发起 API（假凭据应返回错误）。
 func TestCheckFromConfig_APIPath(t *testing.T) {
 
 	cfg := &config.Config{
@@ -360,12 +364,14 @@ func TestCheckFromConfig_APIPath(t *testing.T) {
 		Interval:   "10m",
 		TTL:        300,
 	}
+	var gotErr error
 	out := captureStdout(t, func() {
-		if err := checkFromConfig(t.Context(), cfg); err != nil {
-			t.Fatalf("checkFromConfig: %v", err)
-		}
+		gotErr = checkFromConfig(t.Context(), cfg)
 	})
 	requireContains(t, out, "Provider 'cloudflare' is valid", "API Connectivity Test")
+	if gotErr == nil {
+		t.Fatal("假凭据 API 探测失败时应返回错误")
+	}
 }
 
 // TestCreateProviderFromConfig_Success 验证已知 provider 可从配置创建。
