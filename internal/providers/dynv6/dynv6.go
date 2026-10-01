@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -106,10 +107,10 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		return fmt.Errorf("failed to marshal record: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/api/v2/zones/%s/records", c.baseURL, zoneID)
+	reqURL := fmt.Sprintf("%s/api/v2/zones/%s/records", c.baseURL, url.PathEscape(zoneID))
 	slog.Debug("adding Dynv6 record", "module", "dynv6", "zone_id", zoneID, "name", subDomain, "type", record.Type)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewBuffer(body))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -151,10 +152,10 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 		return fmt.Errorf("failed to marshal record: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/api/v2/zones/%s/records/%s", c.baseURL, zoneID, record.ID)
+	reqURL := fmt.Sprintf("%s/api/v2/zones/%s/records/%s", c.baseURL, url.PathEscape(zoneID), url.PathEscape(record.ID))
 	slog.Debug("modifying Dynv6 record", "module", "dynv6", "zone_id", zoneID, "record_id", record.ID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewBuffer(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, reqURL, bytes.NewBuffer(body))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -186,10 +187,10 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 		return fmt.Errorf("failed to resolve zone: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/api/v2/zones/%s/records/%s", c.baseURL, zoneID, record.ID)
+	reqURL := fmt.Sprintf("%s/api/v2/zones/%s/records/%s", c.baseURL, url.PathEscape(zoneID), url.PathEscape(record.ID))
 	slog.Debug("deleting Dynv6 record", "module", "dynv6", "zone_id", zoneID, "record_id", record.ID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, reqURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -215,28 +216,27 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 
 // GetRecords 查询 DNS 记录。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	zoneID, subDomain, err := c.resolveZone(ctx, fulldomain, "")
+	zoneID, _, err := c.resolveZone(ctx, fulldomain, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve zone: %w", err)
 	}
 
-	// 主域名：读取 zone 的 IPv6 地址
-	if subDomain == "" || subDomain == "@" {
-		zone, err := c.getZone(ctx, zoneID)
-		if err != nil {
-			return nil, err
-		}
-		if zone.IPv6 != "" {
-			return []ddns.RecordInfo{
-				{ID: zoneID, Name: zone.Name, Type: "AAAA", Value: zone.IPv6},
-			}, nil
-		}
-		return []ddns.RecordInfo{}, nil
+	result := make([]ddns.RecordInfo, 0)
+
+	zone, err := c.getZone(ctx, zoneID)
+	if err != nil {
+		return nil, err
+	}
+	// zone 级 IPv6（apex AAAA）
+	if zone.IPv6 != "" && (recordType == "" || recordType == "AAAA") {
+		result = append(result, ddns.RecordInfo{
+			ID: zoneID, Name: zone.Name, Type: "AAAA", Value: zone.IPv6,
+		})
 	}
 
-	// 子域名：查询 records 列表
-	url := fmt.Sprintf("%s/api/v2/zones/%s/records", c.baseURL, zoneID)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	// 子域名 records（始终拉取，供编排层匹配 www 等）
+	reqURL := fmt.Sprintf("%s/api/v2/zones/%s/records", c.baseURL, url.PathEscape(zoneID))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -244,7 +244,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("dynv6 api request failed: %w", err)
+		return nil, httputil.WrapRequestError("dynv6 api request failed", err)
 	}
 	defer resp.Body.Close()
 
@@ -253,7 +253,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		if readErr != nil {
 			return nil, fmt.Errorf("failed to read error response body: %w", readErr)
 		}
-		return nil, fmt.Errorf("dynv6 api error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("dynv6 api error: status %d, body: %s", resp.StatusCode, httputil.TruncateForLog(string(bodyBytes)))
 	}
 
 	var records []dnsRecord
@@ -261,14 +261,17 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	result := make([]ddns.RecordInfo, 0, len(records))
 	for _, r := range records {
 		if recordType != "" && r.Type != recordType {
 			continue
 		}
+		name := zone.Name
+		if r.Name != "" && r.Name != "@" {
+			name = r.Name + "." + zone.Name
+		}
 		result = append(result, ddns.RecordInfo{
 			ID:    r.ID,
-			Name:  r.Name,
+			Name:  name,
 			Type:  r.Type,
 			Value: r.Data,
 			TTL:   r.TTL,
@@ -350,8 +353,8 @@ func (c *Client) resolveZone(ctx context.Context, domain, zoneHint string) (stri
 
 // getZone 获取单个 zone 详情。
 func (c *Client) getZone(ctx context.Context, zoneID string) (*zone, error) {
-	url := fmt.Sprintf("%s/api/v2/zones/%s", c.baseURL, zoneID)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	reqURL := fmt.Sprintf("%s/api/v2/zones/%s", c.baseURL, url.PathEscape(zoneID))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create zone request: %w", err)
 	}
@@ -382,8 +385,8 @@ func (c *Client) updateZoneIP(ctx context.Context, zoneID, ipv6 string) error {
 		return err
 	}
 
-	url := fmt.Sprintf("%s/api/v2/zones/%s", c.baseURL, zoneID)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewBuffer(body))
+	reqURL := fmt.Sprintf("%s/api/v2/zones/%s", c.baseURL, url.PathEscape(zoneID))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, reqURL, bytes.NewBuffer(body))
 	if err != nil {
 		return err
 	}

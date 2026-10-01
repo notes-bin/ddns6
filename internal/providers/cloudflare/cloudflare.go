@@ -186,7 +186,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		return nil, fmt.Errorf("failed to get zone id: %w", err)
 	}
 
-	records, err := c.getRecords(ctx, zoneID, fulldomain, recordType, "")
+	records, err := c.getRecords(ctx, zoneID, "", recordType, "")
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +231,9 @@ func (c *Client) listDNSRecords(ctx context.Context, zoneID, name, rtype, conten
 	for {
 		query := url.Values{}
 		query.Set("type", rtype)
-		query.Set("name", name)
+		if name != "" {
+			query.Set("name", name)
+		}
 		query.Set("per_page", "100")
 		query.Set("page", strconv.Itoa(page))
 		if content != "" {

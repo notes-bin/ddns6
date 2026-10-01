@@ -8,6 +8,7 @@ package hetzner
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -120,7 +121,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		return fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
-	path := fmt.Sprintf("/zones/%d/rrsets/%s/%s/actions/add_records", zoneID, url.PathEscape(rrName), record.Type)
+	path := fmt.Sprintf("/zones/%d/rrsets/%s/%s/actions/add_records", zoneID, url.PathEscape(rrName), url.PathEscape(record.Type))
 	slog.Debug("adding Hetzner DNS record", "module", "hetzner", "zone_id", zoneID, "name", rrName, "type", record.Type)
 	_, err = c.doRequest(ctx, http.MethodPost, path, payload)
 	if err != nil {
@@ -148,7 +149,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 		return fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
-	path := fmt.Sprintf("/zones/%d/rrsets/%s/%s/actions/set_records", zoneID, url.PathEscape(rrName), record.Type)
+	path := fmt.Sprintf("/zones/%d/rrsets/%s/%s/actions/set_records", zoneID, url.PathEscape(rrName), url.PathEscape(record.Type))
 	_, err = c.doRequest(ctx, http.MethodPost, path, payload)
 	return err
 }
@@ -171,19 +172,20 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 		return fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
-	path := fmt.Sprintf("/zones/%d/rrsets/%s/%s/actions/remove_records", zoneID, url.PathEscape(rrName), record.Type)
+	path := fmt.Sprintf("/zones/%d/rrsets/%s/%s/actions/remove_records", zoneID, url.PathEscape(rrName), url.PathEscape(record.Type))
 	_, err = c.doRequest(ctx, http.MethodPost, path, payload)
 	return err
 }
 
-// GetRecords 查询 DNS 记录。
+// GetRecords 查询 DNS 记录（列出 zone 下指定类型的全部 rrset）。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	zoneID, zoneName, rrName, err := c.resolveRRNameWithZone(ctx, fulldomain)
+	zoneID, zoneName, _, err := c.resolveRRNameWithZone(ctx, fulldomain)
 	if err != nil {
 		return nil, err
 	}
+	recordType = cmp.Or(recordType, "AAAA")
 
-	path := fmt.Sprintf("/zones/%d/rrsets/%s/%s", zoneID, url.PathEscape(rrName), recordType)
+	path := fmt.Sprintf("/zones/%d/rrsets?type=%s", zoneID, url.QueryEscape(recordType))
 	body, err := c.doRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		if isNotFound(err) {
@@ -192,25 +194,38 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		return nil, err
 	}
 
-	var resp rrsetResponse
+	var resp struct {
+		RRSets []struct {
+			ID      string `json:"id"`
+			Name    string `json:"name"`
+			Type    string `json:"type"`
+			TTL     int    `json:"ttl"`
+			Records []struct {
+				Value string `json:"value"`
+			} `json:"records"`
+		} `json:"rrsets"`
+	}
 	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, fmt.Errorf("failed to decode hetzner rrset: %w", err)
+		return nil, fmt.Errorf("failed to decode hetzner rrsets: %w", err)
 	}
 
-	result := make([]ddns.RecordInfo, 0, len(resp.RRSet.Records))
-	for _, rec := range resp.RRSet.Records {
-		name := zoneName
-		if rrName != "@" && rrName != "" {
-			name = rrName + "." + zoneName
+	result := make([]ddns.RecordInfo, 0)
+	for _, set := range resp.RRSets {
+		rrName := set.Name
+		for _, rec := range set.Records {
+			name := zoneName
+			if rrName != "@" && rrName != "" {
+				name = rrName + "." + zoneName
+			}
+			result = append(result, ddns.RecordInfo{
+				ID:    fmt.Sprintf("%s|%s", set.ID, rec.Value),
+				Name:  name,
+				Zone:  zoneName,
+				Type:  set.Type,
+				Value: rec.Value,
+				TTL:   set.TTL,
+			})
 		}
-		result = append(result, ddns.RecordInfo{
-			ID:    fmt.Sprintf("%s|%s", resp.RRSet.ID, rec.Value),
-			Name:  name,
-			Zone:  zoneName,
-			Type:  resp.RRSet.Type,
-			Value: rec.Value,
-			TTL:   resp.RRSet.TTL,
-		})
 	}
 	return result, nil
 }
@@ -276,9 +291,7 @@ func (c *Client) findZone(ctx context.Context, fulldomain, preferredRoot string)
 	}
 
 	candidate := strings.ToLower(strings.TrimSuffix(fulldomain, "."))
-	parts := strings.Split(candidate, ".")
-	for i := range len(parts) - 1 {
-		root := strings.Join(parts[i+1:], ".")
+	for _, root := range domainutil.ZoneCandidates(candidate) {
 		if v, ok := c.zoneCache.Load(root); ok {
 			if id, ok := v.(int64); ok {
 				return id, root, nil

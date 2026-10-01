@@ -145,8 +145,12 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 		return fmt.Errorf("failed to get root domain: %w", err)
 	}
 
-	// 按值匹配删除 AAAA 记录
-	return c.deleteRecordsByValue(ctx, domain, subDomain, "AAAA", record.ID)
+	// 按值匹配删除指定类型记录
+	rtype := record.Type
+	if rtype == "" {
+		rtype = "AAAA"
+	}
+	return c.deleteRecordsByValue(ctx, domain, subDomain, rtype, record.ID)
 }
 
 // deleteRecordsByValue 按值删除指定类型的记录。
@@ -204,12 +208,12 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 // getRecords 获取指定类型的记录。
 func (c *Client) getRecords(ctx context.Context, domain, subDomain, rtype string) ([]dnsRecord, error) {
 	// subDomain 为 "@" 时表示根域名，不传入 name 路径段以获取该域名下所有记录
-	url := fmt.Sprintf("%s/domains/%s/records/%s", c.baseURL, url.PathEscape(domain), url.PathEscape(rtype))
+	reqURL := fmt.Sprintf("%s/domains/%s/records/%s", c.baseURL, url.PathEscape(domain), url.PathEscape(rtype))
 	if subDomain != "@" {
-		url += "/" + subDomain
+		reqURL += "/" + url.PathEscape(subDomain)
 	}
 	var records []dnsRecord
-	err := c.makeRequest(ctx, "GET", url, nil, &records)
+	err := c.makeRequest(ctx, "GET", reqURL, nil, &records)
 	return records, err
 }
 

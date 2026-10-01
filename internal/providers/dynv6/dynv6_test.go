@@ -23,6 +23,10 @@ func TestClient_GetRecords_Zone(t *testing.T) {
 			json.NewEncoder(w).Encode(zone{ID: "zone1", Name: "example.com", IPv6: "2001:db8::1"})
 			return
 		}
+		if r.URL.Path == "/api/v2/zones/zone1/records" && r.Method == http.MethodGet {
+			json.NewEncoder(w).Encode([]dnsRecord{})
+			return
+		}
 		t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 	}))
 	defer server.Close()
@@ -47,6 +51,10 @@ func TestClient_GetRecords_Subdomain(t *testing.T) {
 			json.NewEncoder(w).Encode([]zone{
 				{ID: "zone1", Name: "example.com"},
 			})
+			return
+		}
+		if r.URL.Path == "/api/v2/zones/zone1" && r.Method == http.MethodGet {
+			json.NewEncoder(w).Encode(zone{ID: "zone1", Name: "example.com"})
 			return
 		}
 		if r.URL.Path == "/api/v2/zones/zone1/records" && r.Method == http.MethodGet {

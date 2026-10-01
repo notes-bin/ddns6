@@ -25,19 +25,35 @@ func newTestClient(t *testing.T, handler http.HandlerFunc) *Client {
 // defaultHandler 提供 Azure DNS 常见 API 的默认 mock 响应。
 func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	switch {
-	case strings.Contains(r.URL.Path, "dnsZones") && r.Method == http.MethodGet && !strings.Contains(r.URL.Path, "AAAA"):
+	case strings.Contains(r.URL.Path, "dnsZones") && r.Method == http.MethodGet && !strings.Contains(r.URL.Path, "AAAA") && !strings.Contains(r.URL.Path, "/A"):
 		json.NewEncoder(w).Encode(zoneList{Value: []dnsZone{{
 			ID:   "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/dnsZones/example.com",
 			Name: "example.com",
 		}}})
-	case strings.Contains(r.URL.Path, "AAAA") && r.Method == http.MethodGet:
-		json.NewEncoder(w).Encode(recordSet{Properties: struct {
-			TTL         int          `json:"ttl"`
-			AAAARecords []aaaaRecord `json:"aaaaRecords"`
-			ARecords    []struct {
-				IPv4Address string `json:"ipv4Address"`
-			} `json:"aRecords"`
-		}{TTL: 600, AAAARecords: []aaaaRecord{{IPv6Address: "2001:db8::1"}}}})
+	case strings.Contains(r.URL.Path, "/AAAA") && r.Method == http.MethodGet && !strings.HasSuffix(strings.Split(r.URL.Path, "?")[0], "/AAAA"):
+		// 单条记录集 GET（.../AAAA/www）
+		json.NewEncoder(w).Encode(recordSet{
+			Name: "www",
+			Properties: struct {
+				TTL         int          `json:"ttl"`
+				AAAARecords []aaaaRecord `json:"aaaaRecords"`
+				ARecords    []struct {
+					IPv4Address string `json:"ipv4Address"`
+				} `json:"aRecords"`
+			}{TTL: 600, AAAARecords: []aaaaRecord{{IPv6Address: "2001:db8::1"}}},
+		})
+	case strings.HasSuffix(strings.Split(r.URL.Path, "?")[0], "/AAAA") && r.Method == http.MethodGet:
+		// zone 级列表 GET（.../AAAA）
+		json.NewEncoder(w).Encode(recordSetList{Value: []recordSet{{
+			Name: "www",
+			Properties: struct {
+				TTL         int          `json:"ttl"`
+				AAAARecords []aaaaRecord `json:"aaaaRecords"`
+				ARecords    []struct {
+					IPv4Address string `json:"ipv4Address"`
+				} `json:"aRecords"`
+			}{TTL: 600, AAAARecords: []aaaaRecord{{IPv6Address: "2001:db8::1"}}},
+		}}})
 	case strings.Contains(r.URL.Path, "AAAA") && (r.Method == http.MethodPut || r.Method == http.MethodDelete):
 		w.WriteHeader(http.StatusOK)
 	default:

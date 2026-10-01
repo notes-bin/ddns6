@@ -106,7 +106,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		Weight:  1,
 	}
 
-	url := c.baseURL + "/v2.1/zones/" + zoneID + "/recordsets"
+	url := c.baseURL + "/v2.1/zones/" + url.PathEscape(zoneID) + "/recordsets"
 	slog.Debug("adding HuaweiCloud DNS record", "module", "huaweicloud", "zone", zoneID, "domain", record.Name, "type", record.Type)
 
 	_, err = c.request(ctx, http.MethodPost, url, payload)
@@ -132,7 +132,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 		"records": []string{record.Value},
 	}
 
-	url := c.baseURL + "/v2.1/zones/" + zoneID + "/recordsets/" + record.ID
+	url := c.baseURL + "/v2.1/zones/" + url.PathEscape(zoneID) + "/recordsets/" + url.PathEscape(record.ID)
 	slog.Debug("modifying HuaweiCloud DNS record", "module", "huaweicloud", "zone", zoneID, "record_id", record.ID)
 
 	_, err = c.request(ctx, http.MethodPut, url, payload)
@@ -151,7 +151,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 		return fmt.Errorf("failed to get zone id: %w", err)
 	}
 
-	url := c.baseURL + "/v2.1/zones/" + zoneID + "/recordsets/" + record.ID
+	url := c.baseURL + "/v2.1/zones/" + url.PathEscape(zoneID) + "/recordsets/" + url.PathEscape(record.ID)
 	slog.Debug("deleting HuaweiCloud DNS record", "module", "huaweicloud", "zone", zoneID, "record_id", record.ID)
 
 	_, err = c.request(ctx, http.MethodDelete, url, nil)
@@ -170,10 +170,9 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		return nil, fmt.Errorf("failed to get zone id: %w", err)
 	}
 
-	// 查询租户下指定 zone 的记录集列表
+	// 查询租户下指定 zone 的记录集列表（不按 name 过滤，由编排层匹配子域名）
 	params := url.Values{}
 	params.Set("type", recordType)
-	params.Set("name", fulldomain+".")
 	params.Set("limit", "500")
 
 	// 华为云 API 分页获取全部 recordsets
@@ -183,7 +182,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		if marker != "" {
 			params.Set("marker", marker)
 		}
-		reqURL := c.baseURL + "/v2.1/zones/" + zoneID + "/recordsets?" + params.Encode()
+		reqURL := c.baseURL + "/v2.1/zones/" + url.PathEscape(zoneID) + "/recordsets?" + params.Encode()
 
 		var apiResult struct {
 			Recordsets []dnsRecord `json:"recordsets"`

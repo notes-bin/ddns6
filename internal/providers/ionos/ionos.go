@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -103,7 +104,7 @@ func (c *Client) AddRecord(ctx context.Context, info ddns.RecordInfo) error {
 	}
 
 	slog.Debug("adding IONOS DNS record", "module", "ionos", "zone_id", zoneID, "name", fqdn, "type", info.Type)
-	_, err = c.doRequest(ctx, http.MethodPost, fmt.Sprintf("/zones/%s/records", zoneID), payload)
+	_, err = c.doRequest(ctx, http.MethodPost, fmt.Sprintf("/zones/%s/records", url.PathEscape(zoneID)), payload)
 	if err != nil {
 		return err
 	}
@@ -130,7 +131,7 @@ func (c *Client) ModifyRecord(ctx context.Context, info ddns.RecordInfo) error {
 		return fmt.Errorf("failed to marshal record: %w", err)
 	}
 
-	_, err = c.doRequest(ctx, http.MethodPut, fmt.Sprintf("/zones/%s/records/%s", zoneID, info.ID), payload)
+	_, err = c.doRequest(ctx, http.MethodPut, fmt.Sprintf("/zones/%s/records/%s", url.PathEscape(zoneID), url.PathEscape(info.ID)), payload)
 	return err
 }
 
@@ -140,7 +141,7 @@ func (c *Client) DeleteRecord(ctx context.Context, info ddns.RecordInfo) error {
 	if err != nil {
 		return err
 	}
-	_, err = c.doRequest(ctx, http.MethodDelete, fmt.Sprintf("/zones/%s/records/%s", zoneID, info.ID), nil)
+	_, err = c.doRequest(ctx, http.MethodDelete, fmt.Sprintf("/zones/%s/records/%s", url.PathEscape(zoneID), url.PathEscape(info.ID)), nil)
 	return err
 }
 
@@ -151,9 +152,9 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		return nil, err
 	}
 
-	path := fmt.Sprintf("/zones/%s", zoneID)
+	path := fmt.Sprintf("/zones/%s", url.PathEscape(zoneID))
 	if recordType != "" {
-		path += "?recordType=" + recordType
+		path += "?" + url.Values{"recordType": {recordType}}.Encode()
 	}
 	body, err := c.doRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
@@ -209,9 +210,7 @@ func (c *Client) findZone(ctx context.Context, fulldomain string) (zoneID, zoneN
 	}
 
 	candidate := strings.ToLower(strings.TrimSuffix(fulldomain, "."))
-	parts := strings.Split(candidate, ".")
-	for i := range len(parts) - 1 {
-		root := strings.Join(parts[i+1:], ".")
+	for _, root := range domainutil.ZoneCandidates(candidate) {
 		for _, z := range zones {
 			if strings.EqualFold(strings.TrimSuffix(z.Name, "."), root) {
 				return z.ID, root, nil

@@ -7,7 +7,6 @@
 package namesilo
 
 import (
-	"cmp"
 	"context"
 	"encoding/xml"
 	"fmt"
@@ -249,11 +248,9 @@ func (c *Client) findZone(ctx context.Context, fulldomain, zoneHint string) (zon
 		return root, sub, nil
 	}
 
-	parts := strings.Split(strings.TrimSuffix(fulldomain, "."), ".")
-	for i := range len(parts) - 1 {
-		candidate := strings.Join(parts[i+1:], ".")
+	for _, candidate := range domainutil.ZoneCandidates(fulldomain) {
 		if _, ok := c.zoneCache.Load(strings.ToLower(candidate)); ok {
-			sub = cmp.Or(strings.Join(parts[:i+1], "."), "@")
+			_, sub = domainutil.SplitDomain(fulldomain, candidate)
 			return candidate, sub, nil
 		}
 	}

@@ -127,7 +127,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	}
 
 	slog.Debug("modifying Linode DNS record", "module", "linode", "record_id", record.ID)
-	_, err = c.doRequest(ctx, http.MethodPut, fmt.Sprintf("/%d/records/%s", domainID, record.ID), payload)
+	_, err = c.doRequest(ctx, http.MethodPut, fmt.Sprintf("/%d/records/%s", domainID, url.PathEscape(record.ID)), payload)
 	return err
 }
 
@@ -139,7 +139,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	}
 
 	slog.Debug("deleting Linode DNS record", "module", "linode", "record_id", record.ID)
-	_, err = c.doRequest(ctx, http.MethodDelete, fmt.Sprintf("/%d/records/%s", domainID, record.ID), nil)
+	_, err = c.doRequest(ctx, http.MethodDelete, fmt.Sprintf("/%d/records/%s", domainID, url.PathEscape(record.ID)), nil)
 	return err
 }
 
@@ -168,6 +168,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	for _, raw := range resp.Data {
 		var r domainRecord
 		if err := json.Unmarshal(raw, &r); err != nil {
+			slog.Debug("skipping invalid linode record", "module", "linode", "err", err)
 			continue
 		}
 		records = append(records, r)
@@ -211,9 +212,7 @@ func (c *Client) resolveDomain(ctx context.Context, name, zone string) (domainID
 
 // findDomainID 查找 fulldomain 对应的 Linode domain ID。
 func (c *Client) findDomainID(ctx context.Context, fulldomain string) (int, string, error) {
-	parts := strings.Split(strings.TrimSuffix(fulldomain, "."), ".")
-	for i := range len(parts) - 1 {
-		candidate := strings.Join(parts[i+1:], ".")
+	for _, candidate := range domainutil.ZoneCandidates(fulldomain) {
 		filterBytes, err := json.Marshal(map[string]string{"domain": candidate})
 		if err != nil {
 			return 0, "", fmt.Errorf("failed to marshal linode filter: %w", err)
