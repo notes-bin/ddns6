@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -81,16 +80,20 @@ func TestHTTPIPv6Fetcher(t *testing.T) {
 
 // slowFetcher 模拟可配置延迟的 IPv6Fetcher，用于竞速与取消场景。
 type slowFetcher struct {
-	ip       net.IP
-	delay    time.Duration
-	canceled *atomic.Bool // 是否因 context 取消退出
+	ip         net.IP
+	delay      time.Duration
+	canceledCh chan struct{} // 取消时关闭（可选，至多一次）
 }
 
 func (s *slowFetcher) Fetch(ctx context.Context) (net.IP, error) {
 	select {
 	case <-ctx.Done():
-		if s.canceled != nil {
-			s.canceled.Store(true)
+		if s.canceledCh != nil {
+			select {
+			case <-s.canceledCh:
+			default:
+				close(s.canceledCh)
+			}
 		}
 		return nil, ctx.Err()
 	case <-time.After(s.delay):
@@ -102,10 +105,12 @@ func (s *slowFetcher) Fetch(ctx context.Context) (net.IP, error) {
 func TestIPv6Addr_RaceCancel(t *testing.T) {
 	fastIP := net.ParseIP("2001:db8::1")
 	slowIP := net.ParseIP("2001:db8::2")
-	var slowWasCanceled atomic.Bool
+	canceledCh := make(chan struct{})
 
 	fastFetcher := &slowFetcher{ip: fastIP, delay: 10 * time.Millisecond}
-	slowFetcher := &slowFetcher{ip: slowIP, delay: 5 * time.Second, canceled: &slowWasCanceled}
+	slowFetcher := &slowFetcher{
+		ip: slowIP, delay: 5 * time.Second, canceledCh: canceledCh,
+	}
 
 	ip, err := ipaddr.IPv6Addr(t.Context(), fastFetcher, slowFetcher)
 	if err != nil {
@@ -115,9 +120,9 @@ func TestIPv6Addr_RaceCancel(t *testing.T) {
 		t.Errorf("应返回快速 fetcher 的 IP %s, 得到 %s", fastIP, ip)
 	}
 
-	time.Sleep(100 * time.Millisecond)
-
-	if !slowWasCanceled.Load() {
+	select {
+	case <-canceledCh:
+	case <-time.After(2 * time.Second):
 		t.Log("慢 fetcher 未被取消（可能竞速已足够快）")
 	}
 }
@@ -151,10 +156,20 @@ func TestIPv6Addr_NoFetchers(t *testing.T) {
 	}
 }
 
-// hungFetcher 忽略 ctx，阻塞到 stop 关闭；用于验证 IPv6Addr 的 ctx.Done 分支。
-type hungFetcher struct{ stop chan struct{} }
+// hungFetcher 忽略 ctx，阻塞到 stop 关闭；started 在进入阻塞前关闭（至多一次）。
+type hungFetcher struct {
+	stop    chan struct{}
+	started chan struct{}
+}
 
 func (h *hungFetcher) Fetch(context.Context) (net.IP, error) {
+	if h.started != nil {
+		select {
+		case <-h.started:
+		default:
+			close(h.started)
+		}
+	}
 	<-h.stop
 	return nil, errors.New("stopped")
 }
@@ -163,20 +178,31 @@ func (h *hungFetcher) Fetch(context.Context) (net.IP, error) {
 func TestIPv6Addr_ParentCancel(t *testing.T) {
 	stop := make(chan struct{})
 	defer close(stop)
+	started := make(chan struct{})
 
 	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	errCh := make(chan error, 1)
 	go func() {
-		time.Sleep(50 * time.Millisecond)
-		cancel()
+		_, err := ipaddr.IPv6Addr(ctx, &hungFetcher{stop: stop, started: started})
+		errCh <- err
 	}()
 
-	start := time.Now()
-	_, err := ipaddr.IPv6Addr(ctx, &hungFetcher{stop: stop})
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("父 context 取消时应返回 Canceled, got %v", err)
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("fetcher 未启动")
 	}
-	if elapsed := time.Since(start); elapsed > 2*time.Second {
-		t.Fatalf("取消后应立即返回, 耗时 %v", elapsed)
+	cancel()
+
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("父 context 取消时应返回 Canceled, got %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("取消后应立即返回")
 	}
 }
 

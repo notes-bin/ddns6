@@ -78,13 +78,19 @@ func TestPollingLoop_NonBlockingWhenFull(t *testing.T) {
 	triggerCh := make(chan struct{}, 1)
 	triggerCh <- struct{}{} // 预先填满
 
+	const interval = 10 * time.Millisecond
 	done := make(chan struct{})
 	go func() {
-		pollingLoop(ctx, triggerCh, 10*time.Millisecond)
+		pollingLoop(ctx, triggerCh, interval)
 		close(done)
 	}()
 
-	time.Sleep(40 * time.Millisecond)
+	// 等待若干次 ticker，确认满通道路径不阻塞；再取消
+	select {
+	case <-time.After(5 * interval):
+	case <-done:
+		t.Fatal("通道已满时 pollingLoop 不应提前退出")
+	}
 	cancel()
 	select {
 	case <-done:
@@ -103,6 +109,7 @@ func TestStartTrigger_Polling(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
 	ch := startTrigger(ctx, 15*time.Millisecond, "")
 
 	select {
@@ -110,18 +117,24 @@ func TestStartTrigger_Polling(t *testing.T) {
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("startTrigger 未触发")
 	}
-	cancel()
-	// 取消后短暂等待，确保 goroutine 可退出（无断言挂起）
-	time.Sleep(30 * time.Millisecond)
 }
 
-// TestStartTrigger_Cancel 验证 startTrigger 在 context 取消后可退出（各平台）。
+// TestStartTrigger_Cancel 验证 startTrigger 在 context 取消后不再投递触发。
 func TestStartTrigger_Cancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
-	_ = startTrigger(ctx, 15*time.Millisecond, "")
+	ch := startTrigger(ctx, 15*time.Millisecond, "")
 	cancel()
-	// 给监听 goroutine 退出时间；若取消路径死锁，后续套件或超时会暴露
-	time.Sleep(50 * time.Millisecond)
+
+	// 排空可能已缓冲的一次信号，之后不应再有新触发
+	select {
+	case <-ch:
+	default:
+	}
+	select {
+	case <-ch:
+		t.Fatal("取消后不应再收到触发信号")
+	case <-time.After(80 * time.Millisecond):
+	}
 }
 
 // TestSyncAllDomains_FailFast 验证 failFast 时首个错误立即返回。
@@ -210,9 +223,10 @@ func TestRunService_InitialSyncFailed(t *testing.T) {
 
 // countingFetcher 首次成功、后续失败，用于覆盖 RunService 触发后的获取失败分支。
 type countingFetcher struct {
-	n  int
-	ip net.IP
-	mu sync.Mutex
+	n           int
+	ip          net.IP
+	mu          sync.Mutex
+	onSecondTry chan struct{} // 第二次 Fetch 时关闭（至多一次）
 }
 
 func (c *countingFetcher) Fetch(context.Context) (net.IP, error) {
@@ -221,6 +235,13 @@ func (c *countingFetcher) Fetch(context.Context) (net.IP, error) {
 	c.n++
 	if c.n == 1 {
 		return c.ip, nil
+	}
+	if c.n == 2 && c.onSecondTry != nil {
+		select {
+		case <-c.onSecondTry:
+		default:
+			close(c.onSecondTry)
+		}
 	}
 	return nil, errors.New("trigger fetch failed")
 }
@@ -236,7 +257,8 @@ func TestRunService_GracefulShutdown(t *testing.T) {
 			{ID: "1", Name: "www.example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600},
 		},
 	}
-	fetcher := &countingFetcher{ip: net.ParseIP("2001:db8::1")}
+	secondTry := make(chan struct{})
+	fetcher := &countingFetcher{ip: net.ParseIP("2001:db8::1"), onSecondTry: secondTry}
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -247,7 +269,11 @@ func TestRunService_GracefulShutdown(t *testing.T) {
 	}()
 
 	// 等待至少一次轮询触发（覆盖 trigger 上获取失败分支）后再取消
-	time.Sleep(120 * time.Millisecond)
+	select {
+	case <-secondTry:
+	case <-time.After(2 * time.Second):
+		t.Fatal("未等到第二次 IPv6 获取（轮询触发）")
+	}
 	cancel()
 
 	select {
