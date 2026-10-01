@@ -33,4 +33,6 @@ jobs:
       - name: 单元测试
         run: |
           go test ./... -race -count=1 -coverprofile=coverage.out -covermode=atomic
-          go tool cover -func=coverage.out | tail -n 1
+          total=$(go tool cover -func=coverage.out | awk '/total:/ {print $3}' | tr -d '%')
+          echo "coverage total: ${total}%"
+          awk -v c="$total" 'BEGIN { if (c+0 < 80) { print "coverage below 80%: " c "%"; exit 1 } }'
