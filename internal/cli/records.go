@@ -34,7 +34,11 @@ var recordsCmd = &cobra.Command{
   # 从配置文件读取
   ddns6 records`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if len(args) > 0 && args[0] == "help" {
+		showHelp, err := configModeExtraArgs(args)
+		if err != nil {
+			return err
+		}
+		if showHelp {
 			return cmd.Help()
 		}
 		return runRecordsWithConfig(cmd)

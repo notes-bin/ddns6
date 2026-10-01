@@ -656,6 +656,20 @@ func requireFlags(cmd *cobra.Command, flags []providerFlag) error {
 
 // --- 配置文件模式 ---
 
+// configModeExtraArgs 校验父命令（run/records/clean）在配置文件模式下的多余参数。
+//
+// 空 args 表示走配置文件；args[0]=="help" 表示应显示帮助（返回 showHelp=true）；
+// 其它非空 args 视为拼写错误的 provider，返回明确错误，避免静默回退到配置。
+func configModeExtraArgs(args []string) (showHelp bool, err error) {
+	if len(args) == 0 {
+		return false, nil
+	}
+	if args[0] == "help" {
+		return true, nil
+	}
+	return false, fmt.Errorf("unknown provider %q; run 'ddns6 list' to see available providers", args[0])
+}
+
 // runWithConfig 加载 ~/.ddns6/config.yaml，构造域名与 Provider，再交给 handler。
 // commandName 出现在加载失败提示中（如 "run" / "records" / "clean"）。
 func runWithConfig(cmd *cobra.Command, commandName string, handler func(cmd *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error) error {

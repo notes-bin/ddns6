@@ -45,7 +45,11 @@ var cleanCmd = &cobra.Command{
   # 从配置文件读取并自动删除
   ddns6 clean --yes`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if len(args) > 0 && args[0] == "help" {
+		showHelp, err := configModeExtraArgs(args)
+		if err != nil {
+			return err
+		}
+		if showHelp {
 			return cmd.Help()
 		}
 		return runCleanWithConfig(cmd)

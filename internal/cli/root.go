@@ -298,8 +298,11 @@ var runCmd = &cobra.Command{
   vim ~/.ddns6/config.yaml
   ddns6 run`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// "run help" 视为求助，避免误入配置文件加载路径
-		if len(args) > 0 && args[0] == "help" {
+		showHelp, err := configModeExtraArgs(args)
+		if err != nil {
+			return err
+		}
+		if showHelp {
 			return cmd.Help()
 		}
 		return runWithConfig(cmd, "run", runServiceFromConfigHandler)

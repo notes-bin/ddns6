@@ -19,6 +19,21 @@ func TestProviderSubcommandRunE(t *testing.T) {
 	initRootCmd()
 	stubServiceRunner(t, nil)
 
+	t.Run("run unknown provider arg", func(t *testing.T) {
+		withArgs(t, "ddns6", "run", "notaprovider", "--log-file", "")
+		requireErrContains(t, rootCmd.Execute(), "unknown provider")
+	})
+
+	t.Run("records unknown provider arg", func(t *testing.T) {
+		withArgs(t, "ddns6", "records", "notaprovider", "--log-file", "")
+		requireErrContains(t, rootCmd.Execute(), "unknown provider")
+	})
+
+	t.Run("clean unknown provider arg", func(t *testing.T) {
+		withArgs(t, "ddns6", "clean", "notaprovider", "--log-file", "")
+		requireErrContains(t, rootCmd.Execute(), "unknown provider")
+	})
+
 	t.Run("run missing flags", func(t *testing.T) {
 		withArgs(t, "ddns6", "run", "cloudflare", "--domain", "example.com")
 		if err := rootCmd.Execute(); err == nil {
