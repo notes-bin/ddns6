@@ -1,0 +1,12 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - govet
+    - staticcheck
+    - modernize
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
