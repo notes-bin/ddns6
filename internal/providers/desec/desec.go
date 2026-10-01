@@ -8,7 +8,6 @@ package desec
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -97,7 +96,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	}
 	records = append(records, record.Value)
 
-	ttl := cmp.Or(record.TTL, 3600)
+	ttl := ddns.RecordTTL(record.TTL)
 
 	return c.putRRSets(ctx, zone, []rrset{{
 		Subname: sub,
@@ -138,7 +137,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 		newRecords = []string{record.Value}
 	}
 
-	ttl := cmp.Or(record.TTL, 3600)
+	ttl := ddns.RecordTTL(record.TTL)
 	return c.putRRSets(ctx, zone, []rrset{{
 		Subname: sub,
 		Type:    record.Type,
@@ -164,7 +163,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 		}
 	}
 
-	ttl := cmp.Or(record.TTL, 3600)
+	ttl := ddns.RecordTTL(record.TTL)
 	return c.putRRSets(ctx, zone, []rrset{{
 		Subname: sub,
 		Type:    record.Type,

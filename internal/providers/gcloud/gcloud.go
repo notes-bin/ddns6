@@ -8,7 +8,6 @@ package gcloud
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -160,7 +159,7 @@ func (c *Client) applyChange(ctx context.Context, info ddns.RecordInfo, action s
 	set := rrSet{
 		Name:    rrName,
 		Type:    info.Type,
-		TTL:     int64(cmp.Or(info.TTL, ddns.DefaultTTL)),
+		TTL:     int64(ddns.RecordTTL(info.TTL)),
 		Rrdatas: []string{info.Value},
 	}
 	chg := changeRequest{}

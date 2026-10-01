@@ -8,7 +8,6 @@ package aws
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/xml"
 	"errors"
@@ -176,7 +175,7 @@ func (c *Client) change(ctx context.Context, info ddns.RecordInfo, action string
 	if err != nil {
 		return err
 	}
-	ttl := cmp.Or(info.TTL, ddns.DefaultTTL)
+	ttl := ddns.RecordTTL(info.TTL)
 	xmlBody := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <ChangeResourceRecordSetsRequest xmlns="https://route53.amazonaws.com/doc/2013-04-01/">
   <ChangeBatch><Changes><Change><Action>%s</Action>

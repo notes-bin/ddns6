@@ -8,7 +8,6 @@ package linode
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -96,7 +95,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		"type":    record.Type,
 		"name":    sub,
 		"target":  record.Value,
-		"ttl_sec": cmp.Or(record.TTL, ddns.DefaultTTL),
+		"ttl_sec": ddns.RecordTTL(record.TTL),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to marshal record: %w", err)
@@ -120,7 +119,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 
 	payload, err := json.Marshal(map[string]any{
 		"target":  record.Value,
-		"ttl_sec": cmp.Or(record.TTL, ddns.DefaultTTL),
+		"ttl_sec": ddns.RecordTTL(record.TTL),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to marshal record: %w", err)

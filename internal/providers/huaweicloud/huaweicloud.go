@@ -101,7 +101,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	payload := recordSetPayload{
 		Name:    record.Name + ".",
 		Type:    record.Type,
-		TTL:     record.TTL,
+		TTL:     ddns.RecordTTL(record.TTL),
 		Records: []string{record.Value},
 		Weight:  1,
 	}
@@ -128,7 +128,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	payload := map[string]any{
 		"name":    record.Name + ".",
 		"type":    record.Type,
-		"ttl":     record.TTL,
+		"ttl":     ddns.RecordTTL(record.TTL),
 		"records": []string{record.Value},
 	}
 

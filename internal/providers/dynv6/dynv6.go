@@ -144,7 +144,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	dnsRec := Record{
 		Type: record.Type,
 		Data: record.Value,
-		TTL:  record.TTL,
+		TTL:  ddns.RecordTTL(record.TTL),
 	}
 	body, err := json.Marshal(dnsRec)
 	if err != nil {

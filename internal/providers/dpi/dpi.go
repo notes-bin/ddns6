@@ -7,7 +7,6 @@
 package dpi
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -106,7 +105,7 @@ func (c *Client) AddRecord(ctx context.Context, info ddns.RecordInfo) error {
 		"record_type": {info.Type},
 		"record_line": {"default"},
 		"value":       {info.Value},
-		"ttl":         {strconv.Itoa(cmp.Or(info.TTL, ddns.DefaultTTL))},
+		"ttl":         {strconv.Itoa(ddns.RecordTTL(info.TTL))},
 	}
 	slog.Debug("adding DNSPod intl record", "module", "dpi", "domain", domain, "sub", sub, "type", info.Type)
 	var resp recordResponse
@@ -132,7 +131,7 @@ func (c *Client) ModifyRecord(ctx context.Context, info ddns.RecordInfo) error {
 		"record_type": {info.Type},
 		"record_line": {"default"},
 		"value":       {info.Value},
-		"ttl":         {strconv.Itoa(cmp.Or(info.TTL, ddns.DefaultTTL))},
+		"ttl":         {strconv.Itoa(ddns.RecordTTL(info.TTL))},
 	}
 	var resp recordResponse
 	if err := c.post(ctx, "/Record.Modify", params, &resp); err != nil {

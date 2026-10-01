@@ -108,7 +108,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	params.Set("record_type", record.Type)
 	params.Set("record_line", "默认")
 	params.Set("value", record.Value)
-	params.Set("ttl", strconv.Itoa(record.TTL))
+	params.Set("ttl", strconv.Itoa(ddns.RecordTTL(record.TTL)))
 
 	url := c.baseURL + "/Record.Create"
 	slog.Debug("adding DNSPod record", "module", "dnspod", "domain", domain, "subdomain", subDomain, "type", record.Type)
@@ -138,7 +138,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	params.Set("record_type", record.Type)
 	params.Set("record_line", "默认")
 	params.Set("value", record.Value)
-	params.Set("ttl", strconv.Itoa(record.TTL))
+	params.Set("ttl", strconv.Itoa(ddns.RecordTTL(record.TTL)))
 
 	url := c.baseURL + "/Record.Modify"
 	slog.Debug("modifying DNSPod record", "module", "dnspod", "domain", domain, "record_id", record.ID)
