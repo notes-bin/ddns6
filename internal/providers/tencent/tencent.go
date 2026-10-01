@@ -381,9 +381,8 @@ func (ds *DNSPod) getRootDomain(ctx context.Context, domain, zoneHint string) (s
 				slog.Info("Tencent root domain found (exact match)", "module", "tencent", "root", domain)
 				return domain, "@", nil
 			}
-			if strings.HasSuffix(domain, "."+d.Name) {
+			if subDomain, ok := strings.CutSuffix(domain, "."+d.Name); ok {
 				root := d.Name
-				subDomain := strings.TrimSuffix(domain, "."+root)
 				slog.Info("Tencent root domain found", "module", "tencent", "root", root, "subdomain", subDomain)
 				return root, subDomain, nil
 			}

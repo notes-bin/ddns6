@@ -3,6 +3,7 @@ package alicloud
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -81,10 +82,7 @@ func SignV3(ctx context.Context, req *V3Request) (*http.Request, error) {
 	}
 
 	// === 2. 构建 CanonicalRequest ===
-	canonicalURI := req.Path
-	if canonicalURI == "" {
-		canonicalURI = "/"
-	}
+	canonicalURI := cmp.Or(req.Path, "/")
 
 	canonicalQueryString := buildCanonicalQueryStringV3(req.QueryParams)
 	canonicalHeaders, signedHeaders := buildCanonicalHeadersV3(headers)
@@ -116,10 +114,7 @@ func SignV3(ctx context.Context, req *V3Request) (*http.Request, error) {
 	headers["Authorization"] = authorization
 
 	// === 6. 创建 HTTP 请求 ===
-	scheme := req.Scheme
-	if scheme == "" {
-		scheme = "https"
-	}
+	scheme := cmp.Or(req.Scheme, "https")
 	rawURL := fmt.Sprintf("%s://%s%s", scheme, req.Host, canonicalURI)
 	if canonicalQueryString != "" {
 		rawURL = fmt.Sprintf("%s?%s", rawURL, canonicalQueryString)
@@ -194,11 +189,7 @@ func buildCanonicalHeadersV3(headers map[string]string) (canonicalHeaders, signe
 	}
 
 	// 排序
-	names := make([]string, 0, len(normalized))
-	for k := range normalized {
-		names = append(names, k)
-	}
-	slices.Sort(names)
+	names := slices.Sorted(maps.Keys(normalized))
 
 	// 构建输出
 	var cBuf, sBuf strings.Builder

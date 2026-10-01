@@ -93,13 +93,11 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 
 // update 执行 DuckDNS 更新请求。
 func (c *Client) update(ctx context.Context, domain, ip string) error {
-	// 验证域名格式：必须为 *.duckdns.org
-	if !strings.HasSuffix(domain, ".duckdns.org") {
+	// 从 fulldomain 中提取 DuckDNS 域名（去掉 .duckdns.org 后缀）
+	domainName, ok := strings.CutSuffix(domain, ".duckdns.org")
+	if !ok {
 		return fmt.Errorf("duckdns domain must end with .duckdns.org, got: %s", domain)
 	}
-
-	// 从 fulldomain 中提取 DuckDNS 域名（去掉 .duckdns.org 后缀）
-	domainName := strings.TrimSuffix(domain, ".duckdns.org")
 	// DuckDNS 不支持多级子域名（如 www.mydomain.duckdns.org），验证是否有额外层级
 	if strings.Contains(domainName, ".") {
 		slog.Warn("DuckDNS does not support multi-level subdomains, API may reject the request",

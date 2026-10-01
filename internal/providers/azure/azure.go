@@ -6,6 +6,7 @@ package azure
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -135,9 +136,7 @@ func (c *Client) DeleteRecord(ctx context.Context, info ddns.RecordInfo) error {
 
 // GetRecords 查询 DNS 记录。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	if recordType == "" {
-		recordType = "AAAA"
-	}
+	recordType = cmp.Or(recordType, "AAAA")
 	path, zone, displayName, err := c.recordPath(ctx, fulldomain, "", recordType)
 	if err != nil {
 		return nil, err

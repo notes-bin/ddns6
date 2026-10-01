@@ -8,6 +8,7 @@ package gcloud
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -116,9 +117,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	if err != nil {
 		return nil, err
 	}
-	if recordType == "" {
-		recordType = "AAAA"
-	}
+	recordType = cmp.Or(recordType, "AAAA")
 	path := fmt.Sprintf("/projects/%s/managedZones/%s/rrsets", c.project, zone)
 	q := url.Values{"name": {rrName}, "type": {recordType}}
 	body, err := c.doRequest(ctx, http.MethodGet, path, q, nil)
