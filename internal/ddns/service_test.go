@@ -246,10 +246,13 @@ func (c *countingFetcher) Fetch(context.Context) (net.IP, error) {
 	return nil, errors.New("trigger fetch failed")
 }
 
-// TestRunService_GracefulShutdown 验证服务启动、轮询触发获取失败后取消 context 可退出。
+// TestRunService_GracefulShutdown 验证服务启动后取消 context 可优雅退出。
 //
 // 无进行中同步时取消应立即退出；有同步时最多等待约 5 秒。
 // 通过可取消 context 注入关机，避免向 go test 进程发送真实 SIGTERM。
+//
+// Linux 上 startTrigger 走 Netlink + debounce，不会按 interval 轮询，故仅等首次
+// Fetch 后取消；非 Linux 再等第二次轮询触发以覆盖 trigger 上获取失败分支。
 func TestRunService_GracefulShutdown(t *testing.T) {
 	domains := []*Domain{{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}}
 	m := &mockProvider{
@@ -268,11 +271,37 @@ func TestRunService_GracefulShutdown(t *testing.T) {
 		errCh <- runService(ctx, domains, m, 30*time.Millisecond, []ipaddr.IPv6Fetcher{fetcher}, "", "")
 	}()
 
-	// 等待至少一次轮询触发（覆盖 trigger 上获取失败分支）后再取消
-	select {
-	case <-secondTry:
-	case <-time.After(2 * time.Second):
-		t.Fatal("未等到第二次 IPv6 获取（轮询触发）")
+	// 等待首次 Fetch（启动期同步）完成，确保已进入主循环
+	deadline := time.After(2 * time.Second)
+	for {
+		fetcher.mu.Lock()
+		n := fetcher.n
+		fetcher.mu.Unlock()
+		if n >= 1 {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("未等到首次 IPv6 获取")
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+
+	if runtime.GOOS != "linux" {
+		// 非 Linux：等待轮询触发第二次 Fetch，覆盖 trigger 获取失败分支
+		select {
+		case <-secondTry:
+		case <-time.After(2 * time.Second):
+			t.Fatal("未等到第二次 IPv6 获取（轮询触发）")
+		}
+	} else {
+		// Linux：不再等待轮询；稍候让 initial sync / startTrigger 完成后再取消，
+		// 避免 ctx 取消落在首次 syncAllDomains 上被当成启动失败。
+		select {
+		case err := <-errCh:
+			t.Fatalf("runService 在取消前意外退出: %v", err)
+		case <-time.After(50 * time.Millisecond):
+		}
 	}
 	cancel()
 
