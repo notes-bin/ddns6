@@ -10,7 +10,7 @@ import (
 // SyncRecord 将 DNS 记录同步为当前 IPv6 地址。
 //
 // 地址未变化则跳过；变化则调用 syncDNSRecord。
-// 通过 d.lock()/d.unlock() 保护 Domain 的并发访问。
+// 仅在读写 Addr 缓存时短暂持锁，DNS API I/O 在锁外执行。
 //
 // 参数:
 //   - ctx: 取消时中止操作
@@ -18,9 +18,6 @@ import (
 //   - ipv6: 当前本机 IPv6 地址
 //   - p: DNS 服务商实现
 func SyncRecord(ctx context.Context, d *Domain, ipv6 net.IP, p DNSProvider) error {
-	d.lock()
-	defer d.unlock()
-
 	select {
 	case <-ctx.Done():
 		slog.Info("sync task cancelled", "module", "ddns", "domain", d.Domain, "subdomain", d.SubDomain)
@@ -28,8 +25,10 @@ func SyncRecord(ctx context.Context, d *Domain, ipv6 net.IP, p DNSProvider) erro
 	default:
 	}
 
-	// 未变化则跳过，避免无效 API 调用
-	if !hasAddressChanged(d.Addr, ipv6) {
+	d.lock()
+	unchanged := !hasAddressChanged(d.Addr, ipv6)
+	d.unlock()
+	if unchanged {
 		slog.Debug("IPv6 address unchanged, skipping update", "module", "ddns",
 			"domain", d.Domain, "subdomain", d.SubDomain)
 		return nil
@@ -38,7 +37,7 @@ func SyncRecord(ctx context.Context, d *Domain, ipv6 net.IP, p DNSProvider) erro
 	return syncDNSRecord(ctx, d, p, ipv6)
 }
 
-// syncDNSRecord 查询根域名记录并同步当前子域名（调用方须已持锁）。
+// syncDNSRecord 查询根域名记录并同步当前子域名（不持 Domain 锁）。
 func syncDNSRecord(ctx context.Context, d *Domain, p DNSProvider, addr net.IP) error {
 	// 按根域名查询，便于同 zone 多子域复用（见 syncDomainGroup）
 	records, err := p.GetRecords(ctx, d.Domain, d.Type)
@@ -51,7 +50,10 @@ func syncDNSRecord(ctx context.Context, d *Domain, p DNSProvider, addr net.IP) e
 	return applyDNSRecords(ctx, d, p, addr, records)
 }
 
-// applyDNSRecords 用已查询的 records 同步单个子域名（调用方须已持锁）。
+// applyDNSRecords 用已查询的 records 同步单个子域名。
+//
+// DNS API 调用在锁外执行；仅更新 Addr 缓存时短暂加锁。
+// Domain/SubDomain/Type/TTL 在服务启动后视为只读。
 //
 // 工作流程：
 //  1. 只处理匹配当前子域名且类型相符的记录
@@ -123,8 +125,10 @@ func applyDNSRecords(ctx context.Context, d *Domain, p DNSProvider, addr net.IP,
 	return nil
 }
 
-// copyAddrToDomain 将 IP 拷贝到 Domain.Addr（调用方必须已持有 d 的锁）。
+// copyAddrToDomain 将 IP 拷贝到 Domain.Addr（内部加锁）。
 func copyAddrToDomain(d *Domain, addr net.IP) {
+	d.lock()
+	defer d.unlock()
 	d.Addr = make(net.IP, len(addr))
 	copy(d.Addr, addr)
 }
