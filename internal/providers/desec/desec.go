@@ -8,6 +8,7 @@ package desec
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -273,10 +274,7 @@ func (c *Client) findZone(ctx context.Context, fulldomain, zoneHint string) (zon
 	for i := range len(parts) - 1 {
 		candidate := strings.Join(parts[i+1:], ".")
 		if _, ok := c.zoneCache.Load(candidate); ok {
-			sub = strings.Join(parts[:i+1], ".")
-			if sub == "" {
-				sub = "@"
-			}
+			sub = cmp.Or(strings.Join(parts[:i+1], "."), "@")
 			return candidate, sub, nil
 		}
 	}

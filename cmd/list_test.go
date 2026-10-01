@@ -17,7 +17,7 @@ func TestFormatProviderList(t *testing.T) {
 			t.Errorf("missing provider %q", p.name)
 		}
 	}
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		fields := strings.Fields(line)
 		if len(fields) >= 2 && fields[0] == "duckdns" && fields[1] != "no" {
 			t.Errorf("duckdns 应标记为 no: %q", line)

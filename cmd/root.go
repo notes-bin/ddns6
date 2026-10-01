@@ -336,15 +336,10 @@ var envFlagBindings = []struct {
 	{"metrics-addr", "string", "DDNS6_METRICS_ADDR"},
 }
 
-// rootInitOnce 保证 initRootCmd 只执行一次，避免 Execute 重复注册子命令。
-var rootInitOnce sync.Once
+// initRootCmd 保证只初始化一次，避免 Execute 重复注册子命令。
+var initRootCmd = sync.OnceFunc(doInitRootCmd)
 
-// initRootCmd 注册 usage 模板、全局 flag、子命令及全部运营商命令。
-func initRootCmd() {
-	rootInitOnce.Do(doInitRootCmd)
-}
-
-// doInitRootCmd 执行实际的根命令初始化（由 rootInitOnce 保护）。
+// doInitRootCmd 执行实际的根命令初始化（由 initRootCmd OnceFunc 保护）。
 func doInitRootCmd() {
 	rootCmd.SetUsageTemplate(usageTemplate)
 	rootCmd.SetHelpTemplate(usageTemplate)

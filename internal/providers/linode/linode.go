@@ -8,6 +8,7 @@ package linode
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -204,9 +205,7 @@ func (c *Client) resolveDomain(ctx context.Context, name, zone string) (domainID
 	if err != nil {
 		return 0, "", err
 	}
-	if sub == "" {
-		sub = "@"
-	}
+	sub = cmp.Or(sub, "@")
 	return id, sub, nil
 }
 
