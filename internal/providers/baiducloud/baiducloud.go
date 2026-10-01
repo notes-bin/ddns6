@@ -92,7 +92,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		"domain":   subDomain,
 		"rdType":   record.Type,
 		"rdata":    record.Value,
-		"ttl":      record.TTL,
+		"ttl":      ddns.RecordTTL(record.TTL),
 		"zoneName": rootDomain,
 	}
 
@@ -131,7 +131,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 		"domain":   subDomain,
 		"rdType":   record.Type,
 		"rdata":    record.Value,
-		"ttl":      record.TTL,
+		"ttl":      ddns.RecordTTL(record.TTL),
 		"zoneName": rootDomain,
 		"view":     recordView,
 	}

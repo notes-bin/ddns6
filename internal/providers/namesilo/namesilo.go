@@ -7,7 +7,6 @@
 package namesilo
 
 import (
-	"cmp"
 	"context"
 	"encoding/xml"
 	"fmt"
@@ -107,7 +106,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		"rrtype":  {record.Type},
 		"rrhost":  {sub},
 		"rrvalue": {record.Value},
-		"rrttl":   {strconv.Itoa(cmp.Or(record.TTL, ddns.DefaultTTL))},
+		"rrttl":   {strconv.Itoa(ddns.RecordTTL(record.TTL))},
 	}
 	slog.Debug("adding NameSilo DNS record", "module", "namesilo", "domain", zone, "host", sub, "type", record.Type)
 	reply, err := c.get(ctx, "dnsAddRecord", params)
@@ -131,7 +130,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 		"domain":  {zone},
 		"rrid":    {record.ID},
 		"rrvalue": {record.Value},
-		"rrttl":   {strconv.Itoa(cmp.Or(record.TTL, ddns.DefaultTTL))},
+		"rrttl":   {strconv.Itoa(ddns.RecordTTL(record.TTL))},
 	}
 	reply, err := c.get(ctx, "dnsUpdateRecord", params)
 	if err != nil {

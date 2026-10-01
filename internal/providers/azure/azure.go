@@ -6,7 +6,6 @@ package azure
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -176,7 +175,7 @@ func (c *Client) upsert(ctx context.Context, info ddns.RecordInfo) error {
 	}
 	payload := map[string]any{
 		"properties": map[string]any{
-			"TTL": cmp.Or(info.TTL, ddns.DefaultTTL),
+			"TTL": ddns.RecordTTL(info.TTL),
 		},
 	}
 	switch info.Type {

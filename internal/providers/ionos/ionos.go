@@ -8,7 +8,6 @@ package ionos
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -95,7 +94,7 @@ func (c *Client) AddRecord(ctx context.Context, info ddns.RecordInfo) error {
 		Name:     fqdn,
 		Type:     info.Type,
 		Content:  info.Value,
-		TTL:      max(cmp.Or(info.TTL, ddns.DefaultTTL), 60),
+		TTL:      max(ddns.RecordTTL(info.TTL), 60),
 		Prio:     0,
 		Disabled: false,
 	}})
@@ -123,7 +122,7 @@ func (c *Client) ModifyRecord(ctx context.Context, info ddns.RecordInfo) error {
 		Name:     fqdn,
 		Type:     info.Type,
 		Content:  info.Value,
-		TTL:      max(cmp.Or(info.TTL, ddns.DefaultTTL), 60),
+		TTL:      max(ddns.RecordTTL(info.TTL), 60),
 		Prio:     0,
 		Disabled: false,
 	})

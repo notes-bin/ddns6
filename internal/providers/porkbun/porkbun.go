@@ -91,7 +91,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		Name:    subDomain,
 		Type:    record.Type,
 		Content: record.Value,
-		TTL:     strconv.Itoa(record.TTL),
+		TTL:     strconv.Itoa(ddns.RecordTTL(record.TTL)),
 	}
 
 	url := fmt.Sprintf("%s/create/%s", c.baseURL, urlpkg.PathEscape(domain))
@@ -116,7 +116,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 
 	dnsRecord := DNSRecord{
 		Content: record.Value,
-		TTL:     strconv.Itoa(record.TTL),
+		TTL:     strconv.Itoa(ddns.RecordTTL(record.TTL)),
 	}
 
 	url := fmt.Sprintf("%s/editByNameType/%s/%s/%s", c.baseURL, urlpkg.PathEscape(domain), record.Type, urlpkg.PathEscape(subDomain))

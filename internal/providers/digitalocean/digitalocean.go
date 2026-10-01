@@ -84,7 +84,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		Type: record.Type,
 		Name: subDomain,
 		Data: record.Value,
-		TTL:  record.TTL,
+		TTL:  ddns.RecordTTL(record.TTL),
 	}
 
 	body, err := json.Marshal(dnsRecord)
@@ -111,7 +111,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	dnsRecord := DomainRecord{
 		Type: record.Type,
 		Data: record.Value,
-		TTL:  record.TTL,
+		TTL:  ddns.RecordTTL(record.TTL),
 	}
 
 	body, err := json.Marshal(dnsRecord)

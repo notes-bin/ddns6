@@ -181,7 +181,7 @@ func (c *Client) upsert(ctx context.Context, info ddns.RecordInfo, replace bool)
 	if err != nil {
 		return err
 	}
-	ttl := strconv.Itoa(cmp.Or(info.TTL, ddns.DefaultTTL))
+	ttl := strconv.Itoa(ddns.RecordTTL(info.TTL))
 	newHosts := make([]hostEntry, 0, len(hosts)+1)
 	replaced := false
 	for _, h := range hosts {

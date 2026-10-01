@@ -8,7 +8,6 @@ package hetzner
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -110,7 +109,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		return err
 	}
 
-	ttl := cmp.Or(record.TTL, ddns.DefaultTTL)
+	ttl := ddns.RecordTTL(record.TTL)
 	payload, err := json.Marshal(map[string]any{
 		"ttl": ttl,
 		"records": []map[string]string{
@@ -138,7 +137,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 		return err
 	}
 
-	ttl := cmp.Or(record.TTL, ddns.DefaultTTL)
+	ttl := ddns.RecordTTL(record.TTL)
 	payload, err := json.Marshal(map[string]any{
 		"ttl": ttl,
 		"records": []map[string]string{
