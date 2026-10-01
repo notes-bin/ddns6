@@ -50,7 +50,7 @@ func NewClient(apiKey, username, clientIP string, options ...Option) *Client {
 		username:   username,
 		clientIP:   clientIP,
 		baseURL:    defaultBaseURL,
-		httpClient: &http.Client{Timeout: 15 * time.Second},
+		httpClient: httputil.NewHTTPClient(15 * time.Second),
 	}
 	for _, opt := range options {
 		opt(c)
@@ -137,6 +137,8 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	if err != nil {
 		return nil, err
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	hosts, err := c.getHosts(ctx, sld, tld)
 	if err != nil {
 		return nil, err
@@ -253,7 +255,7 @@ func (c *Client) call(ctx context.Context, command string, extra url.Values) (*a
 	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("namecheap api request failed: %w", err)
+		return nil, httputil.WrapRequestError("namecheap api request failed", err)
 	}
 	defer resp.Body.Close()
 	body, err := httputil.ReadBody(resp.Body)
