@@ -21,6 +21,7 @@ import (
 
 	"github.com/notes-bin/ddns6/internal/ddns"
 	"github.com/notes-bin/ddns6/internal/httputil"
+	"github.com/notes-bin/ddns6/pkg/domainutil"
 )
 
 // 编译期断言：Client 实现 ddns.DNSProvider。
@@ -78,7 +79,7 @@ type DNSRecord struct {
 
 // AddRecord 添加 DNS 记录。
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
-	subDomain, domain, err := c.getRootDomain(ctx, record.Name)
+	subDomain, domain, err := c.getRootDomain(ctx, record.Name, record.Zone)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %w", err)
 	}
@@ -107,7 +108,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 
 // ModifyRecord 修改 DNS 记录。
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
-	subDomain, domain, err := c.getRootDomain(ctx, record.Name)
+	subDomain, domain, err := c.getRootDomain(ctx, record.Name, record.Zone)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %w", err)
 	}
@@ -132,7 +133,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 
 // DeleteRecord 删除 DNS 记录；record.ID 作为匹配值（GoDaddy 无 ID 概念）。
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
-	subDomain, domain, err := c.getRootDomain(ctx, record.Name)
+	subDomain, domain, err := c.getRootDomain(ctx, record.Name, record.Zone)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %w", err)
 	}
@@ -165,7 +166,7 @@ func (c *Client) deleteRecordsByValue(ctx context.Context, domain, subDomain, rt
 
 // GetRecords 查询 DNS 记录。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	subDomain, domain, err := c.getRootDomain(ctx, fulldomain)
+	subDomain, domain, err := c.getRootDomain(ctx, fulldomain, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root domain: %w", err)
 	}
@@ -221,8 +222,14 @@ func (c *Client) deleteRecords(ctx context.Context, domain, subDomain, rtype str
 	return c.makeRequest(ctx, "DELETE", url, nil, nil)
 }
 
-// getRootDomain 解析根域名与子域名。
-func (c *Client) getRootDomain(ctx context.Context, domain string) (string, string, error) {
+// getRootDomain 解析根域名与子域名，返回 (subDomain, root)。
+// 有 zoneHint 时直接拆分，跳过 API 探测。
+func (c *Client) getRootDomain(ctx context.Context, domain, zoneHint string) (string, string, error) {
+	if zoneHint != "" {
+		root, sub := domainutil.SplitDomain(domain, zoneHint)
+		return sub, root, nil
+	}
+
 	parts := strings.Split(domain, ".")
 	for i := range len(parts) - 1 {
 		h := strings.Join(parts[i+1:], ".")

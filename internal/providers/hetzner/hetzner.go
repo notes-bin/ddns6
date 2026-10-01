@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
@@ -34,6 +35,7 @@ type Client struct {
 	token      string
 	baseURL    string
 	httpClient *http.Client
+	zoneCache  sync.Map // zone 名称 -> zone ID
 }
 
 // Option 客户端配置选项。
@@ -227,8 +229,12 @@ func (c *Client) resolveRRNameWithZone(ctx context.Context, fulldomain string) (
 
 // resolveRRNameWithZoneFromRecord 从 RecordInfo 解析 zone 与 RR 名称。
 func (c *Client) resolveRRNameWithZoneFromRecord(ctx context.Context, name, zoneHint string) (zoneID int64, zoneName, rrName string, err error) {
-	_, sub := domainutil.SplitDomain(name, zoneHint)
-	id, zone, err := c.findZone(ctx, name)
+	root, sub := domainutil.SplitDomain(name, zoneHint)
+	if root == "" {
+		root = name
+		sub = ""
+	}
+	id, zone, err := c.findZone(ctx, name, root)
 	if err != nil {
 		return 0, "", "", err
 	}
@@ -264,34 +270,60 @@ func isNotFound(err error) bool {
 }
 
 // findZone 查找 fulldomain 对应的 Hetzner zone。
-func (c *Client) findZone(ctx context.Context, fulldomain string) (int64, string, error) {
+// preferredRoot 非空时优先按该根域名直查并缓存，避免后缀探测。
+func (c *Client) findZone(ctx context.Context, fulldomain, preferredRoot string) (int64, string, error) {
+	if preferredRoot != "" {
+		if id, ok := c.zoneCache.Load(preferredRoot); ok {
+			return id.(int64), preferredRoot, nil
+		}
+		if id, name, err := c.lookupZone(ctx, preferredRoot); err == nil {
+			c.zoneCache.Store(preferredRoot, id)
+			return id, name, nil
+		}
+	}
+
 	candidate := strings.ToLower(strings.TrimSuffix(fulldomain, "."))
 	parts := strings.Split(candidate, ".")
 	for i := range len(parts) - 1 {
 		root := strings.Join(parts[i+1:], ".")
-		body, err := c.doRequest(ctx, http.MethodGet, "/zones/"+url.PathEscape(root), nil)
-		if err == nil {
-			var resp zoneResponse
-			if err := json.Unmarshal(body, &resp); err == nil && resp.Zone.ID != 0 {
-				return resp.Zone.ID, strings.TrimSuffix(resp.Zone.Name, "."), nil
+		if id, ok := c.zoneCache.Load(root); ok {
+			return id.(int64), root, nil
+		}
+		if id, name, err := c.lookupZone(ctx, root); err == nil {
+			c.zoneCache.Store(root, id)
+			if preferredRoot != "" {
+				c.zoneCache.Store(preferredRoot, id)
 			}
-		}
-
-		listBody, err := c.doRequest(ctx, http.MethodGet, "/zones?name="+url.QueryEscape(root), nil)
-		if err != nil {
-			continue
-		}
-		var list zonesResponse
-		if err := json.Unmarshal(listBody, &list); err != nil {
-			continue
-		}
-		for _, z := range list.Zones {
-			if strings.EqualFold(strings.TrimSuffix(z.Name, "."), root) {
-				return z.ID, root, nil
-			}
+			return id, name, nil
 		}
 	}
 	return 0, "", fmt.Errorf("hetzner zone not found for %s", fulldomain)
+}
+
+// lookupZone 按精确名称查询一次 zone。
+func (c *Client) lookupZone(ctx context.Context, root string) (int64, string, error) {
+	body, err := c.doRequest(ctx, http.MethodGet, "/zones/"+url.PathEscape(root), nil)
+	if err == nil {
+		var resp zoneResponse
+		if err := json.Unmarshal(body, &resp); err == nil && resp.Zone.ID != 0 {
+			return resp.Zone.ID, strings.TrimSuffix(resp.Zone.Name, "."), nil
+		}
+	}
+
+	listBody, err := c.doRequest(ctx, http.MethodGet, "/zones?name="+url.QueryEscape(root), nil)
+	if err != nil {
+		return 0, "", err
+	}
+	var list zonesResponse
+	if err := json.Unmarshal(listBody, &list); err != nil {
+		return 0, "", err
+	}
+	for _, z := range list.Zones {
+		if strings.EqualFold(strings.TrimSuffix(z.Name, "."), root) {
+			return z.ID, root, nil
+		}
+	}
+	return 0, "", fmt.Errorf("zone not found")
 }
 
 // doRequest 执行 Hetzner DNS HTTP 请求。

@@ -17,10 +17,12 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
 	"github.com/notes-bin/ddns6/internal/httputil"
+	"github.com/notes-bin/ddns6/pkg/domainutil"
 )
 
 // 编译期断言：Client 实现 ddns.DNSProvider。
@@ -35,6 +37,7 @@ type Client struct {
 	ZoneID     string
 	BaseURL    string
 	httpClient *http.Client
+	zoneCache  sync.Map // zone 名称 -> zone ID
 }
 
 // Option 客户端配置选项。
@@ -122,7 +125,7 @@ type ErrorDetails struct {
 
 // AddRecord 添加 DNS 记录。
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
-	zoneID, err := c.getZoneID(ctx, record.Name)
+	zoneID, err := c.getZoneID(ctx, record.Name, record.Zone)
 	if err != nil {
 		return fmt.Errorf("failed to get zone id: %w", err)
 	}
@@ -149,7 +152,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 
 // ModifyRecord 修改 DNS 记录。
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
-	zoneID, err := c.getZoneID(ctx, record.Name)
+	zoneID, err := c.getZoneID(ctx, record.Name, record.Zone)
 	if err != nil {
 		return fmt.Errorf("failed to get zone id: %w", err)
 	}
@@ -168,7 +171,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 
 // DeleteRecord 删除 DNS 记录。
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
-	zoneID, err := c.getZoneID(ctx, record.Name)
+	zoneID, err := c.getZoneID(ctx, record.Name, record.Zone)
 	if err != nil {
 		return fmt.Errorf("failed to get zone id: %w", err)
 	}
@@ -178,7 +181,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 
 // GetRecords 查询 DNS 记录。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	zoneID, err := c.getZoneID(ctx, fulldomain)
+	zoneID, err := c.getZoneID(ctx, fulldomain, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get zone id: %w", err)
 	}
@@ -203,7 +206,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 
 // GetDomainRecord 查询单条 DNS 记录详情。
 func (c *Client) GetDomainRecord(ctx context.Context, fulldomain, recordID string) (*DNSRecord, error) {
-	zoneID, err := c.getZoneID(ctx, fulldomain)
+	zoneID, err := c.getZoneID(ctx, fulldomain, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get zone id: %w", err)
 	}
@@ -343,11 +346,28 @@ func (c *Client) updateDNSRecord(ctx context.Context, zoneID, recordID string, r
 }
 
 // getZoneID 解析域名对应的 Zone ID。
-func (c *Client) getZoneID(ctx context.Context, domain string) (string, error) {
+//
+// 优先顺序：配置的 ZoneID > zoneHint 缓存/直查 > 对 domain 后缀探测。
+// 配置了 ZoneID 时直接返回，不再每次校验详情（避免多余 API）。
+func (c *Client) getZoneID(ctx context.Context, domain, zoneHint string) (string, error) {
 	if c.ZoneID != "" {
-		_, err := c.getZoneDetails(ctx, c.ZoneID)
-		if err == nil {
-			return c.ZoneID, nil
+		return c.ZoneID, nil
+	}
+
+	root, _ := domainutil.SplitDomain(domain, zoneHint)
+	if root == "" {
+		root = domain
+	}
+
+	if id, ok := c.zoneCache.Load(root); ok {
+		return id.(string), nil
+	}
+
+	// 已知根域名时直接按名查找，避免逐级后缀探测
+	if zoneHint != "" || root != domain {
+		if zoneID, err := c.findZoneID(ctx, root); err == nil {
+			c.zoneCache.Store(root, zoneID)
+			return zoneID, nil
 		}
 	}
 
@@ -356,13 +376,15 @@ func (c *Client) getZoneID(ctx context.Context, domain string) (string, error) {
 		zone := strings.Join(parts[i+1:], ".")
 		zoneID, err := c.findZoneID(ctx, zone)
 		if err == nil {
+			c.zoneCache.Store(zone, zoneID)
+			c.zoneCache.Store(root, zoneID)
 			return zoneID, nil
 		}
 	}
 
-	// 兜底：完整域名即为区域
 	zoneID, err := c.findZoneID(ctx, domain)
 	if err == nil {
+		c.zoneCache.Store(domain, zoneID)
 		return zoneID, nil
 	}
 

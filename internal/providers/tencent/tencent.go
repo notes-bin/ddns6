@@ -21,6 +21,7 @@ import (
 	"github.com/notes-bin/ddns6/internal/crypto"
 	"github.com/notes-bin/ddns6/internal/ddns"
 	"github.com/notes-bin/ddns6/internal/httputil"
+	"github.com/notes-bin/ddns6/pkg/domainutil"
 )
 
 // 编译期断言：DNSPod 实现 ddns.DNSProvider。
@@ -121,7 +122,10 @@ func New(secretID, secretKey string, options ...Option) *DNSPod {
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
-				ForceAttemptHTTP2: false,
+				ForceAttemptHTTP2:  false,
+				IdleConnTimeout:    90 * time.Second,
+				MaxIdleConns:       100,
+				MaxIdleConnsPerHost: 10,
 			},
 		},
 	}
@@ -156,7 +160,7 @@ func (ds *DNSPod) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		"module", "tencent",
 		"domain", record.Name, "type", record.Type)
 
-	domain, subDomain, err := ds.getRootDomain(ctx, record.Name)
+	domain, subDomain, err := ds.getRootDomain(ctx, record.Name, record.Zone)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %w", err)
 	}
@@ -244,7 +248,7 @@ func (ds *DNSPod) ModifyRecord(ctx context.Context, record ddns.RecordInfo) erro
 		"module", "tencent",
 		"domain", record.Name, "record_id", record.ID, "type", record.Type)
 
-	domain, subDomain, err := ds.getRootDomain(ctx, record.Name)
+	domain, subDomain, err := ds.getRootDomain(ctx, record.Name, record.Zone)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %w", err)
 	}
@@ -280,7 +284,7 @@ func (ds *DNSPod) DeleteRecord(ctx context.Context, record ddns.RecordInfo) erro
 		"module", "tencent",
 		"domain", record.Name, "record_id", record.ID)
 
-	domain, _, err := ds.getRootDomain(ctx, record.Name)
+	domain, _, err := ds.getRootDomain(ctx, record.Name, record.Zone)
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %w", err)
 	}
@@ -303,7 +307,7 @@ func (ds *DNSPod) DeleteRecord(ctx context.Context, record ddns.RecordInfo) erro
 
 // GetRecords 查询 DNS 记录，返回通用 RecordInfo 列表。
 func (ds *DNSPod) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	domain, subDomain, err := ds.getRootDomain(ctx, fulldomain)
+	domain, subDomain, err := ds.getRootDomain(ctx, fulldomain, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root domain: %w", err)
 	}
@@ -337,7 +341,7 @@ func (ds *DNSPod) GetRecords(ctx context.Context, fulldomain, recordType string)
 
 // GetDomainRecord 查询单条 DNS 记录详情。
 func (ds *DNSPod) GetDomainRecord(ctx context.Context, fulldomain, recordID string) (*DNSRecord, error) {
-	domain, _, err := ds.getRootDomain(ctx, fulldomain)
+	domain, _, err := ds.getRootDomain(ctx, fulldomain, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root domain: %w", err)
 	}
@@ -362,8 +366,13 @@ func (ds *DNSPod) GetDomainRecord(ctx context.Context, fulldomain, recordID stri
 }
 
 // getRootDomain 从完整域名解析账户内根域名与子域名。
-// 优先 DescribeDomainList 精确匹配，失败时回退逐级探测。
-func (ds *DNSPod) getRootDomain(ctx context.Context, domain string) (string, string, error) {
+// 有 zoneHint 时直接拆分，跳过 API；否则优先 DescribeDomainList，失败时回退逐级探测。
+func (ds *DNSPod) getRootDomain(ctx context.Context, domain, zoneHint string) (string, string, error) {
+	if zoneHint != "" {
+		root, sub := domainutil.SplitDomain(domain, zoneHint)
+		return root, sub, nil
+	}
+
 	// 优先列表匹配：比逐级探测更可靠，且可避免 DomainInvalid
 	domains, err := ds.getDomainList(ctx)
 	if err == nil {

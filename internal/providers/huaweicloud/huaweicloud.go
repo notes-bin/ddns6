@@ -16,10 +16,12 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
 	"github.com/notes-bin/ddns6/internal/httputil"
+	"github.com/notes-bin/ddns6/pkg/domainutil"
 )
 
 // 编译期断言：Client 实现 ddns.DNSProvider。
@@ -35,6 +37,7 @@ type Client struct {
 	secretKey  string
 	baseURL    string
 	httpClient *http.Client
+	zoneCache  sync.Map // zone 名称 -> zone ID
 }
 
 // Option 客户端配置选项。
@@ -90,7 +93,7 @@ type recordSetPayload struct {
 
 // AddRecord 添加 DNS 记录。
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
-	zoneID, err := c.getZoneID(ctx, record.Name)
+	zoneID, err := c.getZoneID(ctx, record.Name, record.Zone)
 	if err != nil {
 		return fmt.Errorf("failed to get zone id: %w", err)
 	}
@@ -117,7 +120,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 
 // ModifyRecord 修改 DNS 记录。
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
-	zoneID, err := c.getZoneID(ctx, record.Name)
+	zoneID, err := c.getZoneID(ctx, record.Name, record.Zone)
 	if err != nil {
 		return fmt.Errorf("failed to get zone id: %w", err)
 	}
@@ -143,7 +146,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 
 // DeleteRecord 删除 DNS 记录。
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
-	zoneID, err := c.getZoneID(ctx, record.Name)
+	zoneID, err := c.getZoneID(ctx, record.Name, record.Zone)
 	if err != nil {
 		return fmt.Errorf("failed to get zone id: %w", err)
 	}
@@ -162,7 +165,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 
 // GetRecords 查询 DNS 记录，支持分页拉取全部 recordsets。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	zoneID, err := c.getZoneID(ctx, fulldomain)
+	zoneID, err := c.getZoneID(ctx, fulldomain, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get zone id: %w", err)
 	}
@@ -224,56 +227,65 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return records, nil
 }
 
-// getZoneID 按域名后缀匹配华为云 DNS Zone。
-func (c *Client) getZoneID(ctx context.Context, domain string) (string, error) {
+// getZoneID 按域名解析华为云 DNS Zone ID。
+//
+// 优先 zoneHint/缓存直查，避免对 FQDN 做后缀探测。
+func (c *Client) getZoneID(ctx context.Context, domain, zoneHint string) (string, error) {
+	root, _ := domainutil.SplitDomain(domain, zoneHint)
+	if root == "" {
+		root = domain
+	}
+
+	if id, ok := c.zoneCache.Load(root); ok {
+		return id.(string), nil
+	}
+
+	if id, err := c.lookupZoneID(ctx, root); err == nil {
+		c.zoneCache.Store(root, id)
+		return id, nil
+	}
+
 	parts := strings.Split(domain, ".")
 	for i := range len(parts) - 1 {
 		h := strings.Join(parts[i+1:], ".")
-		slog.Debug("looking up HuaweiCloud zone", "module", "huaweicloud", "domain", h)
-
-		reqURL := c.baseURL + "/v2/zones?name=" + url.QueryEscape(h)
-
-		var result struct {
-			Zones []struct {
-				ID   string `json:"id"`
-				Name string `json:"name"`
-			} `json:"zones"`
-		}
-
-		if err := c.requestRaw(ctx, http.MethodGet, reqURL, &result); err != nil {
-			continue
-		}
-
-		for _, zone := range result.Zones {
-			if zone.Name == h+"." {
-				slog.Info("HuaweiCloud zone found",
-					"module", "huaweicloud",
-					"zone", h, "zone_id", zone.ID)
-				return zone.ID, nil
-			}
+		if id, err := c.lookupZoneID(ctx, h); err == nil {
+			c.zoneCache.Store(h, id)
+			c.zoneCache.Store(root, id)
+			return id, nil
 		}
 	}
 
-	// 兜底：完整域名即为区域
-	reqURL := c.baseURL + "/v2/zones?name=" + url.QueryEscape(domain)
+	if id, err := c.lookupZoneID(ctx, domain); err == nil {
+		c.zoneCache.Store(domain, id)
+		return id, nil
+	}
+
+	return "", fmt.Errorf("zone not found for domain %s", domain)
+}
+
+// lookupZoneID 按精确 zone 名称查询一次。
+func (c *Client) lookupZoneID(ctx context.Context, zoneName string) (string, error) {
+	slog.Debug("looking up HuaweiCloud zone", "module", "huaweicloud", "domain", zoneName)
+	reqURL := c.baseURL + "/v2/zones?name=" + url.QueryEscape(zoneName)
 	var result struct {
 		Zones []struct {
 			ID   string `json:"id"`
 			Name string `json:"name"`
 		} `json:"zones"`
 	}
-	if err := c.requestRaw(ctx, http.MethodGet, reqURL, &result); err == nil {
-		for _, zone := range result.Zones {
-			if zone.Name == domain+"." {
-				slog.Info("HuaweiCloud zone found (fallback)",
-					"module", "huaweicloud",
-					"zone", domain, "zone_id", zone.ID)
-				return zone.ID, nil
-			}
+	if err := c.requestRaw(ctx, http.MethodGet, reqURL, &result); err != nil {
+		return "", err
+	}
+	want := zoneName + "."
+	for _, zone := range result.Zones {
+		if zone.Name == want {
+			slog.Info("HuaweiCloud zone found",
+				"module", "huaweicloud",
+				"zone", zoneName, "zone_id", zone.ID)
+			return zone.ID, nil
 		}
 	}
-
-	return "", fmt.Errorf("zone not found for domain %s", domain)
+	return "", fmt.Errorf("zone not found")
 }
 
 // request 执行已签名 HTTP 请求并返回原始响应体。
