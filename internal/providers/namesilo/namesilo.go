@@ -45,7 +45,7 @@ func NewClient(apiKey string, options ...Option) *Client {
 	c := &Client{
 		apiKey:     apiKey,
 		baseURL:    defaultBaseURL,
-		httpClient: &http.Client{Timeout: 15 * time.Second},
+		httpClient: httputil.NewHTTPClient(15 * time.Second),
 	}
 	for _, opt := range options {
 		opt(c)
@@ -282,7 +282,7 @@ func (c *Client) fetch(ctx context.Context, action string, params url.Values) ([
 	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("namesilo api request failed: %w", err)
+		return nil, httputil.WrapRequestError("namesilo api request failed", err)
 	}
 	defer resp.Body.Close()
 	body, err := httputil.ReadBody(resp.Body)

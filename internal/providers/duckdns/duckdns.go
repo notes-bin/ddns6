@@ -42,7 +42,7 @@ func NewClient(token string, options ...Option) *Client {
 	c := &Client{
 		token:      token,
 		baseURL:    defaultBaseURL,
-		httpClient: &http.Client{Timeout: 10 * time.Second},
+		httpClient: httputil.NewHTTPClient(10 * time.Second),
 	}
 	for _, opt := range options {
 		opt(c)
@@ -123,8 +123,8 @@ func (c *Client) update(ctx context.Context, domain, ip string) error {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		slog.Debug("DuckDNS API request failed", "module", "duckdns", "domain", domain, "err", err)
-		return fmt.Errorf("duckdns request failed: %w", err)
+		slog.Debug("DuckDNS API request failed", "module", "duckdns", "domain", domain, "err", httputil.ErrForLog(err))
+		return httputil.WrapRequestError("duckdns request failed", err)
 	}
 	defer resp.Body.Close()
 
