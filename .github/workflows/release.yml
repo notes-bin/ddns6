@@ -72,7 +72,7 @@ jobs:
           tar -czf "${BINARY}.tar.gz" \
             "$BINARY" LICENSE README.md
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.goos }}_${{ matrix.goarch }}
           path: ddns6_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz
