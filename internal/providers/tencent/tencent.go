@@ -20,8 +20,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/notes-bin/ddns6/internal/crypto"
 	"github.com/notes-bin/ddns6/internal/ddns"
+	"github.com/notes-bin/ddns6/internal/digest"
 	"github.com/notes-bin/ddns6/internal/httputil"
 	"github.com/notes-bin/ddns6/pkg/domainutil"
 )
@@ -584,17 +584,17 @@ func (ds *DNSPod) generateSignatureV3(service, action, payload string, timestamp
 	canonicalQuery := ""
 	canonicalHeaders := fmt.Sprintf("content-type:application/json; charset=utf-8\nhost:%s\nx-tc-action:%s\n", domain, strings.ToLower(action))
 	signedHeaders := "content-type;host;x-tc-action"
-	hashedPayload := crypto.SHA256Hex([]byte(payload))
+	hashedPayload := digest.SHA256Hex([]byte(payload))
 	canonicalRequest := fmt.Sprintf("POST\n%s\n%s\n%s\n%s\n%s", canonicalURI, canonicalQuery, canonicalHeaders, signedHeaders, hashedPayload)
 
 	credentialScope := fmt.Sprintf("%s/%s/tc3_request", date, service)
-	hashedRequest := crypto.SHA256Hex([]byte(canonicalRequest))
+	hashedRequest := digest.SHA256Hex([]byte(canonicalRequest))
 	stringToSign := fmt.Sprintf("%s\n%d\n%s\n%s", algorithm, timestamp, credentialScope, hashedRequest)
 
-	secretDate := crypto.HMACSHA256([]byte("TC3"+ds.secretKey), []byte(date))
-	secretService := crypto.HMACSHA256(secretDate, []byte(service))
-	secretSigning := crypto.HMACSHA256(secretService, []byte("tc3_request"))
-	signature := crypto.HMACSHA256Hex(secretSigning, []byte(stringToSign))
+	secretDate := digest.HMACSHA256([]byte("TC3"+ds.secretKey), []byte(date))
+	secretService := digest.HMACSHA256(secretDate, []byte(service))
+	secretSigning := digest.HMACSHA256(secretService, []byte("tc3_request"))
+	signature := digest.HMACSHA256Hex(secretSigning, []byte(stringToSign))
 
 	return fmt.Sprintf("%s Credential=%s/%s, SignedHeaders=%s, Signature=%s",
 		algorithm, ds.secretID, credentialScope, signedHeaders, signature)

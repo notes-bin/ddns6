@@ -18,8 +18,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/notes-bin/ddns6/internal/crypto"
 	"github.com/notes-bin/ddns6/internal/ddns"
+	"github.com/notes-bin/ddns6/internal/digest"
 	"github.com/notes-bin/ddns6/internal/httputil"
 	"github.com/notes-bin/ddns6/pkg/domainutil"
 )
@@ -290,10 +290,10 @@ func (c *Client) signRequest(req *http.Request, body []byte) {
 	canonicalRequest := fmt.Sprintf("%s\n%s\n%s\n%s\n%s",
 		req.Method, canonicalURI, canonicalQuery, canonicalHeaders, signedHeaders)
 
-	stringToSign := fmt.Sprintf("%s\n%s", authStringPrefix, crypto.SHA256Hex([]byte(canonicalRequest)))
+	stringToSign := fmt.Sprintf("%s\n%s", authStringPrefix, digest.SHA256Hex([]byte(canonicalRequest)))
 
-	signingKey := crypto.HMACSHA256([]byte(c.secretKey), []byte(authStringPrefix))
-	signature := crypto.HMACSHA256Hex(signingKey, []byte(stringToSign))
+	signingKey := digest.HMACSHA256([]byte(c.secretKey), []byte(authStringPrefix))
+	signature := digest.HMACSHA256Hex(signingKey, []byte(stringToSign))
 
 	authorization := fmt.Sprintf("%s/%s/%s", authStringPrefix, signedHeaders, signature)
 	req.Header.Set("Authorization", authorization)
