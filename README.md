@@ -41,7 +41,7 @@ sudo make install   # 安装到 GOPATH/bin
 也可用：
 
 ```bash
-go install github.com/notes-bin/ddns6@latest
+go install github.com/notes-bin/ddns6/cmd/ddns6@latest
 ```
 
 ### 临时运行
