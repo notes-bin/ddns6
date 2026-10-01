@@ -208,7 +208,7 @@ func (c *countingFetcher) Fetch(context.Context) (net.IP, error) {
 
 // TestRunService_GracefulShutdown 验证服务启动、轮询触发获取失败后收到 SIGTERM 可退出。
 //
-// 注意：当前实现关闭时固定等待约 5 秒，本测试耗时较长。
+// 无进行中同步时收到信号应立即退出；有同步时最多等待约 5 秒。
 func TestRunService_GracefulShutdown(t *testing.T) {
 	domains := []*Domain{{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}}
 	m := &mockProvider{
