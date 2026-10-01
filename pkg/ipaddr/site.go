@@ -27,7 +27,7 @@ type HTTPIPv6Fetcher struct {
 func NewHTTPIPv6Fetcher(url string) *HTTPIPv6Fetcher {
 	return &HTTPIPv6Fetcher{
 		url:    url,
-		client: &http.Client{Timeout: 5 * time.Second},
+		client: httputil.NewHTTPClient(5 * time.Second),
 	}
 }
 
@@ -52,6 +52,10 @@ func (h *HTTPIPv6Fetcher) Fetch(ctx context.Context) (net.IP, error) {
 		return nil, fmt.Errorf("failed to get %s: %w", h.url, err)
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status %d from %s", resp.StatusCode, h.url)
+	}
 
 	body, err := httputil.ReadIPBody(resp.Body)
 	if err != nil {

@@ -49,7 +49,7 @@ func NewClient(accessKey, secretKey string, options ...Option) *Client {
 		accessKey:  accessKey,
 		secretKey:  secretKey,
 		baseURL:    defaultBaseURL,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient: httputil.NewHTTPClient(30 * time.Second),
 	}
 	for _, opt := range options {
 		opt(c)

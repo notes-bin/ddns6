@@ -43,7 +43,7 @@ func NewClient(prefix, secret string, options ...Option) *Client {
 		prefix:     prefix,
 		secret:     secret,
 		baseURL:    defaultBaseURL,
-		httpClient: &http.Client{Timeout: 15 * time.Second},
+		httpClient: httputil.NewHTTPClient(15 * time.Second),
 	}
 	for _, opt := range options {
 		opt(c)
