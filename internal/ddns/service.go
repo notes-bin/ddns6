@@ -115,7 +115,8 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 			select {
 			case <-done:
 			case <-time.After(5 * time.Second):
-				slog.Warn("graceful shutdown timed out", "module", "ddns")
+				slog.Warn("graceful shutdown timed out, sync still in progress",
+					"module", "ddns", "syncing", syncing.Load())
 			}
 
 			slog.Info("ddns6 stopped", "module", "ddns")
@@ -124,9 +125,13 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 	}
 }
 
+// maxSyncGroupConcurrency 同轮 sync 中并发处理的 zone 组上限。
+const maxSyncGroupConcurrency = 5
+
 // syncAllDomains 按根域名分组同步，同 zone 只查询一次 GetRecords。
 //
 // failFast=true 时返回第一个错误（仍等待各组结束）；failFast=false 时遇错只记日志。
+// 并发组数受 maxSyncGroupConcurrency 限制，避免瞬时打满上游 API。
 func syncAllDomains(ctx context.Context, domains []*Domain, ip net.IP, p DNSProvider, failFast bool) error {
 	type groupKey struct {
 		root string
@@ -138,10 +143,14 @@ func syncAllDomains(ctx context.Context, domains []*Domain, ip net.IP, p DNSProv
 		groups[k] = append(groups[k], d)
 	}
 
+	sem := make(chan struct{}, maxSyncGroupConcurrency)
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(groups))
 	for key, group := range groups {
 		wg.Go(func() {
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
 			if err := syncDomainGroup(ctx, key.root, key.typ, group, ip, p); err != nil {
 				if failFast {
 					errCh <- err
@@ -169,20 +178,19 @@ func syncAllDomains(ctx context.Context, domains []*Domain, ip net.IP, p DNSProv
 func syncDomainGroup(ctx context.Context, root, typ string, group []*Domain, ip net.IP, p DNSProvider) error {
 	need := make([]*Domain, 0, len(group))
 	for _, d := range group {
-		d.lock()
 		select {
 		case <-ctx.Done():
-			d.unlock()
 			return ctx.Err()
 		default:
 		}
-		if !hasAddressChanged(d.Addr, ip) {
+		d.lock()
+		unchanged := !hasAddressChanged(d.Addr, ip)
+		d.unlock()
+		if unchanged {
 			slog.Debug("IPv6 address unchanged, skipping update", "module", "ddns",
 				"domain", d.Domain, "subdomain", d.SubDomain)
-			d.unlock()
 			continue
 		}
-		d.unlock()
 		need = append(need, d)
 	}
 	if len(need) == 0 {
@@ -198,10 +206,7 @@ func syncDomainGroup(ctx context.Context, root, typ string, group []*Domain, ip 
 	}
 
 	for _, d := range need {
-		d.lock()
-		err := applyDNSRecords(ctx, d, p, ip, records)
-		d.unlock()
-		if err != nil {
+		if err := applyDNSRecords(ctx, d, p, ip, records); err != nil {
 			return fmt.Errorf("sync failed for %s/%s: %w", d.Domain, d.SubDomain, err)
 		}
 	}

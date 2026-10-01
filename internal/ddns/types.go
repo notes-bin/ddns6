@@ -52,6 +52,9 @@ func (r RecordInfo) Key() string {
 // DNSProvider 定义 DNS 服务商的记录增删改查接口。
 //
 // 新增运营商需实现全部 4 个方法，并在 cmd/providers.go 的 providerFactories 中注册。
+//
+// 并发安全：同一 Client 可能被 syncAllDomains / clean 等路径并发调用，
+// 实现须对共享可变状态（缓存、RMW 写路径、token）自行同步。
 type DNSProvider interface {
 	// GetRecords 按 domain 与 recordType 查询记录列表。
 	GetRecords(ctx context.Context, domain, recordType string) ([]RecordInfo, error)
@@ -65,13 +68,14 @@ type DNSProvider interface {
 
 // Domain 表示待同步的域名配置及缓存的 IPv6 地址。
 //
-// 并发访问由内嵌的 mu 保护；通过 CheckAndSetAddr / AddrString 等导出方法读写缓存。
+// Domain/SubDomain/Type/TTL 在服务启动后视为只读，可无锁并发读。
+// Addr 缓存由 mu 保护；外部应通过 CheckAndSetAddr / AddrString 访问，勿直接读写 Addr。
 type Domain struct {
 	Domain    string // 根域名
 	SubDomain string // 子域名；"@" 表示根域名本身
 	Type      string // 记录类型，通常为 AAAA
 	TTL       int    // TTL（秒）
-	Addr      net.IP // 最近一次成功同步的地址缓存
+	Addr      net.IP // 最近一次成功同步的地址缓存（须经方法或包内锁访问）
 	mu        sync.Mutex
 }
 
