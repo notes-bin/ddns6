@@ -134,7 +134,8 @@ func (c *Client) update(ctx context.Context, domain, ip string) error {
 	}
 
 	response := strings.TrimSpace(string(body))
-	if response == "OK" {
+	// verbose=true 时响应为多行（OK\nip\nUPDATED），非 verbose 时为单行 OK
+	if response == "OK" || strings.HasPrefix(response, "OK\n") || strings.HasPrefix(response, "OK\r\n") {
 		slog.Info("DuckDNS record updated successfully", "module", "duckdns", "domain", domain, "ipv6", ip)
 		return nil
 	}
