@@ -8,11 +8,12 @@ import (
 	"os"
 
 	"github.com/notes-bin/ddns6/cmd"
+	"github.com/notes-bin/ddns6/internal/httputil"
 )
 
 func main() {
 	if err := cmd.Execute(); err != nil {
-		slog.Error("command execution failed", "err", err, "module", "main")
+		slog.Error("command execution failed", "err", httputil.ErrForLog(err), "module", "main")
 		os.Exit(1)
 	}
 }
