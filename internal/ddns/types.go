@@ -53,9 +53,10 @@ func (r RecordInfo) Key() string {
 
 // ValueFromID 从复合 ID（格式 "任意前缀|值"）解析旧记录值；无分隔符则回退到 Value。
 //
+// 前缀可含多个 "|"（如 gcloud 的 name|type|value）；取最后一个分隔符之后作为值。
 // deSEC / Hetzner 等运营商在 Modify 时用 ID 携带旧值以构造替换请求。
 func (r RecordInfo) ValueFromID() string {
-	if _, value, ok := strings.Cut(r.ID, "|"); ok {
+	if _, value, ok := strings.CutLast(r.ID, "|"); ok {
 		return value
 	}
 	return r.Value
