@@ -111,7 +111,7 @@ var rootCmd = &cobra.Command{
   1. 临时测试:  ddns6 run tencent --domain example.com --subdomain www --secret-id xxx --secret-key yyy
   2. 配置文件:  ddns6 init tencent --domain example.com --secret-id xxx --secret-key yyy -> ddns6 run
   3. 查看详情:  ddns6 run --help`,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// -V/--version 须在日志初始化前拦截，否则会先打开日志文件再退出
 		if showV, _ := cmd.Flags().GetBool("version"); showV {
 			printVersion()
@@ -120,12 +120,12 @@ var rootCmd = &cobra.Command{
 
 		// 仅根命令自身（无子命令）时跳过日志，便于直接显示帮助
 		if cmd.Parent() == nil {
-			return
+			return nil
 		}
 
 		// version / init / list 只做本地输出，无需落盘日志
 		if cmd.Name() == "version" || cmd.Name() == "init" || cmd.Name() == "list" {
-			return
+			return nil
 		}
 
 		logFile := getString(cmd, "log-file")
@@ -135,9 +135,9 @@ var rootCmd = &cobra.Command{
 		if logFile != "" {
 			lf, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 			if err != nil {
-				slog.Error("failed to create log file", "err", err, "module", "cmd")
-				os.Exit(1)
+				return fmt.Errorf("failed to create log file %q: %w", logFile, err)
 			}
+			// 进程级日志句柄随进程退出由 OS 回收；长期运行服务不在此 Close
 			writers = append(writers, lf)
 		}
 
@@ -157,9 +157,10 @@ var rootCmd = &cobra.Command{
 			}
 		}
 		slog.SetDefault(slog.New(slog.NewJSONHandler(io.MultiWriter(writers...), opts)))
+		return nil
 	},
 	// 空 Run 让根命令可执行，否则 cobra 会跳过 PersistentPreRun，导致 -V 无响应；
-	// -V 已在 PersistentPreRun 中退出，此处仅在无参时显示帮助。
+	// -V 已在 PersistentPreRunE 中退出，此处仅在无参时显示帮助。
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},

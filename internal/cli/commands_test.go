@@ -294,6 +294,16 @@ func TestPersistentPreRun_Logging(t *testing.T) {
 	_ = rootCmd.Execute()
 }
 
+// TestPersistentPreRun_LogFileOpenError 验证无法创建日志文件时返回 error（非 os.Exit）。
+func TestPersistentPreRun_LogFileOpenError(t *testing.T) {
+	initRootCmd()
+	// 指向不存在的目录，OpenFile 应失败
+	bad := filepath.Join(t.TempDir(), "missing", "ddns6.log")
+	withArgs(t, "ddns6", "list") // list 跳过日志；改用 check 触发
+	withArgs(t, "ddns6", "check", "--log-file", bad)
+	requireErrContains(t, rootCmd.Execute(), "failed to create log file")
+}
+
 // TestRunWithConfig_UnsupportedProvider 验证未知 provider 时 createProviderFromConfig 失败。
 func TestRunWithConfig_UnsupportedProvider(t *testing.T) {
 
