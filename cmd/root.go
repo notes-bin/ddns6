@@ -365,7 +365,7 @@ func doInitRootCmd() {
 	pf.Int("ttl", 600, "DNS 记录 TTL，单位秒（默认 600）")
 	pf.String("interface", "", "监听的网络接口（仅 Linux Netlink 模式，如 --interface ppp0）")
 	pf.String("log-file", "ddns6.log", "日志文件路径，设为空字符串仅输出到 stderr")
-	pf.String("metrics-addr", "", "可选 Prometheus /metrics 监听地址（如 127.0.0.1:9090，空则禁用）")
+	pf.String("metrics-addr", "", "可选 Prometheus /metrics 监听地址（仅 loopback，如 127.0.0.1:9090；空则禁用）")
 
 	// 环境变量覆盖须在用户显式命令行参数之后注册默认值时生效
 	applyEnvOverrides()
