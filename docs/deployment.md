@@ -88,7 +88,9 @@ sudo journalctl -u ddns6 -f
 
 ## Docker
 
-镜像采用多阶段构建：编译阶段 `golang:1.27.1-alpine`，运行阶段 `alpine:3.21`。运行用户为 `ddns6`，uid/gid 均为 `10001`，非 root。
+镜像采用多阶段构建：编译阶段 `golang:1.27.1-alpine`，运行阶段 `alpine:3.21`。运行用户 uid/gid 均为 `10001`（`USER 10001:10001`），非 root；镜像内预创建 `$HOME=/home/ddns6`。
+
+`make docker-build` 与 Compose `build.args` 会传入 `VERSION` / `COMMIT` / `BUILD_TIME`，使容器内 `ddns6 version` 与本地构建一致。Compose 可通过环境变量覆盖，例如 `VERSION=v0.0.271 COMMIT=$(git rev-parse HEAD) docker compose build`。
 
 镜像与 Compose 默认将 `DDNS6_LOG_FILE` 设为空（仅 stderr）。只读根文件系统下无法在 `WORKDIR` 创建默认的 `ddns6.log`；若需落盘日志，请挂载可写路径并设置例如 `-e DDNS6_LOG_FILE=/tmp/ddns6.log`。
 
