@@ -26,12 +26,13 @@ func LimitBody(r io.Reader) io.Reader {
 	return &limitedReader{r: r, rem: MaxResponseBytes}
 }
 
-// limitedReader 在超过 max 字节后再读时返回错误（与 ReadBody 语义一致）。
+// limitedReader 在超过上限后再读时返回错误（与 ReadBody 语义一致）。
 type limitedReader struct {
 	r   io.Reader
 	rem int64
 }
 
+// Read 实现 io.Reader；剩余配额用尽且仍有数据时返回超限错误。
 func (l *limitedReader) Read(p []byte) (int, error) {
 	if l.rem <= 0 {
 		// 探测是否还有数据
@@ -57,6 +58,7 @@ func (l *limitedReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
+// readLimited 将 r 读入内存，长度超过 max 时返回错误。
 func readLimited(r io.Reader, max int64) ([]byte, error) {
 	b, err := io.ReadAll(io.LimitReader(r, max+1))
 	if err != nil {

@@ -1,6 +1,7 @@
 // Package metrics 提供可选的 Prometheus 文本格式指标导出。
 //
 // 默认不监听端口；仅当配置了非空 listen address 时由 Serve 启动 HTTP 服务。
+// Serve 仅允许绑定 loopback / localhost，拒绝 0.0.0.0 等非环回地址。
 // 指标基数刻意保持极低，禁止按 domain/IP 打点。
 package metrics
 
@@ -109,7 +110,7 @@ func validateListenAddr(addr string) error {
 
 // Serve 在 addr 上提供 /metrics，直到 ctx 取消。addr 为空则立即返回。
 //
-// 仅允许 loopback / localhost，避免误绑 0.0.0.0 暴露运营指标。
+// 仅允许 loopback / localhost（validateListenAddr），避免误绑 0.0.0.0 暴露运营指标。
 func Serve(ctx context.Context, addr string) error {
 	if addr == "" {
 		return nil

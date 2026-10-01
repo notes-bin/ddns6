@@ -178,7 +178,7 @@ func TestSyncAllDomains_Success(t *testing.T) {
 	}
 }
 
-// TestSyncAllDomains_MergesGetRecords 验证同根域名多子域只调用一次 GetRecords。
+// TestSyncAllDomains_MergesGetRecords 验证同根域名多子域只调用一次 GetRecords（root-domain merge）。
 func TestSyncAllDomains_MergesGetRecords(t *testing.T) {
 	addr := net.ParseIP("2001:db8::2")
 	domains := []*Domain{

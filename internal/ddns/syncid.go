@@ -5,6 +5,7 @@ import (
 	"uuid"
 )
 
+// syncIDKey 是 context 中存放 sync_id 的键类型。
 type syncIDKey struct{}
 
 // WithSyncID 为本轮同步注入 sync_id，便于并发 zone 日志对齐。

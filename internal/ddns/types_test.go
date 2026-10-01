@@ -20,7 +20,7 @@ func TestRecordTTL(t *testing.T) {
 	}
 }
 
-// TestRecordInfo_ValueFromID 覆盖复合 ID 解析与无分隔符时回退 Value。
+// TestRecordInfo_ValueFromID 覆盖 CutLast 复合 ID 解析（含多段）与无分隔符时回退 Value。
 func TestRecordInfo_ValueFromID(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

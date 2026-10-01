@@ -25,7 +25,9 @@ func TruncateForLog(s string) string {
 	return s[:n] + "...(truncated)"
 }
 
-// RedactSecrets 将错误/URL 字符串中的密钥类 query 参数替换为 REDACTED。
+// RedactSecrets 将错误/URL 字符串中的密钥类 query 参数值替换为 REDACTED。
+//
+// 匹配 token、key、apikey、secret、password 等常见参数名（大小写不敏感）。
 func RedactSecrets(s string) string {
 	return secretQueryParam.ReplaceAllString(s, `${1}REDACTED`)
 }
@@ -44,15 +46,19 @@ func SanitizeError(err error) error {
 	return &redactedError{msg: msg, err: err}
 }
 
+// redactedError 包装已脱敏的错误消息，同时保留原始 Unwrap 链。
 type redactedError struct {
 	msg string
 	err error
 }
 
+// Error 返回脱敏后的错误文本。
 func (e *redactedError) Error() string { return e.msg }
+
+// Unwrap 返回被包装的原始错误。
 func (e *redactedError) Unwrap() error { return e.err }
 
-// ErrForLog 返回适合日志字段的错误摘要（nil 安全，含密钥脱敏）。
+// ErrForLog 返回适合日志字段的错误摘要（nil 安全，含密钥脱敏与截断）。
 func ErrForLog(err error) string {
 	if err == nil {
 		return ""
