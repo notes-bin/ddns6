@@ -36,13 +36,17 @@ subdomains:
 
 ### 文件权限
 
-配置文件含 API 密钥，建议限制为仅当前用户可读：
+配置含 API 密钥。程序行为：
+
+- 写入：配置目录权限 **`0700`**，配置文件 **`0600`**；
+- 加载：Unix 上若文件对 group/others 可读（含 `0077` 位），**拒绝启动**（fail-closed），并提示执行 `chmod 600`。
 
 ```bash
+chmod 700 ~/.ddns6
 chmod 600 ~/.ddns6/config.yaml
 ```
 
-在 Unix 系统上，若配置文件对 group 或 others 可读（权限含 `0077` 位），`ddns6 run` 等命令加载配置时会向 stderr 输出警告，建议执行 `chmod 600`。程序不会因此拒绝启动，但凭据可能已被同机其他用户读取。
+Windows 不按 Unix 位图做同样检查。
 
 ## systemd
 
@@ -90,9 +94,11 @@ sudo journalctl -u ddns6 -f
 
 ddns6 在 Linux 上通过 Netlink 监听 IPv6 地址变化。Bridge 网络模式下容器无法直接接收宿主机网卡事件，因此 Compose 与 `make docker-run` 均使用 `network_mode: host`。**注意：** `network_mode: host` 仅在 Linux 上有效；macOS Docker Desktop 不支持，Netlink 功能在 macOS 上不可用。
 
-### 方式一：挂载配置文件（推荐）
+### 方式一：挂载配置文件（推荐，Compose 默认）
 
 将主机 `~/.ddns6` 只读挂载到容器内 `HOME`（`/home/ddns6/.ddns6`），密钥保留在文件中，不进入进程命令行参数。
+
+仓库 `docker-compose.yml` **默认启用** `ddns6-config` 服务；CLI 凭据模式的各 provider 服务默认注释掉。
 
 **docker run：**
 
@@ -115,7 +121,14 @@ docker run -d --name ddns6 --restart unless-stopped \
   ddns6 run
 ```
 
-**docker compose：** 在 `docker-compose.yml` 中取消注释 `ddns6-config` 服务，并注释掉 CLI 模式服务：
+**docker compose：**
+
+```bash
+# 确保主机已有 ~/.ddns6/config.yaml（权限 0600）
+docker compose up -d
+```
+
+`ddns6-config` 片段示例：
 
 ```yaml
 ddns6-config:
@@ -125,21 +138,17 @@ ddns6-config:
   command: ["run"]
 ```
 
-然后执行 `docker compose up -d`。
+### 方式二：`.env` + Compose CLI 模式（密钥进 argv，不推荐）
 
-### 方式二：`.env` + Compose CLI 模式
-
-复制环境变量模板并填入凭据：
+复制环境变量模板并填入凭据后，取消注释对应 provider 服务、注释掉 `ddns6-config`：
 
 ```bash
 cp .env.example .env
-# 编辑 .env
+# 编辑 .env 与 docker-compose.yml
 docker compose up -d
 ```
 
-Compose 将 `.env` 中的变量展开为 `ddns6 run <provider> --secret-id=...` 等形式。**密钥会出现在容器命令行参数中**（可通过 `docker inspect` 或 `ps` 查看），仅适合本地或受控环境。多子域名请改用配置文件模式（Compose CLI 仅支持单值 `SUBDOMAIN`）。
-
-默认启用 `ddns6-tencent` 服务；切换运营商时注释当前服务、取消注释对应 provider 块，并确保 `.env` 中凭据已填写。
+Compose 将变量展开为 `ddns6 run <provider> --secret-id=...` 等形式。**密钥会出现在容器命令行参数中**（`docker inspect` / `ps` 可见），仅适合受控环境。多子域名请改用配置文件模式。
 
 ### 安全参数
 
