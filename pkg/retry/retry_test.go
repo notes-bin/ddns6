@@ -110,7 +110,7 @@ func TestDo_SucceedsAfterRetries(t *testing.T) {
 	}
 }
 
-// TestDo_AllAttemptsFail 验证耗尽次数后返回原始可重试错误。
+// TestDo_AllAttemptsFail 验证耗尽次数后返回原始可重试错误（Unwrap 值）。
 func TestDo_AllAttemptsFail(t *testing.T) {
 	var count atomic.Int32
 	ctx := t.Context()
@@ -151,7 +151,7 @@ func TestDo_NonRetryableError(t *testing.T) {
 	}
 }
 
-// TestDo_ZeroAttempts 验证 attempts=0 时不调用 fn（循环不执行）。
+// TestDo_ZeroAttempts 验证 attempts=0 时不调用 fn（循环不执行）并返回 nil。
 func TestDo_ZeroAttempts(t *testing.T) {
 	var count atomic.Int32
 	ctx := t.Context()

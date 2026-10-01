@@ -28,12 +28,13 @@ import (
 )
 
 // RetryableError 标记可重试的临时错误。
+//
 // Do 仅对此类型按退避策略重试；其他错误立即返回。
 type RetryableError struct {
-	Err error
+	Err error // 被包装的原始错误
 }
 
-// Error 实现 error，前缀 "retryable:"。
+// Error 实现 error，前缀为 "retryable:"。
 func (e *RetryableError) Error() string {
 	return fmt.Sprintf("retryable: %v", e.Err)
 }
@@ -61,11 +62,11 @@ func IsRetryable(err error) bool {
 //
 // 参数：
 //   - ctx: 取消时中止重试并返回 ctx.Err()
-//   - attempts: 最大尝试次数（含首次）
-//   - baseDelay: 基础延迟；第 i 次重试等待约为 baseDelay*2^i 的全 jitter
+//   - attempts: 最大尝试次数（含首次）；为 0 时不调用 fn 并返回 nil
+//   - baseDelay: 基础延迟；第 i 次重试等待约为 baseDelay*2^i 的全 jitter（范围 [0, delay)）
 //   - fn: 返回 RetryableError 时重试，其他错误或 nil 时停止
 //
-// 返回最后一次结果：成功为 nil，耗尽次数则为最后一次可重试错误的 Unwrap 值。
+// 返回最后一次结果：成功为 nil；耗尽次数则为最后一次可重试错误的 Unwrap 值。
 func Do(ctx context.Context, attempts int, baseDelay time.Duration, fn func(context.Context) error) error {
 	var lastErr error
 
