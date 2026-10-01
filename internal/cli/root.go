@@ -472,8 +472,8 @@ func applyEnvOverrides() {
 
 // Execute 启动 CLI：初始化根命令并以可取消的 context 执行。
 //
-// 对未知命令或无效 flag，打印错误与帮助后返回 nil（避免 main 再记一遍错误）；
-// 其它错误向 stderr 打印一次后返回，由 main 以非 0 退出。
+// 对未知命令或无效 flag，打印错误与帮助后仍返回 error（由 main 以非 0 退出）；
+// 其它错误向 stderr 打印一次后返回。错误文案已在此处输出，main 只负责 exit code。
 // 收到 SIGINT/SIGTERM 时取消 context，以中止进行中的 API 请求。
 func Execute() error {
 	initRootCmd()
@@ -488,7 +488,7 @@ func Execute() error {
 			strings.Contains(errStr, "invalid argument") && strings.Contains(errStr, "flag") {
 			fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
 			_ = rootCmd.Help()
-			return nil
+			return fmt.Errorf("command failed: %w", err)
 		}
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return fmt.Errorf("command failed: %w", err)
