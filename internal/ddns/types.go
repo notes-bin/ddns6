@@ -15,7 +15,7 @@
 //	domains := []*ddns.Domain{
 //	    {Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600},
 //	}
-//	p := tencent.New("your-secret-id", "your-secret-key")
+//	p := tencent.NewClient("your-secret-id", "your-secret-key")
 //	err := ddns.RunService(domains, p, 5*time.Minute, ddns.DefaultIPv6Fetchers(), "", "")
 //
 // 新增运营商需实现 DNSProvider（4 个方法），并在 cmd/providers.go 注册。
@@ -81,6 +81,14 @@ type Domain struct {
 
 // DefaultTTL 为 DNS 记录默认 TTL（秒）。
 const DefaultTTL = 600
+
+// RecordTTL 返回有效 TTL；传入 0 或负值时回退为 DefaultTTL。
+func RecordTTL(ttl int) int {
+	if ttl > 0 {
+		return ttl
+	}
+	return DefaultTTL
+}
 
 // String 返回 Domain 的可读描述（线程安全）。
 func (d *Domain) String() string {

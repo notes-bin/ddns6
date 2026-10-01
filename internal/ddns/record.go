@@ -57,6 +57,7 @@ func applyDNSRecords(ctx context.Context, d *Domain, p DNSProvider, addr net.IP,
 	fqdn := d.FullDomain()
 	ipv6Str := addr.String()
 	syncID := SyncIDFrom(ctx)
+	ttl := RecordTTL(d.TTL)
 
 	slog.DebugContext(ctx, "applying DNS records", "module", "ddns",
 		"sync_id", syncID, "domain", d.Domain, "subdomain", d.SubDomain,
@@ -84,7 +85,7 @@ func applyDNSRecords(ctx context.Context, d *Domain, p DNSProvider, addr net.IP,
 		}
 
 		err := p.ModifyRecord(ctx, RecordInfo{
-			ID: r.ID, Name: fqdn, Zone: d.Domain, Type: d.Type, Value: ipv6Str, TTL: d.TTL,
+			ID: r.ID, Name: fqdn, Zone: d.Domain, Type: d.Type, Value: ipv6Str, TTL: ttl,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to modify record %s/%s: %w", d.Domain, d.SubDomain, err)
@@ -101,7 +102,7 @@ func applyDNSRecords(ctx context.Context, d *Domain, p DNSProvider, addr net.IP,
 			"fqdn", fqdn, "ipv6", ipv6Str)
 
 		err := p.AddRecord(ctx, RecordInfo{
-			Name: fqdn, Zone: d.Domain, Type: d.Type, Value: ipv6Str, TTL: d.TTL,
+			Name: fqdn, Zone: d.Domain, Type: d.Type, Value: ipv6Str, TTL: ttl,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to add record %s/%s: %w", d.Domain, d.SubDomain, err)

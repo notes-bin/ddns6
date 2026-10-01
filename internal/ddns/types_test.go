@@ -6,6 +6,19 @@ import (
 	"testing"
 )
 
+// TestRecordTTL 验证零值/负值回退 DefaultTTL。
+func TestRecordTTL(t *testing.T) {
+	if got := RecordTTL(0); got != DefaultTTL {
+		t.Fatalf("RecordTTL(0)=%d, want %d", got, DefaultTTL)
+	}
+	if got := RecordTTL(-1); got != DefaultTTL {
+		t.Fatalf("RecordTTL(-1)=%d, want %d", got, DefaultTTL)
+	}
+	if got := RecordTTL(300); got != 300 {
+		t.Fatalf("RecordTTL(300)=%d, want 300", got)
+	}
+}
+
 // TestDomainFullDomain 覆盖空子域名、@ 与普通子域名三种拼接。
 func TestDomainFullDomain(t *testing.T) {
 	tests := []struct {
