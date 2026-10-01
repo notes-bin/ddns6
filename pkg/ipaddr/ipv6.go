@@ -116,6 +116,6 @@ func IPv6Addr(ctx context.Context, fetchers ...IPv6Fetcher) (net.IP, error) {
 		"module", "ipaddr",
 		"total", len(fetchers),
 		"canceled", canceledCount, "timed_out", timeoutCount, "failed", failedCount,
-		"last_err", lastErr)
+		"err", lastErr)
 	return nil, fmt.Errorf("all %d fetchers failed: %w", len(fetchers), lastErr)
 }

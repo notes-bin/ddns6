@@ -12,6 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/notes-bin/ddns6/internal/httputil"
+	"github.com/notes-bin/ddns6/internal/metrics"
 	"github.com/notes-bin/ddns6/pkg/ipaddr"
 )
 
@@ -39,6 +41,7 @@ func DefaultIPv6Fetchers() []ipaddr.IPv6Fetcher {
 //   - interval: 非 Linux 平台的轮询间隔（Linux 下由 Netlink 事件驱动，此参数仅作回退）
 //   - fetchers: IPv6 地址获取器列表，每次触发时随机顺序并发竞速
 //   - iface: 指定监听的网络接口（空字符串表示监听所有接口，仅 Linux Netlink 模式有效）
+//   - metricsAddr: 可选 Prometheus /metrics 监听地址（空则不启用）
 //
 // 返回 error 仅在以下情况返回：
 //   - 首次启动获取 IPv6 地址失败
@@ -50,29 +53,45 @@ func DefaultIPv6Fetchers() []ipaddr.IPv6Fetcher {
 //   - 收到 SIGINT 或 SIGTERM 后优雅关闭（signal.NotifyContext）
 //   - 先取消正在进行的操作，再等待进行中的同步完成（最多 5 秒）
 //   - 然后返回 nil
-func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetchers []ipaddr.IPv6Fetcher, iface string) error {
+func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetchers []ipaddr.IPv6Fetcher, iface, metricsAddr string) error {
 	slog.Info("starting DDNS update service",
 		"module", "ddns",
 		"domain_count", len(domains),
 		"interval", interval,
-		"interface", iface)
+		"interface", iface,
+		"metrics_addr", metricsAddr)
 
 	// 可取消 context：SIGINT/SIGTERM 时取消并传播到进行中的获取与同步
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	if metricsAddr != "" {
+		go func() {
+			if err := metrics.Serve(ctx, metricsAddr); err != nil {
+				slog.Error("metrics server stopped", "module", "metrics", "err", httputil.ErrForLog(err))
+			}
+		}()
+	}
+
 	// 启动时立即做一次完整同步，避免等待首次 Netlink 事件或轮询周期
 	slog.Info("performing initial IPv6 address fetch", "module", "ddns")
 	ip, err := ipaddr.IPv6Addr(ctx, fetchers...)
 	if err != nil {
+		metrics.IncIPv6Fetch(false)
+		slog.Error("initial IPv6 fetch failed", "module", "ddns", "err", httputil.ErrForLog(err))
 		return fmt.Errorf("initial ipv6 fetch failed: %w", err)
 	}
+	metrics.IncIPv6Fetch(true)
 	slog.Info("initial IPv6 address obtained", "module", "ddns", "ipv6", ip.String())
 
 	// 首次同步 fail-fast：任一子域名失败则终止启动
 	if err := syncAllDomains(ctx, domains, ip, p, true); err != nil {
+		metrics.IncSync(false)
+		slog.Error("initial sync failed", "module", "ddns", "err", httputil.ErrForLog(err))
 		return err
 	}
+	metrics.IncSync(true)
+	metrics.MarkSuccess()
 
 	// Linux: Netlink 事件；其他平台: 定时轮询
 	triggerCh := startTrigger(ctx, interval, iface)
@@ -91,17 +110,13 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 		select {
 		case <-triggerCh:
 			if !syncing.CompareAndSwap(false, true) {
+				metrics.IncSyncSkipped()
 				slog.Debug("sync already in progress, skipping trigger", "module", "ddns")
 				continue
 			}
 			syncWG.Go(func() {
 				defer syncing.Store(false)
-				ip, err := ipaddr.IPv6Addr(ctx, fetchers...)
-				if err != nil {
-					slog.Error("failed to get IPv6 address on trigger", "module", "ddns", "err", err)
-					return
-				}
-				syncAllDomains(ctx, domains, ip, p, false)
+				runTriggeredSync(ctx, domains, p, fetchers)
 			})
 
 		case <-ctx.Done():
@@ -125,14 +140,40 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 	}
 }
 
+// runTriggeredSync 执行一轮触发同步（含 sync_id 与 metrics）。
+func runTriggeredSync(ctx context.Context, domains []*Domain, p DNSProvider, fetchers []ipaddr.IPv6Fetcher) {
+	ctx = WithSyncID(ctx)
+	syncID := SyncIDFrom(ctx)
+
+	ip, err := ipaddr.IPv6Addr(ctx, fetchers...)
+	if err != nil {
+		metrics.IncIPv6Fetch(false)
+		slog.ErrorContext(ctx, "failed to get IPv6 address on trigger",
+			"module", "ddns", "sync_id", syncID, "err", httputil.ErrForLog(err))
+		return
+	}
+	metrics.IncIPv6Fetch(true)
+
+	if err := syncAllDomains(ctx, domains, ip, p, false); err != nil {
+		metrics.IncSync(false)
+		return
+	}
+	metrics.IncSync(true)
+	metrics.MarkSuccess()
+}
+
 // maxSyncGroupConcurrency 同轮 sync 中并发处理的 zone 组上限。
 const maxSyncGroupConcurrency = 5
 
 // syncAllDomains 按根域名分组同步，同 zone 只查询一次 GetRecords。
 //
-// failFast=true 时返回第一个错误（仍等待各组结束）；failFast=false 时遇错只记日志。
+// failFast=true 时返回第一个错误（仍等待各组结束）；failFast=false 时遇错只在组内记一次日志。
 // 并发组数受 maxSyncGroupConcurrency 限制，避免瞬时打满上游 API。
 func syncAllDomains(ctx context.Context, domains []*Domain, ip net.IP, p DNSProvider, failFast bool) error {
+	if SyncIDFrom(ctx) == "" {
+		ctx = WithSyncID(ctx)
+	}
+
 	type groupKey struct {
 		root string
 		typ  string
@@ -145,6 +186,7 @@ func syncAllDomains(ctx context.Context, domains []*Domain, ip net.IP, p DNSProv
 
 	sem := make(chan struct{}, maxSyncGroupConcurrency)
 	var wg sync.WaitGroup
+	var failed atomic.Bool
 	errCh := make(chan error, len(groups))
 	for key, group := range groups {
 		wg.Go(func() {
@@ -152,13 +194,11 @@ func syncAllDomains(ctx context.Context, domains []*Domain, ip net.IP, p DNSProv
 			defer func() { <-sem }()
 
 			if err := syncDomainGroup(ctx, key.root, key.typ, group, ip, p); err != nil {
+				failed.Store(true)
 				if failFast {
 					errCh <- err
-				} else {
-					slog.Error("sync group failed on trigger",
-						"module", "ddns",
-						"domain", key.root, "type", key.typ, "err", err)
 				}
+				// 非 failFast：错误已在 syncDomainGroup 边界记过，不再叠层
 			}
 		})
 	}
@@ -170,12 +210,17 @@ func syncAllDomains(ctx context.Context, domains []*Domain, ip net.IP, p DNSProv
 				return err
 			}
 		}
+		return nil
+	}
+	if failed.Load() {
+		return fmt.Errorf("one or more sync groups failed")
 	}
 	return nil
 }
 
 // syncDomainGroup 同步同一根域名下的多个子域名：先过滤需更新项，再一次 GetRecords 后逐个 apply。
 func syncDomainGroup(ctx context.Context, root, typ string, group []*Domain, ip net.IP, p DNSProvider) error {
+	syncID := SyncIDFrom(ctx)
 	need := make([]*Domain, 0, len(group))
 	for _, d := range group {
 		select {
@@ -187,8 +232,8 @@ func syncDomainGroup(ctx context.Context, root, typ string, group []*Domain, ip 
 		unchanged := !hasAddressChanged(d.Addr, ip)
 		d.unlock()
 		if unchanged {
-			slog.Debug("IPv6 address unchanged, skipping update", "module", "ddns",
-				"domain", d.Domain, "subdomain", d.SubDomain)
+			slog.DebugContext(ctx, "IPv6 address unchanged, skipping update", "module", "ddns",
+				"sync_id", syncID, "domain", d.Domain, "subdomain", d.SubDomain)
 			continue
 		}
 		need = append(need, d)
@@ -197,16 +242,23 @@ func syncDomainGroup(ctx context.Context, root, typ string, group []*Domain, ip 
 		return nil
 	}
 
-	slog.Debug("querying DNS records for zone", "module", "ddns",
-		"domain", root, "type", typ, "subdomain_count", len(need))
+	slog.DebugContext(ctx, "querying DNS records for zone", "module", "ddns",
+		"sync_id", syncID, "domain", root, "record_type", typ, "subdomain_count", len(need))
 
 	records, err := p.GetRecords(ctx, root, typ)
 	if err != nil {
+		slog.ErrorContext(ctx, "failed to query records",
+			"module", "ddns", "sync_id", syncID, "domain", root, "record_type", typ,
+			"err", httputil.ErrForLog(err))
 		return fmt.Errorf("failed to query records for %s: %w", root, err)
 	}
 
 	for _, d := range need {
 		if err := applyDNSRecords(ctx, d, p, ip, records); err != nil {
+			slog.ErrorContext(ctx, "sync failed",
+				"module", "ddns", "sync_id", syncID,
+				"domain", d.Domain, "subdomain", d.SubDomain,
+				"err", httputil.ErrForLog(err))
 			return fmt.Errorf("sync failed for %s/%s: %w", d.Domain, d.SubDomain, err)
 		}
 	}

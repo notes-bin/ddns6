@@ -11,16 +11,18 @@ import (
 //
 // 地址未变化则跳过；变化则调用 syncDNSRecord。
 // 仅在读写 Addr 缓存时短暂持锁，DNS API I/O 在锁外执行。
+// 失败不在此记 Error（由 syncDomainGroup 等边界统一记录，避免叠层）。
 //
 // 参数:
-//   - ctx: 取消时中止操作
+//   - ctx: 取消时中止操作；可携带 sync_id
 //   - d: 域名配置（含子域名、记录类型等）
 //   - ipv6: 当前本机 IPv6 地址
 //   - p: DNS 服务商实现
 func SyncRecord(ctx context.Context, d *Domain, ipv6 net.IP, p DNSProvider) error {
 	select {
 	case <-ctx.Done():
-		slog.Info("sync task cancelled", "module", "ddns", "domain", d.Domain, "subdomain", d.SubDomain)
+		slog.InfoContext(ctx, "sync task cancelled", "module", "ddns",
+			"sync_id", SyncIDFrom(ctx), "domain", d.Domain, "subdomain", d.SubDomain)
 		return ctx.Err()
 	default:
 	}
@@ -29,8 +31,8 @@ func SyncRecord(ctx context.Context, d *Domain, ipv6 net.IP, p DNSProvider) erro
 	unchanged := !hasAddressChanged(d.Addr, ipv6)
 	d.unlock()
 	if unchanged {
-		slog.Debug("IPv6 address unchanged, skipping update", "module", "ddns",
-			"domain", d.Domain, "subdomain", d.SubDomain)
+		slog.DebugContext(ctx, "IPv6 address unchanged, skipping update", "module", "ddns",
+			"sync_id", SyncIDFrom(ctx), "domain", d.Domain, "subdomain", d.SubDomain)
 		return nil
 	}
 
@@ -39,13 +41,9 @@ func SyncRecord(ctx context.Context, d *Domain, ipv6 net.IP, p DNSProvider) erro
 
 // syncDNSRecord 查询根域名记录并同步当前子域名（不持 Domain 锁）。
 func syncDNSRecord(ctx context.Context, d *Domain, p DNSProvider, addr net.IP) error {
-	// 按根域名查询，便于同 zone 多子域复用（见 syncDomainGroup）
 	records, err := p.GetRecords(ctx, d.Domain, d.Type)
 	if err != nil {
-		slog.Error("failed to query records", "module", "ddns",
-			"domain", d.Domain, "subdomain", d.SubDomain,
-			"ipv6", addr.String(), "err", err)
-		return fmt.Errorf("failed to query records: %w", err)
+		return fmt.Errorf("failed to query records for %s/%s: %w", d.Domain, d.SubDomain, err)
 	}
 	return applyDNSRecords(ctx, d, p, addr, records)
 }
@@ -54,18 +52,15 @@ func syncDNSRecord(ctx context.Context, d *Domain, p DNSProvider, addr net.IP) e
 //
 // DNS API 调用在锁外执行；仅更新 Addr 缓存时短暂加锁。
 // Domain/SubDomain/Type/TTL 在服务启动后视为只读。
-//
-// 工作流程：
-//  1. 只处理匹配当前子域名且类型相符的记录
-//  2. 同 IP 则跳过，不同 IP 则修改
-//  3. 目标子域名下无匹配记录则新增
+// 失败只返回 error，由调用方边界记一次日志。
 func applyDNSRecords(ctx context.Context, d *Domain, p DNSProvider, addr net.IP, records []RecordInfo) error {
 	fqdn := d.FullDomain()
 	ipv6Str := addr.String()
+	syncID := SyncIDFrom(ctx)
 
-	slog.Debug("applying DNS records", "module", "ddns",
-		"domain", d.Domain, "subdomain", d.SubDomain,
-		"fqdn", fqdn, "type", d.Type, "record_count", len(records))
+	slog.DebugContext(ctx, "applying DNS records", "module", "ddns",
+		"sync_id", syncID, "domain", d.Domain, "subdomain", d.SubDomain,
+		"fqdn", fqdn, "record_type", d.Type, "record_count", len(records))
 
 	found := false
 
@@ -75,15 +70,15 @@ func applyDNSRecords(ctx context.Context, d *Domain, p DNSProvider, addr net.IP,
 		}
 		found = true
 
-		slog.Debug("comparing DNS record values", "module", "ddns",
-			"domain", d.Domain, "subdomain", d.SubDomain,
+		slog.DebugContext(ctx, "comparing DNS record values", "module", "ddns",
+			"sync_id", syncID, "domain", d.Domain, "subdomain", d.SubDomain,
 			"existing_value", r.Value, "new_value", ipv6Str,
 			"record_id", r.ID, "record_type", r.Type)
 
 		if ipv6Equal(addr, r.Value) {
 			copyAddrToDomain(d, addr)
-			slog.Debug("IPv6 record already matches, no update needed", "module", "ddns",
-				"domain", d.Domain, "subdomain", d.SubDomain,
+			slog.DebugContext(ctx, "IPv6 record already matches, no update needed", "module", "ddns",
+				"sync_id", syncID, "domain", d.Domain, "subdomain", d.SubDomain,
 				"record_id", r.ID)
 			continue
 		}
@@ -92,34 +87,28 @@ func applyDNSRecords(ctx context.Context, d *Domain, p DNSProvider, addr net.IP,
 			ID: r.ID, Name: fqdn, Zone: d.Domain, Type: d.Type, Value: ipv6Str, TTL: d.TTL,
 		})
 		if err != nil {
-			slog.Error("failed to modify record", "module", "ddns",
-				"domain", d.Domain, "subdomain", d.SubDomain,
-				"ipv6", ipv6Str, "record_id", r.ID, "err", err)
-			return fmt.Errorf("failed to modify record: %w", err)
+			return fmt.Errorf("failed to modify record %s/%s: %w", d.Domain, d.SubDomain, err)
 		}
 		copyAddrToDomain(d, addr)
-		slog.Info("IPv6 address changed, record modified", "module", "ddns",
-			"domain", d.Domain, "subdomain", d.SubDomain,
+		slog.InfoContext(ctx, "IPv6 address changed, record modified", "module", "ddns",
+			"sync_id", syncID, "domain", d.Domain, "subdomain", d.SubDomain,
 			"ipv6", ipv6Str, "record_id", r.ID)
 	}
 
 	if !found {
-		slog.Debug("no AAAA record found, adding new record", "module", "ddns",
-			"domain", d.Domain, "subdomain", d.SubDomain,
+		slog.DebugContext(ctx, "no AAAA record found, adding new record", "module", "ddns",
+			"sync_id", syncID, "domain", d.Domain, "subdomain", d.SubDomain,
 			"fqdn", fqdn, "ipv6", ipv6Str)
 
 		err := p.AddRecord(ctx, RecordInfo{
 			Name: fqdn, Zone: d.Domain, Type: d.Type, Value: ipv6Str, TTL: d.TTL,
 		})
 		if err != nil {
-			slog.Error("failed to add record", "module", "ddns",
-				"domain", d.Domain, "subdomain", d.SubDomain,
-				"ipv6", ipv6Str, "err", err)
-			return fmt.Errorf("failed to add record: %w", err)
+			return fmt.Errorf("failed to add record %s/%s: %w", d.Domain, d.SubDomain, err)
 		}
 		copyAddrToDomain(d, addr)
-		slog.Info("IPv6 address changed, record added", "module", "ddns",
-			"domain", d.Domain, "subdomain", d.SubDomain, "ipv6", ipv6Str)
+		slog.InfoContext(ctx, "IPv6 address changed, record added", "module", "ddns",
+			"sync_id", syncID, "domain", d.Domain, "subdomain", d.SubDomain, "ipv6", ipv6Str)
 	}
 
 	return nil
