@@ -71,8 +71,8 @@ func WithHTTPClient(httpClient *http.Client) Option {
 	}
 }
 
-// DNSRecord 华为云 DNS 记录集。
-type DNSRecord struct {
+// dnsRecord 华为云 DNS 记录集。
+type dnsRecord struct {
 	ID      string   `json:"id,omitempty"`
 	Name    string   `json:"name"`
 	Type    string   `json:"type"`
@@ -177,7 +177,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	params.Set("limit", "500")
 
 	// 华为云 API 分页获取全部 recordsets
-	var allRecordsets []DNSRecord
+	var allRecordsets []dnsRecord
 	marker := ""
 	for {
 		if marker != "" {
@@ -186,7 +186,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		reqURL := c.baseURL + "/v2.1/zones/" + zoneID + "/recordsets?" + params.Encode()
 
 		var apiResult struct {
-			Recordsets []DNSRecord `json:"recordsets"`
+			Recordsets []dnsRecord `json:"recordsets"`
 			Links      struct {
 				Next string `json:"next"`
 			} `json:"links"`
@@ -236,8 +236,10 @@ func (c *Client) getZoneID(ctx context.Context, domain, zoneHint string) (string
 		root = domain
 	}
 
-	if id, ok := c.zoneCache.Load(root); ok {
-		return id.(string), nil
+	if v, ok := c.zoneCache.Load(root); ok {
+		if id, ok := v.(string); ok {
+			return id, nil
+		}
 	}
 
 	if id, err := c.lookupZoneID(ctx, root); err == nil {
