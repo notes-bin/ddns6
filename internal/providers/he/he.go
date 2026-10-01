@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -42,7 +43,7 @@ func NewClient(password string, options ...Option) *Client {
 	c := &Client{
 		password:   password,
 		baseURL:    defaultBaseURL,
-		httpClient: &http.Client{Timeout: 10 * time.Second},
+		httpClient: httputil.NewHTTPClient(10 * time.Second),
 	}
 	for _, opt := range options {
 		opt(c)
@@ -96,10 +97,12 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 
 // update 执行 HE DNS DDNS 更新请求。
 func (c *Client) update(ctx context.Context, hostname, ip string) error {
-	reqURL := fmt.Sprintf("%s%s?hostname=%s", c.baseURL, updatePath, hostname)
+	q := url.Values{}
+	q.Set("hostname", hostname)
 	if ip != "" {
-		reqURL += "&myip=" + ip
+		q.Set("myip", ip)
 	}
+	reqURL := c.baseURL + updatePath + "?" + q.Encode()
 
 	slog.Debug("updating HE DNS record", "module", "he", "hostname", hostname, "ipv6", ip)
 
@@ -113,8 +116,8 @@ func (c *Client) update(ctx context.Context, hostname, ip string) error {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		slog.Debug("HE DNS API request failed", "module", "he", "hostname", hostname, "err", err)
-		return fmt.Errorf("he dns request failed: %w", err)
+		slog.Debug("HE DNS API request failed", "module", "he", "hostname", hostname, "err", httputil.ErrForLog(err))
+		return httputil.WrapRequestError("he dns request failed", err)
 	}
 	defer resp.Body.Close()
 

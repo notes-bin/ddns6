@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -43,7 +44,7 @@ func NewClient(username, password string, options ...Option) *Client {
 		username:   username,
 		password:   password,
 		baseURL:    defaultBaseURL,
-		httpClient: &http.Client{Timeout: 10 * time.Second},
+		httpClient: httputil.NewHTTPClient(10 * time.Second),
 	}
 	for _, opt := range options {
 		opt(c)
@@ -97,10 +98,12 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 
 // update 执行 No-IP DDNS 更新请求。
 func (c *Client) update(ctx context.Context, hostname, ip string) error {
-	reqURL := fmt.Sprintf("%s%s?hostname=%s", c.baseURL, updatePath, hostname)
+	q := url.Values{}
+	q.Set("hostname", hostname)
 	if ip != "" {
-		reqURL += "&myip=" + ip
+		q.Set("myip", ip)
 	}
+	reqURL := c.baseURL + updatePath + "?" + q.Encode()
 
 	slog.Debug("updating No-IP record", "module", "noip", "hostname", hostname, "ipv6", ip)
 
@@ -113,8 +116,8 @@ func (c *Client) update(ctx context.Context, hostname, ip string) error {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		slog.Debug("No-IP API request failed", "module", "noip", "hostname", hostname, "err", err)
-		return fmt.Errorf("no-ip request failed: %w", err)
+		slog.Debug("No-IP API request failed", "module", "noip", "hostname", hostname, "err", httputil.ErrForLog(err))
+		return httputil.WrapRequestError("no-ip request failed", err)
 	}
 	defer resp.Body.Close()
 
