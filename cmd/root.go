@@ -320,22 +320,20 @@ func printVersion() {
 	fmt.Printf("Version: %s\nCommit:  %s\nBuildAt: %s\n", Version, Commit, buildAt)
 }
 
-// persistentFlags 定义根命令持久化 flag：名称、类型、默认值、用法文案及对应环境变量。
-var persistentFlags = []struct {
-	name         string
-	flagType     string
-	defaultValue any
-	usage        string
-	envName      string // 空表示不支持环境变量覆盖
+// envFlagBindings 将持久化 flag 与 DDNS6_* 环境变量绑定（仅用于 applyEnvOverrides）。
+var envFlagBindings = []struct {
+	name     string
+	flagType string
+	envName  string
 }{
-	{"debug", "bool", false, "启用调试日志（含源码位置）", "DDNS6_DEBUG"},
-	{"interval", "duration", 5 * time.Minute, "非 Linux 平台的轮询间隔（默认 5m，如 --interval 10m）", "DDNS6_INTERVAL"},
-	{"domain", "string", "", "要更新的域名（如 example.com）", "DDNS6_DOMAIN"},
-	{"subdomain", "stringArray", []string{"@"}, "子域名名称，可多次指定（默认 @，如 --subdomain www --subdomain @）", "DDNS6_SUBDOMAIN"},
-	{"ttl", "int", 600, "DNS 记录 TTL，单位秒（默认 600）", "DDNS6_TTL"},
-	{"interface", "string", "", "监听的网络接口（仅 Linux Netlink 模式，如 --interface ppp0）", "DDNS6_INTERFACE"},
-	{"log-file", "string", "ddns6.log", "日志文件路径，设为空字符串仅输出到 stderr", "DDNS6_LOG_FILE"},
-	{"metrics-addr", "string", "", "可选 Prometheus /metrics 监听地址（如 127.0.0.1:9090，空则禁用）", "DDNS6_METRICS_ADDR"},
+	{"debug", "bool", "DDNS6_DEBUG"},
+	{"interval", "duration", "DDNS6_INTERVAL"},
+	{"domain", "string", "DDNS6_DOMAIN"},
+	{"subdomain", "stringArray", "DDNS6_SUBDOMAIN"},
+	{"ttl", "int", "DDNS6_TTL"},
+	{"interface", "string", "DDNS6_INTERFACE"},
+	{"log-file", "string", "DDNS6_LOG_FILE"},
+	{"metrics-addr", "string", "DDNS6_METRICS_ADDR"},
 }
 
 // rootInitOnce 保证 initRootCmd 只执行一次，避免 Execute 重复注册子命令。
@@ -364,26 +362,15 @@ func doInitRootCmd() {
 
 	rootCmd.PersistentFlags().BoolP("version", "V", false, "显示版本信息（版本号、Git 提交、构建时间）")
 
-	for _, f := range persistentFlags {
-		switch f.name {
-		case "debug":
-			rootCmd.PersistentFlags().Bool(f.name, f.defaultValue.(bool), f.usage)
-		case "interval":
-			rootCmd.PersistentFlags().Duration(f.name, f.defaultValue.(time.Duration), f.usage)
-		case "domain":
-			rootCmd.PersistentFlags().String(f.name, f.defaultValue.(string), f.usage)
-		case "subdomain":
-			rootCmd.PersistentFlags().StringArray(f.name, f.defaultValue.([]string), f.usage)
-		case "ttl":
-			rootCmd.PersistentFlags().Int(f.name, f.defaultValue.(int), f.usage)
-		case "interface":
-			rootCmd.PersistentFlags().String(f.name, f.defaultValue.(string), f.usage)
-		case "log-file":
-			rootCmd.PersistentFlags().String(f.name, f.defaultValue.(string), f.usage)
-		case "metrics-addr":
-			rootCmd.PersistentFlags().String(f.name, f.defaultValue.(string), f.usage)
-		}
-	}
+	pf := rootCmd.PersistentFlags()
+	pf.Bool("debug", false, "启用调试日志（含源码位置）")
+	pf.Duration("interval", 5*time.Minute, "非 Linux 平台的轮询间隔（默认 5m，如 --interval 10m）")
+	pf.String("domain", "", "要更新的域名（如 example.com）")
+	pf.StringArray("subdomain", []string{"@"}, "子域名名称，可多次指定（默认 @，如 --subdomain www --subdomain @）")
+	pf.Int("ttl", 600, "DNS 记录 TTL，单位秒（默认 600）")
+	pf.String("interface", "", "监听的网络接口（仅 Linux Netlink 模式，如 --interface ppp0）")
+	pf.String("log-file", "ddns6.log", "日志文件路径，设为空字符串仅输出到 stderr")
+	pf.String("metrics-addr", "", "可选 Prometheus /metrics 监听地址（如 127.0.0.1:9090，空则禁用）")
 
 	// 环境变量覆盖须在用户显式命令行参数之后注册默认值时生效
 	applyEnvOverrides()
@@ -456,10 +443,7 @@ func doInitRootCmd() {
 
 // applyEnvOverrides 在 flag 未被命令行显式设置时，用 DDNS6_* 环境变量覆盖默认值。
 func applyEnvOverrides() {
-	for _, f := range persistentFlags {
-		if f.envName == "" {
-			continue
-		}
+	for _, f := range envFlagBindings {
 		val, ok := os.LookupEnv(f.envName)
 		if !ok {
 			continue
