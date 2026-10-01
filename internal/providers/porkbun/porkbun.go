@@ -119,7 +119,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 		TTL:     strconv.Itoa(ddns.RecordTTL(record.TTL)),
 	}
 
-	url := fmt.Sprintf("%s/editByNameType/%s/%s/%s", c.baseURL, urlpkg.PathEscape(domain), record.Type, urlpkg.PathEscape(subDomain))
+	url := fmt.Sprintf("%s/editByNameType/%s/%s/%s", c.baseURL, urlpkg.PathEscape(domain), urlpkg.PathEscape(record.Type), urlpkg.PathEscape(subDomain))
 	slog.Debug("modifying Porkbun DNS record", "module", "porkbun", "domain", domain, "name", subDomain, "type", record.Type)
 
 	var resp apiResponse
@@ -139,8 +139,12 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
 	domain, subDomain := splitDomain(record.Name, record.Zone)
 
-	url := fmt.Sprintf("%s/deleteByNameType/%s/%s/%s", c.baseURL, urlpkg.PathEscape(domain), "AAAA", urlpkg.PathEscape(subDomain))
-	slog.Debug("deleting Porkbun DNS record", "module", "porkbun", "domain", domain, "name", subDomain)
+	rtype := record.Type
+	if rtype == "" {
+		rtype = "AAAA"
+	}
+	url := fmt.Sprintf("%s/deleteByNameType/%s/%s/%s", c.baseURL, urlpkg.PathEscape(domain), urlpkg.PathEscape(rtype), urlpkg.PathEscape(subDomain))
+	slog.Debug("deleting Porkbun DNS record", "module", "porkbun", "domain", domain, "name", subDomain, "type", rtype)
 
 	var resp apiResponse
 	err := c.post(ctx, url, nil, &resp)
@@ -161,9 +165,9 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 
 	// subDomain 为 "@" 时使用 retrieveByType（按域名+类型）
 	// 否则使用 retrieveByNameType（按域名+类型+名称精确匹配）
-	url := fmt.Sprintf("%s/retrieveByType/%s/%s", c.baseURL, urlpkg.PathEscape(domain), recordType)
+	url := fmt.Sprintf("%s/retrieveByType/%s/%s", c.baseURL, urlpkg.PathEscape(domain), urlpkg.PathEscape(recordType))
 	if subDomain != "@" {
-		url = fmt.Sprintf("%s/retrieveByNameType/%s/%s/%s", c.baseURL, urlpkg.PathEscape(domain), recordType, urlpkg.PathEscape(subDomain))
+		url = fmt.Sprintf("%s/retrieveByNameType/%s/%s/%s", c.baseURL, urlpkg.PathEscape(domain), urlpkg.PathEscape(recordType), urlpkg.PathEscape(subDomain))
 	}
 	slog.Debug("querying Porkbun DNS records", "module", "porkbun", "domain", domain, "name", subDomain, "type", recordType)
 
