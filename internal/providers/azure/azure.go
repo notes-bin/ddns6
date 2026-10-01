@@ -58,7 +58,7 @@ func NewClient(subscriptionID, tenantID, clientID, clientSecret string, options 
 		clientSecret:   clientSecret,
 		loginBase:      "https://login.microsoftonline.com",
 		managementBase: management,
-		httpClient:     &http.Client{Timeout: 30 * time.Second},
+		httpClient:     httputil.NewHTTPClient(30 * time.Second),
 	}
 	for _, opt := range options {
 		opt(c)
