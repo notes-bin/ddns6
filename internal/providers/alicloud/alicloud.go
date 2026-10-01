@@ -2,7 +2,7 @@
 //
 // 认证方式：AccessKey ID + AccessKey Secret（从 RAM 用户获取）。
 // 必填参数：--access-key-id、--access-key-secret。
-// 可选参数：--sign-version（默认 v1；可设为 v3）。
+// 可选参数：--sign-version（默认 v3；可设为 v1）。
 //
 // 支持 V1（HMAC-SHA1）与 V3（ACS3-HMAC-SHA256）两种签名，默认 V1。
 package alicloud
@@ -36,7 +36,7 @@ type Client struct {
 	accessKeySecret string
 	baseURL         string
 	httpClient      *http.Client
-	signVersion     string // 签名版本："v1"（默认，HMAC-SHA1）或 "v3"（ACS3-HMAC-SHA256）
+	signVersion     string // 签名版本："v1"（HMAC-SHA1）或 "v3"（默认，ACS3-HMAC-SHA256）
 }
 
 // Option 客户端配置选项。
@@ -48,8 +48,8 @@ func NewClient(accessKeyID, accessKeySecret string, options ...Option) *Client {
 		accessKeyID:     accessKeyID,
 		accessKeySecret: accessKeySecret,
 		baseURL:         "https://alidns.aliyuncs.com/",
-		httpClient:      &http.Client{Timeout: 30 * time.Second},
-		signVersion:     "v1",
+		httpClient:      httputil.NewHTTPClient(30 * time.Second),
+		signVersion:     "v3",
 	}
 
 	for _, option := range options {
@@ -73,7 +73,7 @@ func WithHTTPClient(httpClient *http.Client) Option {
 	}
 }
 
-// WithSignVersion 设置签名版本："v1"（默认，HMAC-SHA1）或 "v3"（ACS3-HMAC-SHA256）。
+// WithSignVersion 设置签名版本："v1"（HMAC-SHA1）或 "v3"（默认，ACS3-HMAC-SHA256）。
 func WithSignVersion(version string) Option {
 	return func(c *Client) {
 		c.signVersion = version

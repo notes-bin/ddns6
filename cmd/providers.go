@@ -112,7 +112,7 @@ var providerFactories = []providerFactory{
 		flags: []providerFlag{
 			{"access-key-id", "Alibaba Cloud Access Key ID (必填，从 RAM 用户获取)"},
 			{"access-key-secret", "Alibaba Cloud Access Key Secret (必填)"},
-			{"sign-version", "签名版本：v1（默认，HMAC-SHA1）或 v3（ACS3-HMAC-SHA256）"},
+			{"sign-version", "签名版本：v3（默认，ACS3-HMAC-SHA256）或 v1（HMAC-SHA1）"},
 		},
 		run: func(cmd *cobra.Command) ([]*ddns.Domain, ddns.DNSProvider, error) {
 			domains, err := createDomainConfigs(cmd)
