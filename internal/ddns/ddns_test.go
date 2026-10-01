@@ -141,8 +141,8 @@ func TestSyncDNSRecord_NoRecord_AddNew(t *testing.T) {
 		t.Fatalf("syncDNSRecord 不应返回错误: %v", err)
 	}
 
-	if d.Addr == nil || d.Addr.String() != "2001:db8::1" {
-		t.Errorf("Addr 应更新为 2001:db8::1, 得到 %v", d.Addr)
+	if d.addr == nil || d.addr.String() != "2001:db8::1" {
+		t.Errorf("Addr 应更新为 2001:db8::1, 得到 %v", d.addr)
 	}
 }
 
@@ -162,8 +162,8 @@ func TestSyncDNSRecord_IPMatch_Skip(t *testing.T) {
 		t.Fatalf("syncDNSRecord 不应返回错误: %v", err)
 	}
 
-	if d.Addr == nil || d.Addr.String() != "2001:db8::1" {
-		t.Errorf("Addr 应更新为 2001:db8::1, 得到 %v", d.Addr)
+	if d.addr == nil || d.addr.String() != "2001:db8::1" {
+		t.Errorf("Addr 应更新为 2001:db8::1, 得到 %v", d.addr)
 	}
 }
 
@@ -183,8 +183,8 @@ func TestSyncDNSRecord_IPChanged_Modify(t *testing.T) {
 		t.Fatalf("syncDNSRecord 不应返回错误: %v", err)
 	}
 
-	if d.Addr == nil || d.Addr.String() != "2001:db8::2" {
-		t.Errorf("Addr 应更新为 2001:db8::2, 得到 %v", d.Addr)
+	if d.addr == nil || d.addr.String() != "2001:db8::2" {
+		t.Errorf("Addr 应更新为 2001:db8::2, 得到 %v", d.addr)
 	}
 }
 
@@ -249,8 +249,8 @@ func TestSyncDNSRecord_MultipleRecords_AllProcessed(t *testing.T) {
 		t.Fatalf("syncDNSRecord 不应返回错误: %v", err)
 	}
 
-	if d.Addr == nil || d.Addr.String() != "2001:db8::3" {
-		t.Errorf("Addr 应更新为 2001:db8::3, 得到 %v", d.Addr)
+	if d.addr == nil || d.addr.String() != "2001:db8::3" {
+		t.Errorf("Addr 应更新为 2001:db8::3, 得到 %v", d.addr)
 	}
 }
 
@@ -270,8 +270,8 @@ func TestSyncDNSRecord_WrongType_Skipped(t *testing.T) {
 		t.Fatalf("syncDNSRecord 不应返回错误: %v", err)
 	}
 
-	if d.Addr == nil || d.Addr.String() != "2001:db8::1" {
-		t.Errorf("Addr 应更新为 2001:db8::1, 得到 %v", d.Addr)
+	if d.addr == nil || d.addr.String() != "2001:db8::1" {
+		t.Errorf("Addr 应更新为 2001:db8::1, 得到 %v", d.addr)
 	}
 }
 
@@ -291,8 +291,8 @@ func TestSyncDNSRecord_WrongSubDomain_Skipped(t *testing.T) {
 		t.Fatalf("syncDNSRecord 不应返回错误: %v", err)
 	}
 
-	if d.Addr == nil || d.Addr.String() != "2001:db8::1" {
-		t.Errorf("Addr 应更新为 2001:db8::1, 得到 %v", d.Addr)
+	if d.addr == nil || d.addr.String() != "2001:db8::1" {
+		t.Errorf("Addr 应更新为 2001:db8::1, 得到 %v", d.addr)
 	}
 }
 
@@ -334,8 +334,8 @@ func TestSyncRecord_AddrChanged_Update(t *testing.T) {
 		t.Fatalf("SyncRecord 不应返回错误: %v", err)
 	}
 
-	if d.Addr.String() != "2001:db8::2" {
-		t.Errorf("Addr 应更新为 2001:db8::2, 得到 %v", d.Addr)
+	if d.addr.String() != "2001:db8::2" {
+		t.Errorf("Addr 应更新为 2001:db8::2, 得到 %v", d.addr)
 	}
 }
 

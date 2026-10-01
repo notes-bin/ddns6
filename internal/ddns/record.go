@@ -10,7 +10,7 @@ import (
 // SyncRecord 将 DNS 记录同步为当前 IPv6 地址。
 //
 // 地址未变化则跳过；变化则调用 syncDNSRecord。
-// 仅在读写 Addr 缓存时短暂持锁，DNS API I/O 在锁外执行。
+// 仅在读写 addr 缓存时短暂持锁，DNS API I/O 在锁外执行。
 // 失败不在此记 Error（由 syncDomainGroup 等边界统一记录，避免叠层）。
 //
 // 参数:
@@ -28,7 +28,7 @@ func SyncRecord(ctx context.Context, d *Domain, ipv6 net.IP, p DNSProvider) erro
 	}
 
 	d.lock()
-	unchanged := !hasAddressChanged(d.Addr, ipv6)
+	unchanged := !hasAddressChanged(d.addr, ipv6)
 	d.unlock()
 	if unchanged {
 		slog.DebugContext(ctx, "IPv6 address unchanged, skipping update", "module", "ddns",
@@ -50,7 +50,7 @@ func syncDNSRecord(ctx context.Context, d *Domain, p DNSProvider, addr net.IP) e
 
 // applyDNSRecords 用已查询的 records 同步单个子域名。
 //
-// DNS API 调用在锁外执行；仅更新 Addr 缓存时短暂加锁。
+// DNS API 调用在锁外执行；仅更新 addr 缓存时短暂加锁。
 // Domain/SubDomain/Type/TTL 在服务启动后视为只读。
 // 失败只返回 error，由调用方边界记一次日志。
 func applyDNSRecords(ctx context.Context, d *Domain, p DNSProvider, addr net.IP, records []RecordInfo) error {
@@ -115,10 +115,10 @@ func applyDNSRecords(ctx context.Context, d *Domain, p DNSProvider, addr net.IP,
 	return nil
 }
 
-// copyAddrToDomain 将 IP 拷贝到 Domain.Addr（内部加锁）。
+// copyAddrToDomain 将 IP 拷贝到 Domain.addr（内部加锁）。
 func copyAddrToDomain(d *Domain, addr net.IP) {
 	d.lock()
 	defer d.unlock()
-	d.Addr = make(net.IP, len(addr))
-	copy(d.Addr, addr)
+	d.addr = make(net.IP, len(addr))
+	copy(d.addr, addr)
 }

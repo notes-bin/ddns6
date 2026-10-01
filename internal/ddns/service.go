@@ -228,7 +228,7 @@ func syncDomainGroup(ctx context.Context, root, typ string, group []*Domain, ip 
 		default:
 		}
 		d.lock()
-		unchanged := !hasAddressChanged(d.Addr, ip)
+		unchanged := !hasAddressChanged(d.addr, ip)
 		d.unlock()
 		if unchanged {
 			slog.DebugContext(ctx, "IPv6 address unchanged, skipping update", "module", "ddns",
