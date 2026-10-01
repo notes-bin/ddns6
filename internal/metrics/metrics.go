@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -62,6 +63,8 @@ func MarkSuccess() {
 func Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Cache-Control", "no-store")
 		_, _ = fmt.Fprintf(w, "# HELP ddns6_sync_total Total DNS sync cycles by result.\n")
 		_, _ = fmt.Fprintf(w, "# TYPE ddns6_sync_total counter\n")
 		_, _ = fmt.Fprintf(w, "ddns6_sync_total{result=\"ok\"} %d\n", syncOK.Load())
@@ -82,12 +85,37 @@ func Handler() http.Handler {
 	})
 }
 
+// validateListenAddr 要求 metrics 仅绑定 loopback / localhost，防止误暴露公网。
+func validateListenAddr(addr string) error {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fmt.Errorf("invalid metrics addr %q: %w", addr, err)
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" || host == "[::]" {
+		return fmt.Errorf("metrics addr must bind loopback (got %q); use 127.0.0.1:%s", addr, port)
+	}
+	if strings.EqualFold(host, "localhost") {
+		return nil
+	}
+	ip := net.ParseIP(strings.Trim(host, "[]"))
+	if ip == nil {
+		return fmt.Errorf("metrics addr host must be loopback or localhost (got %q)", host)
+	}
+	if !ip.IsLoopback() {
+		return fmt.Errorf("metrics addr must bind loopback (got %q); use 127.0.0.1:%s", addr, port)
+	}
+	return nil
+}
+
 // Serve 在 addr 上提供 /metrics，直到 ctx 取消。addr 为空则立即返回。
 //
-// 仅绑定调用方提供的地址；生产建议使用 127.0.0.1:port。
+// 仅允许 loopback / localhost，避免误绑 0.0.0.0 暴露运营指标。
 func Serve(ctx context.Context, addr string) error {
 	if addr == "" {
 		return nil
+	}
+	if err := validateListenAddr(addr); err != nil {
+		return err
 	}
 
 	mux := http.NewServeMux()
@@ -97,6 +125,10 @@ func Serve(ctx context.Context, addr string) error {
 		Addr:              addr,
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
 	}
 
 	ln, err := net.Listen("tcp", addr)

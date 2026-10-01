@@ -44,6 +44,17 @@ func TestServe_EmptyAddr(t *testing.T) {
 	}
 }
 
+// TestServe_RejectsNonLoopback 验证非 loopback 地址被拒绝。
+func TestServe_RejectsNonLoopback(t *testing.T) {
+	err := Serve(t.Context(), "0.0.0.0:0")
+	if err == nil {
+		t.Fatal("非 loopback 应拒绝")
+	}
+	if !strings.Contains(err.Error(), "loopback") {
+		t.Fatalf("错误应提示 loopback: %v", err)
+	}
+}
+
 // TestServe_ListenAndShutdown 验证监听 /metrics 后 context 取消可优雅退出。
 func TestServe_ListenAndShutdown(t *testing.T) {
 	ResetForTest()
@@ -84,6 +95,9 @@ func TestServe_ListenAndShutdown(t *testing.T) {
 	}
 	if !strings.Contains(string(body), `ddns6_sync_total{result="error"} 1`) {
 		t.Fatalf("Serve 暴露的指标不符合预期:\n%s", body)
+	}
+	if got := resp.Header.Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Fatalf("缺少 nosniff header: %q", got)
 	}
 
 	cancel()
