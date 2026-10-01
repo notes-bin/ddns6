@@ -20,7 +20,7 @@ import (
 	"github.com/notes-bin/ddns6/pkg/ipaddr"
 )
 
-// mockDNS 实现 ddns.DNSProvider，供 list/clean/check 单测。
+// mockDNS 实现 ddns.DNSProvider，供 list/clean/check 单测使用。
 type mockDNS struct {
 	records   []ddns.RecordInfo
 	getErr    error
@@ -29,14 +29,18 @@ type mockDNS struct {
 	mu        sync.Mutex
 }
 
+// GetRecords 返回预设记录或 getErr。
 func (m *mockDNS) GetRecords(context.Context, string, string) ([]ddns.RecordInfo, error) {
 	return m.records, m.getErr
 }
 
+// AddRecord 空实现，单测不依赖新增路径。
 func (m *mockDNS) AddRecord(context.Context, ddns.RecordInfo) error { return nil }
 
+// ModifyRecord 空实现，单测不依赖修改路径。
 func (m *mockDNS) ModifyRecord(context.Context, ddns.RecordInfo) error { return nil }
 
+// DeleteRecord 记录被删条目，或返回预设 deleteErr。
 func (m *mockDNS) DeleteRecord(_ context.Context, r ddns.RecordInfo) error {
 	if m.deleteErr != nil {
 		return m.deleteErr
@@ -47,14 +51,16 @@ func (m *mockDNS) DeleteRecord(_ context.Context, r ddns.RecordInfo) error {
 	return nil
 }
 
+// deletedCount 返回已成功删除的记录数（并发安全）。
 func (m *mockDNS) deletedCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return len(m.deleted)
 }
 
-// listCleanFlags 为 handleRecords/handleClean 注册所需 flag。
+// listCleanFlags 为 handleRecords/handleClean 注册测试所需 flag。
 func listCleanFlags(t *testing.T) *cobra.Command {
+
 	t.Helper()
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().String("type", "AAAA", "")
@@ -66,14 +72,16 @@ func listCleanFlags(t *testing.T) *cobra.Command {
 
 // withArgs 临时替换 os.Args，并在测试结束时恢复。
 func withArgs(t *testing.T, args ...string) {
+
 	t.Helper()
 	old := os.Args
 	t.Cleanup(func() { os.Args = old })
 	os.Args = args
 }
 
-// stubServiceRunner 替换 serviceRunner，测试结束时恢复。
+// stubServiceRunner 替换全局 serviceRunner，测试结束时恢复，避免真实网络阻塞。
 func stubServiceRunner(t *testing.T, fn func([]*ddns.Domain, ddns.DNSProvider, time.Duration, []ipaddr.IPv6Fetcher, string, string) error) {
+
 	t.Helper()
 	orig := serviceRunner
 	t.Cleanup(func() { serviceRunner = orig })
@@ -85,8 +93,9 @@ func stubServiceRunner(t *testing.T, fn func([]*ddns.Domain, ddns.DNSProvider, t
 	serviceRunner = fn
 }
 
-// writeTestConfig 在临时 HOME 下写入最小可用配置。
+// writeTestConfig 在临时 HOME 下写入最小可用 ~/.ddns6/config.yaml。
 func writeTestConfig(t *testing.T, body string) {
+
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -99,8 +108,9 @@ func writeTestConfig(t *testing.T, body string) {
 	}
 }
 
-// withStdinLine 将一行文本注入 os.Stdin，测试结束时恢复。
+// withStdinLine 将一行文本注入 os.Stdin，用于交互确认场景。
 func withStdinLine(t *testing.T, line string) {
+
 	t.Helper()
 	r, w, err := os.Pipe()
 	if err != nil {
@@ -117,6 +127,7 @@ func withStdinLine(t *testing.T, line string) {
 
 // requireContains 断言 got 包含所有 want 子串。
 func requireContains(t *testing.T, got string, wants ...string) {
+
 	t.Helper()
 	for _, want := range wants {
 		if !strings.Contains(got, want) {
@@ -127,6 +138,7 @@ func requireContains(t *testing.T, got string, wants ...string) {
 
 // requireErrContains 断言 err 非 nil 且错误信息包含 substr。
 func requireErrContains(t *testing.T, err error, substr string) {
+
 	t.Helper()
 	if err == nil || !strings.Contains(err.Error(), substr) {
 		t.Fatalf("期望错误含 %q, got %v", substr, err)
@@ -135,6 +147,7 @@ func requireErrContains(t *testing.T, err error, substr string) {
 
 // captureStdout 捕获 fn 执行期间的标准输出。
 func captureStdout(t *testing.T, fn func()) string {
+
 	t.Helper()
 	old := os.Stdout
 	r, w, err := os.Pipe()
@@ -154,6 +167,7 @@ func captureStdout(t *testing.T, fn func()) string {
 
 // TestRecordTypeDesc 验证空类型与具体类型的标题文案。
 func TestRecordTypeDesc(t *testing.T) {
+
 	tests := []struct {
 		in, want string
 	}{
@@ -168,8 +182,9 @@ func TestRecordTypeDesc(t *testing.T) {
 	}
 }
 
-// TestBuildFilterInfo 验证去重后的 FQDN 拼接。
+// TestBuildFilterInfo 验证去重后的 FQDN 拼接结果。
 func TestBuildFilterInfo(t *testing.T) {
+
 	domains := []*ddns.Domain{
 		{Domain: "example.com", SubDomain: "www"},
 		{Domain: "example.com", SubDomain: "www"},
@@ -182,8 +197,9 @@ func TestBuildFilterInfo(t *testing.T) {
 	}
 }
 
-// TestHandleRecords_EmptyAndFound 覆盖无记录与有记录输出。
+// TestHandleRecords_EmptyAndFound 验证无记录、有记录及查询失败时的输出/错误。
 func TestHandleRecords_EmptyAndFound(t *testing.T) {
+
 	domains := []*ddns.Domain{{Domain: "example.com", SubDomain: "www", Type: "AAAA"}}
 
 	t.Run("empty", func(t *testing.T) {
@@ -217,8 +233,9 @@ func TestHandleRecords_EmptyAndFound(t *testing.T) {
 	})
 }
 
-// TestHandleClean 覆盖 dry-run、确认、--yes 删除与失败路径。
+// TestHandleClean 验证 dry-run、确认、--yes 删除与失败路径。
 func TestHandleClean(t *testing.T) {
+
 	domains := []*ddns.Domain{{Domain: "example.com", SubDomain: "www", Type: "AAAA"}}
 	rec := ddns.RecordInfo{ID: "1", Name: "www.example.com", Type: "AAAA", Value: "2001:db8::1"}
 
@@ -304,8 +321,9 @@ func TestHandleClean(t *testing.T) {
 	})
 }
 
-// TestCheckFromConfig 覆盖配置校验各早退与未知 provider。
+// TestCheckFromConfig 验证配置校验各早退分支与未知 provider。
 func TestCheckFromConfig(t *testing.T) {
+
 	tests := []struct {
 		name   string
 		cfg    *config.Config
@@ -331,8 +349,9 @@ func TestCheckFromConfig(t *testing.T) {
 	}
 }
 
-// TestCheckFromConfig_APIPath 走完整校验并用假凭据触发 API（失败仍返回 nil）。
+// TestCheckFromConfig_APIPath 验证完整校验路径会发起 API（假凭据失败仍返回 nil）。
 func TestCheckFromConfig_APIPath(t *testing.T) {
+
 	cfg := &config.Config{
 		Provider:   "cloudflare",
 		Domain:     "example.com",
@@ -351,6 +370,7 @@ func TestCheckFromConfig_APIPath(t *testing.T) {
 
 // TestCreateProviderFromConfig_Success 验证已知 provider 可从配置创建。
 func TestCreateProviderFromConfig_Success(t *testing.T) {
+
 	cfg := &config.Config{
 		Provider: "cloudflare",
 		Auth:     map[string]string{"api_token": "tok"},
@@ -366,6 +386,7 @@ func TestCreateProviderFromConfig_Success(t *testing.T) {
 
 // TestCreateDomainConfigs_DefaultSubdomain 验证未指定子域名时默认为 @。
 func TestCreateDomainConfigs_DefaultSubdomain(t *testing.T) {
+
 	cmd := &cobra.Command{}
 	cmd.Flags().String("domain", "", "")
 	cmd.Flags().StringArray("subdomain", nil, "")
@@ -383,6 +404,7 @@ func TestCreateDomainConfigs_DefaultSubdomain(t *testing.T) {
 
 // TestRequireFlags_InvalidFlag 验证未注册 flag 时返回错误。
 func TestRequireFlags_InvalidFlag(t *testing.T) {
+
 	if err := requireFlags(&cobra.Command{}, []providerFlag{{name: "missing-flag"}}); err == nil {
 		t.Fatal("未注册 flag 应返回错误")
 	}
@@ -390,6 +412,7 @@ func TestRequireFlags_InvalidFlag(t *testing.T) {
 
 // TestRunWithConfig_LoadError 验证无配置文件时 runWithConfig 报错。
 func TestRunWithConfig_LoadError(t *testing.T) {
+
 	t.Setenv("HOME", t.TempDir())
 	err := runWithConfig(&cobra.Command{}, "records", func(*cobra.Command, *config.Config, []*ddns.Domain, ddns.DNSProvider) error {
 		t.Fatal("配置缺失时不应调用 handler")
@@ -400,8 +423,9 @@ func TestRunWithConfig_LoadError(t *testing.T) {
 	}
 }
 
-// TestRunWithConfig_Success 验证配置加载后调用 handler。
+// TestRunWithConfig_Success 验证配置加载成功后会调用 handler。
 func TestRunWithConfig_Success(t *testing.T) {
+
 	writeTestConfig(t, `
 provider: cloudflare
 domain: example.com
@@ -434,6 +458,7 @@ auth:
 
 // TestRunRecordsCleanWithConfig_Restricted 验证受限运营商拒绝 records/clean。
 func TestRunRecordsCleanWithConfig_Restricted(t *testing.T) {
+
 	writeTestConfig(t, `
 provider: duckdns
 domain: example.com
@@ -447,8 +472,9 @@ auth:
 	requireErrContains(t, runCleanWithConfig(cmd), "does not support 'clean'")
 }
 
-// TestRunServiceFromConfigHandler 覆盖 interval/interface 覆盖与 serviceRunner 调用。
+// TestRunServiceFromConfigHandler 验证 interval/interface 可被命令行覆盖并传入 serviceRunner。
 func TestRunServiceFromConfigHandler(t *testing.T) {
+
 	var gotInterval time.Duration
 	var gotIface string
 	stubServiceRunner(t, func(_ []*ddns.Domain, _ ddns.DNSProvider, interval time.Duration, _ []ipaddr.IPv6Fetcher, iface, _ string) error {

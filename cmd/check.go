@@ -11,8 +11,9 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-// checkCmd 校验配置/认证并探测 DNS API 连通性（查询 AAAA）。
+// checkCmd 校验配置/认证并探测 DNS API 连通性（通过查询 AAAA）。
 var checkCmd = &cobra.Command{
+
 	Use:   "check [provider]",
 	Short: "验证配置和 API 连通性",
 	Long: `验证 DDNS6 配置和 DNS 服务商 API 连通性。
@@ -45,6 +46,7 @@ var checkCmd = &cobra.Command{
 		if len(args) > 0 {
 			// CLI 模式：用命令行 provider 与 flag 做连通性探测
 			provider := args[0]
+
 			fmt.Printf("Checking provider: %s\n\n", provider)
 
 			var factory *providerFactory
@@ -109,7 +111,7 @@ var checkCmd = &cobra.Command{
 	},
 }
 
-// checkFromConfig 校验配置字段完整性后，用 fromConfig 创建 Provider 并探测 AAAA。
+// checkFromConfig 校验配置字段后创建 Provider，并以查询 AAAA 探测 API。
 //
 // ctx 为父 context（通常为 cmd.Context()），其上叠加 15s 超时用于 API 探测。
 func checkFromConfig(ctx context.Context, cfg *config.Config) error {

@@ -1,6 +1,6 @@
 package cmd
 
-// 本文件集中注册 23 家 DNS 运营商工厂，并挂载到 run / records / clean / init。
+// 本文件集中定义并注册 23 家 DNS 运营商工厂，供 run / records / clean / init 复用。
 //
 // 新增运营商步骤：
 //  1. 在 internal/providers/<name>/ 实现 ddns.DNSProvider
@@ -50,10 +50,10 @@ type providerFlag struct {
 	optional bool // true 时 requireFlags 不强制非空（如 sign-version、session-token）
 }
 
-// providerFactory 定义一家 DNS 运营商的 CLI 与配置文件两种创建路径。
+// providerFactory 定义一家 DNS 运营商的 CLI 与配置文件两条创建路径。
 //
 // run 从命令行 flag 构造域名列表与 Provider；fromConfig 从 config.Config 构造。
-// noListClean 为 true 时 records/clean 仅注册提示命令（API 无查询/删除能力）。
+// noListClean 为 true 时，records/clean 仅挂占位命令（API 无查询/删除能力）。
 type providerFactory struct {
 	name        string
 	short       string
@@ -63,17 +63,17 @@ type providerFactory struct {
 	fromConfig  func(cfg *config.Config) (ddns.DNSProvider, error)
 }
 
-// restrictedProviders 标记 API 仅提供更新、不支持 records/clean 的运营商名。
+// restrictedProviders 标记 API 只提供更新、不支持 records/clean 的运营商名。
 var restrictedProviders = map[string]bool{
 	"duckdns": true,
 	"he":      true,
 	"noip":    true,
 }
 
-// serviceRunner 启动 DDNS 服务；测试可替换以避免真实网络与长阻塞。
+// serviceRunner 启动 DDNS 服务；测试可替换，避免真实网络与长阻塞。
 var serviceRunner = ddns.RunService
 
-// providerFactories 为全部 23 家运营商的工厂表，注册与配置模式均依赖此表。
+// providerFactories 是全部 23 家运营商的工厂表；注册与配置模式均依赖此表。
 var providerFactories = []providerFactory{
 	{
 		name: "tencent", short: "Tencent Cloud DNS (DNSPod API v3) - 需 --secret-id 和 --secret-key",
@@ -495,8 +495,9 @@ var providerFactories = []providerFactory{
 	},
 }
 
-// registerProviders 将 providerFactories 中每家运营商注册为 run 的子命令。
+// registerProviders 把 providerFactories 中每家运营商注册为 run 的子命令。
 func registerProviders() {
+
 	for i := range providerFactories {
 		p := &providerFactories[i]
 		cmd := &cobra.Command{
@@ -543,12 +544,12 @@ func registerProviders() {
 	}
 }
 
-// providerCmdHandler 为 records/clean 等 provider 子命令的业务回调类型。
+// providerCmdHandler 是 records/clean 等 provider 子命令的业务回调。
 type providerCmdHandler func(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider) error
 
-// registerProviderSubCommands 复用 providerFactories 的认证 flag 与 run，为 parent 挂载子命令。
+// registerProviderSubCommands 复用工厂表的认证 flag 与 run，为 parent 挂载子命令。
 //
-// commandName 用于帮助文案与受限 API 错误信息；extraFlags 可为 nil；handler 执行实际业务。
+// commandName 写入帮助与受限 API 错误文案；extraFlags 可为 nil；handler 执行实际业务。
 func registerProviderSubCommands(parent *cobra.Command, commandName string, extraFlags func(cmd *cobra.Command), handler providerCmdHandler) {
 	for i := range providerFactories {
 		pd := &providerFactories[i]
@@ -602,8 +603,9 @@ func registerProviderSubCommands(parent *cobra.Command, commandName string, extr
 	}
 }
 
-// registerRestrictedCommand 为仅支持更新的运营商注册 records/clean 占位命令，运行时返回明确错误。
+// registerRestrictedCommand 为仅支持更新的运营商挂 records/clean 占位命令，运行时返回明确错误。
 func registerRestrictedCommand(parent *cobra.Command, commandName string, pd *providerFactory) {
+
 	cmd := &cobra.Command{
 		Use:   pd.name,
 		Short: fmt.Sprintf("%s - %s API 不记录/管理", pd.name, pd.short),
@@ -614,8 +616,9 @@ func registerRestrictedCommand(parent *cobra.Command, commandName string, pd *pr
 	parent.AddCommand(cmd)
 }
 
-// formatProviderFlags 将认证 flag 列表格式化为帮助文本中的「必填参数」段落。
+// formatProviderFlags 把认证 flag 列表格式化为帮助里的「必填参数」段落。
 func formatProviderFlags(flags []providerFlag) string {
+
 	var b strings.Builder
 	for _, f := range flags {
 		fmt.Fprintf(&b, "  --%-20s %s\n", f.name, f.usage)
@@ -623,8 +626,9 @@ func formatProviderFlags(flags []providerFlag) string {
 	return b.String()
 }
 
-// formatSampleFlags 生成帮助示例中的占位 flag 片段（YOUR_<name>）。
+// formatSampleFlags 生成帮助示例中的占位 flag 片段（形如 --name YOUR_name）。
 func formatSampleFlags(flags []providerFlag) string {
+
 	var b strings.Builder
 	for _, f := range flags {
 		fmt.Fprintf(&b, " --%s YOUR_%s", f.name, f.name)
@@ -632,8 +636,9 @@ func formatSampleFlags(flags []providerFlag) string {
 	return b.String()
 }
 
-// requireFlags 校验必填字符串 flag 均已提供非空值；optional 标记的 flag 跳过。
+// requireFlags 校验必填字符串 flag 均已提供非空值；带 optional 标记的跳过。
 func requireFlags(cmd *cobra.Command, flags []providerFlag) error {
+
 	for _, f := range flags {
 		if f.optional {
 			continue
@@ -652,8 +657,9 @@ func requireFlags(cmd *cobra.Command, flags []providerFlag) error {
 // --- 配置文件模式 ---
 
 // runWithConfig 加载 ~/.ddns6/config.yaml，构造域名与 Provider，再交给 handler。
-// commandName 写入加载失败时的提示（如 "run" / "records" / "clean"）。
+// commandName 出现在加载失败提示中（如 "run" / "records" / "clean"）。
 func runWithConfig(cmd *cobra.Command, commandName string, handler func(cmd *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error) error {
+
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("cannot load config: %w\n\nuse 'ddns6 init' to create a config file, or specify a provider: ddns6 %s <provider> --help", err, commandName)
@@ -670,6 +676,7 @@ func runWithConfig(cmd *cobra.Command, commandName string, handler func(cmd *cob
 
 // runServiceFromConfigHandler 合并配置与命令行（命令行优先）后启动 DDNS 服务。
 func runServiceFromConfigHandler(cmd *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error {
+
 	interval, err := cfg.ParseInterval()
 	if err != nil {
 		return err
@@ -692,6 +699,7 @@ func runServiceFromConfigHandler(cmd *cobra.Command, cfg *config.Config, domains
 
 // createProviderFromConfig 按 cfg.Provider 在工厂表中查找并调用 fromConfig。
 func createProviderFromConfig(cfg *config.Config) (ddns.DNSProvider, error) {
+
 	for _, p := range providerFactories {
 		if p.name == cfg.Provider {
 			if err := requireConfigAuth(cfg, p); err != nil {
@@ -703,8 +711,9 @@ func createProviderFromConfig(cfg *config.Config) (ddns.DNSProvider, error) {
 	return nil, fmt.Errorf("unsupported provider: %s", cfg.Provider)
 }
 
-// requireConfigAuth 校验配置模式必填认证字段非空（与 CLI requireFlags 对齐）。
+// requireConfigAuth 校验配置模式必填认证字段非空（规则与 CLI requireFlags 对齐）。
 func requireConfigAuth(cfg *config.Config, p providerFactory) error {
+
 	for _, f := range p.flags {
 		if f.optional {
 			continue
@@ -724,6 +733,7 @@ func requireConfigAuth(cfg *config.Config, p providerFactory) error {
 // cobra.Command.Context() 在未 SetContext/ExecuteContext 时返回 nil，
 // 直接传给 WithTimeout 会 panic，故在此统一兜底。
 func commandContext(cmd *cobra.Command) context.Context {
+
 	if cmd != nil {
 		if ctx := cmd.Context(); ctx != nil {
 			return ctx
@@ -734,6 +744,7 @@ func commandContext(cmd *cobra.Command) context.Context {
 
 // getString 读取可选字符串 flag；未注册或出错时返回空串（必填项应先走 requireFlags）。
 func getString(cmd *cobra.Command, name string) string {
+
 	v, err := cmd.Flags().GetString(name)
 	if err != nil {
 		return ""
@@ -743,6 +754,7 @@ func getString(cmd *cobra.Command, name string) string {
 
 // getDuration 读取可选 duration flag；未注册时回退为 5 分钟。
 func getDuration(cmd *cobra.Command, name string) time.Duration {
+
 	v, err := cmd.Flags().GetDuration(name)
 	if err != nil {
 		return 5 * time.Minute
@@ -752,6 +764,7 @@ func getDuration(cmd *cobra.Command, name string) time.Duration {
 
 // createDomainConfigs 从 --domain / --subdomain / --ttl 构造 Domain 列表；缺省子域名为 "@"。
 func createDomainConfigs(cmd *cobra.Command) ([]*ddns.Domain, error) {
+
 	domainName, err := cmd.Flags().GetString("domain")
 	if err != nil {
 		return nil, fmt.Errorf("invalid --domain flag: %w", err)
@@ -776,8 +789,9 @@ func createDomainConfigs(cmd *cobra.Command) ([]*ddns.Domain, error) {
 	return buildDomains(domainName, subdomains, ttl), nil
 }
 
-// buildDomains 为每个子域名生成 Type=AAAA 的 Domain；TTL 原样写入。
+// buildDomains 为每个子域名生成 Type=AAAA 的 Domain；TTL 原样写入，不做默认替换。
 func buildDomains(domain string, subdomains []string, ttl int) []*ddns.Domain {
+
 	domains := make([]*ddns.Domain, len(subdomains))
 	for i, sd := range subdomains {
 		domains[i] = &ddns.Domain{

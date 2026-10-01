@@ -1,6 +1,6 @@
 // Package main 是 ddns6 的程序入口。
 //
-// 实际命令逻辑在 cmd 包中；此处仅调用 cmd.Execute，失败时记录错误并以非零状态退出。
+// 业务命令定义在 cmd 包；此处仅调用 cmd.Execute，失败时记录错误并以非零状态码退出。
 package main
 
 import (
