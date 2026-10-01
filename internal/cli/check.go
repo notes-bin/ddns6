@@ -39,8 +39,7 @@ var checkCmd = &cobra.Command{
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) > 0 && args[0] == "help" {
-			cmd.Help()
-			return nil
+			return cmd.Help()
 		}
 
 		if len(args) > 0 {
@@ -59,15 +58,19 @@ var checkCmd = &cobra.Command{
 			if factory == nil {
 				fmt.Printf("Unknown provider: %s\n", provider)
 				fmt.Println("Available providers: run 'ddns6 list' to see the full list")
-				return nil
+				return fmt.Errorf("unknown provider: %s", provider)
 			}
 			fmt.Printf("Provider '%s' is valid\n", provider)
 
 			fmt.Println("\n--- Auth Check ---")
+			missingAuth := false
 			for _, f := range factory.flags {
 				v := getString(cmd, f.name)
 				if v == "" {
 					fmt.Printf("--%s is missing\n", f.name)
+					if !f.optional {
+						missingAuth = true
+					}
 				} else {
 					fmt.Printf("--%s is set\n", f.name)
 				}
@@ -76,15 +79,19 @@ var checkCmd = &cobra.Command{
 			domain := getString(cmd, "domain")
 			if domain == "" {
 				fmt.Println("--domain is missing")
-				return nil
+				return fmt.Errorf("--domain is required")
 			}
 			fmt.Printf("--domain is set to %s\n", domain)
+
+			if missingAuth {
+				return fmt.Errorf("required auth flags are missing")
+			}
 
 			fmt.Println("\n--- API Connectivity Test ---")
 			domains, providerClient, err := factory.run(cmd)
 			if err != nil {
 				fmt.Printf("Failed to create provider: %v\n", err)
-				return nil
+				return fmt.Errorf("failed to create provider: %w", err)
 			}
 
 			ctx, cancel := context.WithTimeout(commandContext(cmd), 15*time.Second)
@@ -93,7 +100,7 @@ var checkCmd = &cobra.Command{
 			records, err := ddns.CollectMatchingRecords(ctx, providerClient, domains, "AAAA", false)
 			if err != nil {
 				fmt.Printf("API test failed: %v\n", err)
-				return nil
+				return fmt.Errorf("API test failed: %w", err)
 			}
 
 			fmt.Printf("API connection successful (found %d AAAA records)\n", len(records))
@@ -103,7 +110,7 @@ var checkCmd = &cobra.Command{
 		cfg, err := config.Load()
 		if err != nil {
 			fmt.Printf("Config load failed: %v\n", err)
-			return nil
+			return fmt.Errorf("config load failed: %w", err)
 		}
 		fmt.Printf("Config loaded successfully\n\n")
 
@@ -120,13 +127,13 @@ func checkFromConfig(ctx context.Context, cfg *config.Config) error {
 		fmt.Printf("provider: %s\n", cfg.Provider)
 	} else {
 		fmt.Println("provider: empty")
-		return nil
+		return fmt.Errorf("provider is empty")
 	}
 	if cfg.Domain != "" {
 		fmt.Printf("domain: %s\n", cfg.Domain)
 	} else {
 		fmt.Println("domain: empty")
-		return nil
+		return fmt.Errorf("domain is empty")
 	}
 	if len(cfg.Subdomains) > 0 {
 		fmt.Printf("subdomains: %v\n", cfg.Subdomains)
@@ -140,7 +147,7 @@ func checkFromConfig(ctx context.Context, cfg *config.Config) error {
 		}
 	} else {
 		fmt.Println("auth: empty")
-		return nil
+		return fmt.Errorf("auth is empty")
 	}
 	interval, err := cfg.ParseInterval()
 	if err != nil {
@@ -161,7 +168,7 @@ func checkFromConfig(ctx context.Context, cfg *config.Config) error {
 	if factory == nil {
 		fmt.Printf("Unknown provider '%s' in config\n", cfg.Provider)
 		fmt.Println("Available providers: run 'ddns6 list' to see the full list")
-		return nil
+		return fmt.Errorf("unknown provider: %s", cfg.Provider)
 	}
 	fmt.Printf("Provider '%s' is valid\n", cfg.Provider)
 
@@ -169,7 +176,7 @@ func checkFromConfig(ctx context.Context, cfg *config.Config) error {
 	providerClient, err := factory.fromConfig(cfg)
 	if err != nil {
 		fmt.Printf("Failed to create provider: %v\n", err)
-		return nil
+		return fmt.Errorf("failed to create provider: %w", err)
 	}
 
 	domains := buildDomains(cfg.Domain, cfg.Subdomains, cfg.EffectiveTTL())
@@ -179,7 +186,7 @@ func checkFromConfig(ctx context.Context, cfg *config.Config) error {
 	records, err := ddns.CollectMatchingRecords(ctx, providerClient, domains, "AAAA", false)
 	if err != nil {
 		fmt.Printf("API test failed: %v\n", err)
-		return nil
+		return fmt.Errorf("API test failed: %w", err)
 	}
 
 	fmt.Printf("API connection successful (found %d AAAA records)\n", len(records))
