@@ -131,7 +131,7 @@ var rootCmd = &cobra.Command{
 		var writers []io.Writer
 		writers = append(writers, os.Stderr)
 		if logFile != "" {
-			lf, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+			lf, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 			if err != nil {
 				slog.Error("failed to create log file", "err", err, "module", "cmd")
 				os.Exit(1)
@@ -335,6 +335,7 @@ var persistentFlags = []struct {
 	{"ttl", "int", 600, "DNS 记录 TTL，单位秒（默认 600）", "DDNS6_TTL"},
 	{"interface", "string", "", "监听的网络接口（仅 Linux Netlink 模式，如 --interface ppp0）", "DDNS6_INTERFACE"},
 	{"log-file", "string", "ddns6.log", "日志文件路径，设为空字符串仅输出到 stderr", "DDNS6_LOG_FILE"},
+	{"metrics-addr", "string", "", "可选 Prometheus /metrics 监听地址（如 127.0.0.1:9090，空则禁用）", "DDNS6_METRICS_ADDR"},
 }
 
 // rootInitOnce 保证 initRootCmd 只执行一次，避免 Execute 重复注册子命令。
@@ -378,6 +379,8 @@ func doInitRootCmd() {
 		case "interface":
 			rootCmd.PersistentFlags().String(f.name, f.defaultValue.(string), f.usage)
 		case "log-file":
+			rootCmd.PersistentFlags().String(f.name, f.defaultValue.(string), f.usage)
+		case "metrics-addr":
 			rootCmd.PersistentFlags().String(f.name, f.defaultValue.(string), f.usage)
 		}
 	}

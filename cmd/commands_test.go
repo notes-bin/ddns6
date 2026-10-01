@@ -92,7 +92,7 @@ auth:
 interval: 5m
 `)
 	called := false
-	stubServiceRunner(t, func([]*ddns.Domain, ddns.DNSProvider, time.Duration, []ipaddr.IPv6Fetcher, string) error {
+	stubServiceRunner(t, func([]*ddns.Domain, ddns.DNSProvider, time.Duration, []ipaddr.IPv6Fetcher, string, string) error {
 		called = true
 		return nil
 	})

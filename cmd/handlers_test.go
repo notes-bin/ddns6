@@ -73,12 +73,12 @@ func withArgs(t *testing.T, args ...string) {
 }
 
 // stubServiceRunner 替换 serviceRunner，测试结束时恢复。
-func stubServiceRunner(t *testing.T, fn func([]*ddns.Domain, ddns.DNSProvider, time.Duration, []ipaddr.IPv6Fetcher, string) error) {
+func stubServiceRunner(t *testing.T, fn func([]*ddns.Domain, ddns.DNSProvider, time.Duration, []ipaddr.IPv6Fetcher, string, string) error) {
 	t.Helper()
 	orig := serviceRunner
 	t.Cleanup(func() { serviceRunner = orig })
 	if fn == nil {
-		fn = func([]*ddns.Domain, ddns.DNSProvider, time.Duration, []ipaddr.IPv6Fetcher, string) error {
+		fn = func([]*ddns.Domain, ddns.DNSProvider, time.Duration, []ipaddr.IPv6Fetcher, string, string) error {
 			return nil
 		}
 	}
@@ -451,7 +451,7 @@ auth:
 func TestRunServiceFromConfigHandler(t *testing.T) {
 	var gotInterval time.Duration
 	var gotIface string
-	stubServiceRunner(t, func(_ []*ddns.Domain, _ ddns.DNSProvider, interval time.Duration, _ []ipaddr.IPv6Fetcher, iface string) error {
+	stubServiceRunner(t, func(_ []*ddns.Domain, _ ddns.DNSProvider, interval time.Duration, _ []ipaddr.IPv6Fetcher, iface, _ string) error {
 		gotInterval = interval
 		gotIface = iface
 		return nil

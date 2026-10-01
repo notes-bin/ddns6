@@ -138,7 +138,7 @@ func TestSyncAllDomains_FailFast(t *testing.T) {
 	}
 }
 
-// TestSyncAllDomains_ContinueOnError 验证非 failFast 时遇错只记日志并返回 nil。
+// TestSyncAllDomains_ContinueOnError 验证非 failFast 时各组仍跑完，并返回汇总错误。
 func TestSyncAllDomains_ContinueOnError(t *testing.T) {
 	domains := []*Domain{
 		{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600},
@@ -146,8 +146,8 @@ func TestSyncAllDomains_ContinueOnError(t *testing.T) {
 	}
 	m := &mockProvider{getErr: errors.New("api down")}
 	err := syncAllDomains(t.Context(), domains, net.ParseIP("2001:db8::1"), m, false)
-	if err != nil {
-		t.Fatalf("非 failFast 不应返回错误: %v", err)
+	if err == nil {
+		t.Fatal("非 failFast 但存在失败组时应返回汇总错误")
 	}
 }
 
@@ -193,7 +193,7 @@ func TestRunService_InitialFetchFailed(t *testing.T) {
 	domains := []*Domain{{Domain: "example.com", SubDomain: "@", Type: "AAAA", TTL: 600}}
 	err := RunService(domains, &mockProvider{}, time.Minute, []ipaddr.IPv6Fetcher{
 		&stubFetcher{err: errors.New("no ipv6")},
-	}, "")
+	}, "", "")
 	if err == nil {
 		t.Fatal("初始 IPv6 获取失败时应返回错误")
 	}
@@ -204,7 +204,7 @@ func TestRunService_InitialSyncFailed(t *testing.T) {
 	domains := []*Domain{{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}}
 	err := RunService(domains, &mockProvider{getErr: errors.New("sync fail")}, time.Minute, []ipaddr.IPv6Fetcher{
 		&stubFetcher{ip: net.ParseIP("2001:db8::1")},
-	}, "")
+	}, "", "")
 	if err == nil {
 		t.Fatal("初始同步失败时应返回错误")
 	}
@@ -241,7 +241,7 @@ func TestRunService_GracefulShutdown(t *testing.T) {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- RunService(domains, m, 30*time.Millisecond, []ipaddr.IPv6Fetcher{fetcher}, "")
+		errCh <- RunService(domains, m, 30*time.Millisecond, []ipaddr.IPv6Fetcher{fetcher}, "", "")
 	}()
 
 	// 等待至少一次轮询触发（覆盖 trigger 上获取失败分支）后再发信号

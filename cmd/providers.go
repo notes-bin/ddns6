@@ -532,7 +532,7 @@ func registerProviders() {
 					return err
 				}
 				iface := getString(cmd, "interface")
-				return serviceRunner(domains, task, getDuration(cmd, "interval"), ddns.DefaultIPv6Fetchers(), iface)
+				return serviceRunner(domains, task, getDuration(cmd, "interval"), ddns.DefaultIPv6Fetchers(), iface, getString(cmd, "metrics-addr"))
 			},
 		}
 		for _, f := range p.flags {
@@ -683,7 +683,7 @@ func runServiceFromConfigHandler(cmd *cobra.Command, cfg *config.Config, domains
 		}
 	}
 
-	return serviceRunner(domains, p, interval, ddns.DefaultIPv6Fetchers(), iface)
+	return serviceRunner(domains, p, interval, ddns.DefaultIPv6Fetchers(), iface, getString(cmd, "metrics-addr"))
 }
 
 // createProviderFromConfig 按 cfg.Provider 在工厂表中查找并调用 fromConfig。
