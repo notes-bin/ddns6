@@ -26,9 +26,9 @@ go version   # 应显示 go1.27.1 或更高
 | `make test` | `go test -v ./...` |
 | `make fmt` | `go fmt ./...` |
 | `make cross-build` | linux/amd64、darwin/amd64、darwin/arm64 |
-| `make release` | 交叉编译并打包 `.tar.gz` |
+| `make release` | 交叉编译并打包到 `dist/`（`COPYFILE_DISABLE=1`，避免 macOS `._*` 元数据） |
 | `make install` | 安装到 `$GOPATH/bin` 或 `$GOBIN` |
-| `make run` / `make clean` / `make help` | 运行、清理、帮助 |
+| `make run` / `make clean` / `make help` | 运行、清理 `bin/`+`dist/`、帮助 |
 
 ### Docker
 
