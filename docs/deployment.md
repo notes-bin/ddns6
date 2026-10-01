@@ -162,7 +162,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-Compose 将变量展开为 `ddns6 run <provider> --secret-id=...` 等形式。**密钥会出现在容器命令行参数中**（`docker inspect` / `ps` 可见），仅适合受控环境。多子域名请改用配置文件模式。
+项目根目录的 `.env` 仅供 Compose **插值** `${VAR}` 写入 `command`（不会通过 `env_file` 注入推荐的 `ddns6-config` 容器环境）。Compose 将变量展开为 `ddns6 run <provider> --secret-id=...` 等形式。**密钥会出现在容器命令行参数中**（`docker inspect` / `ps` 可见），仅适合受控环境。多子域名请改用配置文件模式。
 
 ### 安全参数
 
@@ -175,7 +175,9 @@ Compose 与 `make docker-run` 采用以下约束（对齐最小权限原则）�
 | `read_only` | `true` | 根文件系统只读 |
 | `tmpfs` | `/tmp:size=16m,mode=1777` | 只读根 FS 下的临时目录 |
 | `security_opt` | `no-new-privileges:true` | 禁止进程提权 |
+| `pids_limit` | `64` | 限制进程派生上限 |
 | 运行用户 | uid/gid `10001` | 非 root 用户 `ddns6` |
+| `env_file` | （配置模式不使用） | 避免把 `.env` 密钥注入推荐的挂载配置服务 |
 
 ### Makefile 目标
 

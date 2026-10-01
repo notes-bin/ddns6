@@ -12,6 +12,7 @@
 #   - 镜像以非 root (uid 10001) 运行；只读根文件系统 + tmpfs
 #   - 默认 DDNS6_LOG_FILE 为空（仅 stderr），避免只读根 FS 无法创建 ddns6.log
 #   - 收紧 capability：仅保留 Netlink 所需的 NET_ADMIN
+#   - pids_limit 限制进程派生；配置文件模式不加载 .env 进容器环境
 #   - network_mode: host 仅在 Linux 有效（macOS Docker Desktop 无效）
 # ============================================================
 
@@ -35,12 +36,11 @@ x-ddns6: &ddns6
     - ALL
   cap_add:
     - NET_ADMIN
+  # 限制异常情况下的进程派生（ddns6 为单进程服务）
+  pids_limit: 64
   environment:
     # 覆盖本地默认 ddns6.log；需要落盘时可设为 /tmp/ddns6.log
     DDNS6_LOG_FILE: ""
-  env_file:
-    - path: .env
-      required: false
 
 services:
   # ---------- 配置文件模式（推荐，默认启用） ----------
