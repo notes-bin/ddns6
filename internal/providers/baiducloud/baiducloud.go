@@ -1,7 +1,8 @@
-// Package baiducloud 实现百度云 DNS API 服务。
+// Package baiducloud 实现百度云 DNS（BCD）API 服务。
 //
 // 认证方式：Access Key + Secret Key，使用 BCE（Baidu Cloud Engine）HMAC-SHA256 签名。
 // 必填参数：--access-key、--secret-key。
+// 删除备用路径对 zone/record ID 使用 url.PathEscape。
 package baiducloud
 
 import (
@@ -42,6 +43,7 @@ type Client struct {
 type Option func(*Client)
 
 // NewClient 创建百度云 DNS 客户端。
+// 默认使用 httputil.NewHTTPClient（超时 + 同主机重定向限制）。
 func NewClient(accessKey, secretKey string, options ...Option) *Client {
 	c := &Client{
 		accessKey:  accessKey,
@@ -182,7 +184,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	return nil
 }
 
-// GetRecords 查询 DNS 记录。
+// GetRecords 查询 DNS 记录（列出 zone 下 resolve/list 返回的记录，再按类型与主机名过滤）。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	zoneName, subDomain := splitDomain(fulldomain, "")
 

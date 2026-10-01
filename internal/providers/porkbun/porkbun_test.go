@@ -10,7 +10,7 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-// TestClient_GetRecords 验证 GetRecords 解析与请求认证。
+// TestClient_GetRecords 验证 retrieveByNameType 路径、PathEscape 与认证体。
 func TestClient_GetRecords(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

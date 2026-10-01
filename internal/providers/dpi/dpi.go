@@ -2,7 +2,6 @@
 //
 // 对应 acme.sh dns_dpi，API 基址为 https://api.dnspod.com。
 // 认证方式：API ID + Key，login_token 格式为 "ID,Key"。
-//
 // 与 internal/providers/dnspod（dnsapi.cn 国内版）不同。
 package dpi
 
@@ -25,6 +24,7 @@ import (
 // 编译期断言：Client 实现 ddns.DNSProvider。
 var _ ddns.DNSProvider = (*Client)(nil)
 
+// defaultBaseURL 为 DNSPod 国际版 API 基址。
 const defaultBaseURL = "https://api.dnspod.com"
 
 // Client DNSPod 国际版 API 客户端。
@@ -39,6 +39,7 @@ type Option func(*Client)
 
 // NewClient 创建 DNSPod 国际版客户端。
 // loginToken 格式为 "ID,Key"（与 acme.sh DPI_Id,DPI_Key 相同）。
+// 默认使用 httputil.NewHTTPClient（超时 + 同主机重定向限制）。
 func NewClient(loginToken string, options ...Option) *Client {
 	c := &Client{
 		loginToken: loginToken,
@@ -163,6 +164,7 @@ func (c *Client) DeleteRecord(ctx context.Context, info ddns.RecordInfo) error {
 }
 
 // GetRecords 查询 DNS 记录。
+// 主机名为 "@" 时不传 sub_domain，可列出该域下指定类型的全部记录。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	domain, sub := domainutil.SplitDomain(fulldomain, "")
 	params := url.Values{
@@ -239,6 +241,7 @@ type httpStatusError struct {
 	body   string
 }
 
+// Error 返回含状态码与响应正文的错误描述。
 func (e *httpStatusError) Error() string {
 	return fmt.Sprintf("DNSPod intl API error: status %d, body: %s", e.status, e.body)
 }

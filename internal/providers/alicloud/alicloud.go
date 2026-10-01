@@ -4,7 +4,8 @@
 // 必填参数：--access-key-id、--access-key-secret。
 // 可选参数：--sign-version（默认 v3；可设为 v1）。
 //
-// 支持 V1（HMAC-SHA1）与 V3（ACS3-HMAC-SHA256）两种签名，默认 V1。
+// 支持 V1（HMAC-SHA1）与 V3（ACS3-HMAC-SHA256）两种签名，默认 V3。
+// 默认 HTTP 客户端为 httputil.NewHTTPClient（超时 + 同主机重定向限制）。
 package alicloud
 
 import (
@@ -43,6 +44,7 @@ type Client struct {
 type Option func(*Client)
 
 // NewClient 创建阿里云 DNS 客户端。
+// 默认使用 httputil.NewHTTPClient（超时 + 同主机重定向限制），签名版本默认 v3。
 func NewClient(accessKeyID, accessKeySecret string, options ...Option) *Client {
 	client := &Client{
 		accessKeyID:     accessKeyID,
@@ -142,7 +144,9 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	return err
 }
 
-// GetRecords 查询 DNS 记录，返回通用 RecordInfo 列表。
+// GetRecords 查询 DNS 记录。
+// 根域名（subDomain 为 "@"）时不传 RRKeyWord，列出该域下指定类型的全部记录；
+// 有明确子域名时再按 RR 过滤（API 的 RRKeyWord 为模糊匹配，客户端再精确比对）。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	domain, subDomain, err := c.getRootDomain(ctx, fulldomain, "")
 	if err != nil {
@@ -215,7 +219,7 @@ func (c *Client) getDomainRecord(ctx context.Context, fulldomain, recordID strin
 }
 
 // getRootDomain 逐级探测账户内根域名，返回根域名与主机记录（RR）。
-// 有 zoneHint 时直接拆分，跳过 API 探测。
+// 有 zoneHint 时直接拆分；否则自长到短调用 DescribeDomainRecords 探测（非 ZoneCandidates）。
 func (c *Client) getRootDomain(ctx context.Context, domain, zoneHint string) (string, string, error) {
 	if zoneHint != "" {
 		root, sub := domainutil.SplitDomain(domain, zoneHint)

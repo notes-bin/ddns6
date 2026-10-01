@@ -1,7 +1,11 @@
-// Package linode 实现 Linode（Akamai）DNS API v4 服务。
+// Package linode 实现 Linode（Akamai）DNS Manager API v4。
 //
-// 认证方式：Personal Access Token。
+// 认证方式：Personal Access Token（Bearer）。
 // 必填参数：--api-key
+//
+// Domain 解析按 ZoneCandidates 逐级探测，经 X-Filter 精确匹配；
+// 写操作中的 recordID 路径段经 url.PathEscape 转义。
+// HTTP 客户端默认 httputil.NewHTTPClient（含 SameHostRedirect）。
 //
 // API 文档：https://www.linode.com/docs/api/domains/
 package linode
@@ -111,7 +115,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	return nil
 }
 
-// ModifyRecord 修改 DNS 记录。
+// ModifyRecord 修改 DNS 记录（PUT，recordID 经 PathEscape）。
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
 	domainID, _, err := c.resolveDomain(ctx, record.Name, record.Zone)
 	if err != nil {
@@ -131,7 +135,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	return err
 }
 
-// DeleteRecord 删除 DNS 记录。
+// DeleteRecord 删除 DNS 记录（DELETE，recordID 经 PathEscape）。
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
 	domainID, _, err := c.resolveDomain(ctx, record.Name, record.Zone)
 	if err != nil {
@@ -143,7 +147,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	return err
 }
 
-// GetRecords 查询 DNS 记录。
+// GetRecords 查询 DNS 记录（列出 domain 下全部记录，可按类型过滤）。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	domainID, zone, err := c.findDomainID(ctx, fulldomain)
 	if err != nil {
@@ -176,7 +180,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return c.filterRecords(records, zone, recordType), nil
 }
 
-// filterRecords 按类型过滤并转换为 RecordInfo。
+// filterRecords 按类型过滤，并将相对主机名拼成含 zone 的完整 Name。
 func (c *Client) filterRecords(records []domainRecord, zone, recordType string) []ddns.RecordInfo {
 	result := make([]ddns.RecordInfo, 0, len(records))
 	for _, r := range records {
@@ -199,7 +203,7 @@ func (c *Client) filterRecords(records []domainRecord, zone, recordType string) 
 	return result
 }
 
-// resolveDomain 解析 domain ID 与子域名。
+// resolveDomain 结合 zoneHint 拆分子域，并解析 Linode domain ID。
 func (c *Client) resolveDomain(ctx context.Context, name, zone string) (domainID int, sub string, err error) {
 	_, sub = domainutil.SplitDomain(name, zone)
 	id, _, err := c.findDomainID(ctx, name)
@@ -210,7 +214,7 @@ func (c *Client) resolveDomain(ctx context.Context, name, zone string) (domainID
 	return id, sub, nil
 }
 
-// findDomainID 查找 fulldomain 对应的 Linode domain ID。
+// findDomainID 按 ZoneCandidates 逐级探测，经 X-Filter 匹配 Linode domain。
 func (c *Client) findDomainID(ctx context.Context, fulldomain string) (int, string, error) {
 	for _, candidate := range domainutil.ZoneCandidates(fulldomain) {
 		filterBytes, err := json.Marshal(map[string]string{"domain": candidate})
@@ -250,7 +254,7 @@ func (c *Client) findDomainID(ctx context.Context, fulldomain string) (int, stri
 	return 0, "", fmt.Errorf("linode domain not found for %s", fulldomain)
 }
 
-// doRequestWithFilter 带 X-Filter 的域名列表查询。
+// doRequestWithFilter 带 X-Filter 头的域名列表查询（filter 已 QueryEscape）。
 func (c *Client) doRequestWithFilter(ctx context.Context, filter string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"?page_size=500", nil)
 	if err != nil {

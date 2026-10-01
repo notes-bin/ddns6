@@ -1,7 +1,12 @@
 // Package namecheap 实现 Namecheap DNS API 服务。
 //
 // 对应 acme.sh dns_namecheap。
-// 认证：API Key + Username + Client IP（Namecheap 要求）。
+// 认证：API Key + Username + Client IP（Namecheap 白名单要求）。
+// 必填参数：--api-key、--username、--client-ip
+//
+// 主机变更通过 getHosts + setHosts 全量重写；mu 串行化读写改写。
+// 域名拆为 SLD/TLD（无 PathEscape，参数走查询串）。
+// HTTP 客户端默认 httputil.NewHTTPClient（含 SameHostRedirect）。
 //
 // API 文档：https://www.namecheap.com/support/api/intro.aspx
 package namecheap
@@ -132,6 +137,7 @@ func (c *Client) DeleteRecord(ctx context.Context, info ddns.RecordInfo) error {
 }
 
 // GetRecords 查询 DNS 记录。
+// 拉取 SLD.TLD 下全部主机后按类型过滤；子域非 "@" 时再按主机名精确过滤。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	sld, tld, sub, err := c.splitDomain(fulldomain, "")
 	if err != nil {
@@ -279,7 +285,7 @@ func (c *Client) call(ctx context.Context, command string, extra url.Values) (*a
 	return &reply, nil
 }
 
-// splitDomain 将域名拆为 SLD、TLD 与主机标签（Namecheap API 要求）。
+// splitDomain 结合 zoneHint 拆分，返回 SLD、TLD 与主机标签（API 要求）。
 func (c *Client) splitDomain(name, zoneHint string) (sld, tld, sub string, err error) {
 	root, sub := domainutil.SplitDomain(name, zoneHint)
 	parts := strings.Split(strings.ToLower(strings.TrimSuffix(root, ".")), ".")

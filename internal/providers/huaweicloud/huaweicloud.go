@@ -1,9 +1,9 @@
 // Package huaweicloud 实现华为云 DNS API 服务。
 //
-// 认证方式：Access Key + Secret Key（从 IAM 用户获取）。
+// 认证方式：Access Key + Secret Key（IAM 用户）。
 // 必填参数：--access-key、--secret-key。
+// 使用 SDK-HMAC-SHA256 签名（AWS SigV4 变体）；路径段经 url.PathEscape 转义。
 //
-// 使用 SDK-HMAC-SHA256 签名（AWS SigV4 变体）。
 // API 文档：https://support.huaweicloud.com/api-dns/dns_api_64001.html
 package huaweicloud
 
@@ -44,6 +44,7 @@ type Client struct {
 type Option func(*Client)
 
 // NewClient 创建华为云 DNS 客户端。
+// 默认使用 httputil.NewHTTPClient（超时 + 同主机重定向限制）。
 func NewClient(accessKey, secretKey string, options ...Option) *Client {
 	c := &Client{
 		accessKey:  accessKey,
@@ -163,7 +164,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	return nil
 }
 
-// GetRecords 查询 DNS 记录，支持分页拉取全部 recordsets。
+// GetRecords 查询 DNS 记录（分页列出 zone 下指定类型的全部 recordsets，不按 name 过滤）。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	zoneID, err := c.getZoneID(ctx, fulldomain, "")
 	if err != nil {

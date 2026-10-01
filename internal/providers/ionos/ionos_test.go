@@ -10,7 +10,7 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-// TestClient 表驱动验证 Client CRUD 路径。
+// TestClient 表驱动验证 Client CRUD 与 zone 整区 GetRecords。
 func TestClient(t *testing.T) {
 	tests := []struct {
 		name    string

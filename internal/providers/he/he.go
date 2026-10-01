@@ -1,9 +1,9 @@
-// Package he 实现 Hurricane Electric DNS 服务。
+// Package he 实现 Hurricane Electric（HE）DNS DDNS 服务。
 //
 // 认证方式：DDNS Key（固定用户名 hosted_dns_editapi + DDNS 密钥）。
-// 必填参数：--password（从 dns.he.net 获取的 DDNS Key）
-//
-// 注意：HE DDNS API 仅支持更新记录，不支持查询与删除。
+// 必填参数：--password（dns.he.net 的 DDNS Key）。
+// HE DDNS 仅支持更新；GetRecords 恒为空，DeleteRecord 为有意空操作。
+// 查询参数经 url.Values 编码。
 package he
 
 import (
@@ -39,6 +39,7 @@ type Option func(*Client)
 
 // NewClient 创建 HE DNS 客户端。
 // HE DDNS 使用固定用户名 "hosted_dns_editapi"，只需传入 DDNS Key 作为 password。
+// 默认使用 httputil.NewHTTPClient（超时 + 同主机重定向限制）。
 func NewClient(password string, options ...Option) *Client {
 	c := &Client{
 		password:   password,
@@ -95,7 +96,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return []ddns.RecordInfo{}, nil
 }
 
-// update 执行 HE DNS DDNS 更新请求。
+// update 执行 HE DNS DDNS 更新请求（hostname/myip 经 url.Values 编码，Basic Auth）。
 func (c *Client) update(ctx context.Context, hostname, ip string) error {
 	q := url.Values{}
 	q.Set("hostname", hostname)

@@ -1,7 +1,12 @@
-// Package porkbun 实现 Porkbun DNS API 服务。
+// Package porkbun 实现 Porkbun DNS API v3 服务。
 //
-// 认证方式：API Key + Secret API Key。
+// 认证方式：API Key + Secret API Key（写入 JSON 请求体）。
 // 必填参数：--api-key、--secret-api-key
+//
+// 域名/类型/主机名路径段均经 url.PathEscape 转义。
+// GetRecords：根域（sub="@"）用 retrieveByType 按类型整区列出；
+// 否则 retrieveByNameType 精确匹配主机。
+// HTTP 客户端默认 httputil.NewHTTPClient（含 SameHostRedirect）。
 //
 // API 文档：https://porkbun.com/api/json/v3/documentation
 package porkbun
@@ -83,7 +88,7 @@ type apiResponse struct {
 	Records []dnsRecord `json:"records,omitempty"`
 }
 
-// AddRecord 添加 DNS 记录。
+// AddRecord 添加 DNS 记录（POST create/{domain}，domain 经 PathEscape）。
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	domain, subDomain := splitDomain(record.Name, record.Zone)
 
@@ -110,7 +115,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	return nil
 }
 
-// ModifyRecord 修改 DNS 记录（使用 editByNameType 接口）。
+// ModifyRecord 修改 DNS 记录（editByNameType，domain/type/name 均 PathEscape）。
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
 	domain, subDomain := splitDomain(record.Name, record.Zone)
 
@@ -135,7 +140,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	return nil
 }
 
-// DeleteRecord 删除 DNS 记录（使用 deleteByNameType 接口）。
+// DeleteRecord 删除 DNS 记录（deleteByNameType；类型缺省为 AAAA，路径段 PathEscape）。
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
 	domain, subDomain := splitDomain(record.Name, record.Zone)
 
@@ -160,11 +165,12 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 }
 
 // GetRecords 查询 DNS 记录。
+// sub 为 "@" 时 retrieveByType 按类型整区列出；否则 retrieveByNameType 精确匹配。
+// 路径中的 domain / type / name 均经 PathEscape。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	domain, subDomain := splitDomain(fulldomain, "")
 
-	// subDomain 为 "@" 时使用 retrieveByType（按域名+类型）
-	// 否则使用 retrieveByNameType（按域名+类型+名称精确匹配）
+	// "@" → 整区按类型；非 "@" → 按主机名精确检索
 	url := fmt.Sprintf("%s/retrieveByType/%s/%s", c.baseURL, urlpkg.PathEscape(domain), urlpkg.PathEscape(recordType))
 	if subDomain != "@" {
 		url = fmt.Sprintf("%s/retrieveByNameType/%s/%s/%s", c.baseURL, urlpkg.PathEscape(domain), urlpkg.PathEscape(recordType), urlpkg.PathEscape(subDomain))
@@ -242,7 +248,7 @@ func (c *Client) post(ctx context.Context, url string, record *dnsRecord, result
 	return nil
 }
 
-// splitDomain 将完整域名拆分为根域名与子域名。
+// splitDomain 结合 zoneHint 拆分根域名与子域名（委托 domainutil.SplitDomain）。
 func splitDomain(fulldomain, rootDomain string) (string, string) {
 	return domainutil.SplitDomain(fulldomain, rootDomain)
 }

@@ -1,9 +1,8 @@
 // Package digitalocean 实现 DigitalOcean DNS API 服务。
 //
-// 认证方式：Personal Access Token（需具有 write 权限）
-// 必填参数：--token
-//
-// 使用 RESTful JSON API 管理 DNS 记录，Bearer Token 认证。
+// 认证方式：Personal Access Token（需 write 权限）。
+// 必填参数：--token。
+// 使用 RESTful JSON API；域名与记录 ID 路径段经 url.PathEscape 转义。
 package digitalocean
 
 import (
@@ -40,6 +39,7 @@ type Client struct {
 type Option func(*Client)
 
 // NewClient 创建 DigitalOcean DNS 客户端。
+// 默认使用 httputil.NewHTTPClient（超时 + 同主机重定向限制）。
 func NewClient(token string, options ...Option) *Client {
 	c := &Client{
 		token:      token,
@@ -148,7 +148,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	return nil
 }
 
-// GetRecords 查询 DNS 记录。
+// GetRecords 查询 DNS 记录（列出 domain 下全部记录后按类型过滤；路径经 PathEscape）。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	domain, _ := domainutil.SplitDomain(fulldomain, "")
 
@@ -194,7 +194,7 @@ func (c *Client) setAuth(req *http.Request) {
 	req.Header.Set("Authorization", "Bearer "+c.token)
 }
 
-// doRequest 执行 HTTP 请求，检查 2xx 状态码并返回响应体
+// doRequest 执行 Bearer 认证 HTTP 请求，检查 2xx 并返回响应体。
 func (c *Client) doRequest(ctx context.Context, method, url string, body []byte) ([]byte, error) {
 	var req *http.Request
 	var err error

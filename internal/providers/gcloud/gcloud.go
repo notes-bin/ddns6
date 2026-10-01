@@ -1,7 +1,8 @@
 // Package gcloud 实现 Google Cloud DNS API 服务。
 //
 // 对应 acme.sh dns_gcloud（REST API，不依赖 gcloud CLI）。
-// 必填参数：--project、--access-token
+// 必填参数：--project、--access-token。
+// zone 探测使用 domainutil.ZoneCandidates；路径段经 url.PathEscape 转义。
 //
 // API 文档：https://cloud.google.com/dns/docs/reference/v1
 package gcloud
@@ -27,6 +28,7 @@ import (
 // 编译期断言：Client 实现 ddns.DNSProvider。
 var _ ddns.DNSProvider = (*Client)(nil)
 
+// defaultBaseURL 为 Cloud DNS REST API v1 基址。
 const defaultBaseURL = "https://dns.googleapis.com/dns/v1"
 
 // Client Google Cloud DNS API 客户端。
@@ -41,6 +43,7 @@ type Client struct {
 type Option func(*Client)
 
 // NewClient 创建 Google Cloud DNS 客户端。
+// 默认使用 httputil.NewHTTPClient（超时 + 同主机重定向限制）。
 func NewClient(project, accessToken string, options ...Option) *Client {
 	c := &Client{
 		project:    project,
@@ -113,7 +116,7 @@ func (c *Client) DeleteRecord(ctx context.Context, info ddns.RecordInfo) error {
 	return c.applyChange(ctx, info, "delete")
 }
 
-// GetRecords 查询 DNS 记录。
+// GetRecords 查询 DNS 记录（列出 managed zone 下指定类型的全部 rrset）。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	zone, _, zoneDNS, err := c.resolve(ctx, fulldomain, "")
 	if err != nil {
@@ -183,6 +186,7 @@ func (c *Client) applyChange(ctx context.Context, info ddns.RecordInfo, action s
 }
 
 // resolve 解析托管区域名与 RR 名称。
+// 无 zoneHint 时按 domainutil.ZoneCandidates 从长到短匹配 managedZones。
 func (c *Client) resolve(ctx context.Context, name, zoneHint string) (zoneName, rrName, zoneDNS string, err error) {
 	body, err := c.doRequest(ctx, http.MethodGet, fmt.Sprintf("/projects/%s/managedZones", url.PathEscape(c.project)), nil, nil)
 	if err != nil {
@@ -251,11 +255,13 @@ func (c *Client) doRequest(ctx context.Context, method, path string, query url.V
 	return respBody, nil
 }
 
+// httpStatusError 表示 Cloud DNS API 返回的非 2xx 响应。
 type httpStatusError struct {
 	status int
 	body   string
 }
 
+// Error 返回含状态码与响应正文的错误描述。
 func (e *httpStatusError) Error() string {
 	return fmt.Sprintf("Cloud DNS API error: status %d, body: %s", e.status, e.body)
 }

@@ -1,8 +1,8 @@
 // Package dnspod 实现 DNSPod 旧版 API（腾讯云 DNSPod 经典接口）。
 //
 // 认证方式：login_token（格式 "ID,Token"）。
-// 与 internal/providers/tencent（Tencent Cloud API v3）不同，
-// 本包调用 dnsapi.cn 原始 form 接口。
+// 与 internal/providers/tencent（Tencent Cloud API v3）不同，本包调用 dnsapi.cn 的 form 接口。
+// 必填参数：--id、--token（组装为 login_token）。
 package dnspod
 
 import (
@@ -40,6 +40,7 @@ type Option func(*Client)
 
 // NewClient 创建 DNSPod 客户端。
 // loginToken 格式为 "ID,Token"。
+// 默认使用 httputil.NewHTTPClient（超时 + 同主机重定向限制）。
 func NewClient(loginToken string, options ...Option) *Client {
 	c := &Client{
 		loginToken: loginToken,
@@ -181,6 +182,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 }
 
 // GetRecords 查询 DNS 记录。
+// 主机名为 "@"（apex）时不传 sub_domain，列出该域下指定类型的全部记录。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	domain, subDomain := domainutil.SplitDomain(fulldomain, "")
 

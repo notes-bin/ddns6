@@ -1,7 +1,9 @@
 // Package desec 实现 deSEC.io DNS API 服务。
 //
 // 认证方式：API Token（从 deSEC 控制台创建）。
-// 必填参数：--token
+// 必填参数：--token。
+// RRset 读改写经互斥锁串行化；zone 探测使用 domainutil.ZoneCandidates；
+// 路径段经 url.PathEscape 转义。
 //
 // API 文档：https://desec.readthedocs.io/
 package desec
@@ -29,6 +31,7 @@ import (
 // 编译期断言：Client 实现 ddns.DNSProvider。
 var _ ddns.DNSProvider = (*Client)(nil)
 
+// defaultBaseURL 为 deSEC API v1 基址。
 const defaultBaseURL = "https://desec.io/api/v1"
 
 // Client deSEC DNS API 客户端。
@@ -44,6 +47,7 @@ type Client struct {
 type Option func(*Client)
 
 // NewClient 创建 deSEC 客户端。
+// 默认使用 httputil.NewHTTPClient（超时 + 同主机重定向限制）。
 func NewClient(token string, options ...Option) *Client {
 	c := &Client{
 		token:      token,
@@ -250,6 +254,7 @@ func (c *Client) putRRSets(ctx context.Context, zone string, sets []rrset) error
 }
 
 // findZone 查找 fulldomain 对应的 deSEC zone 与子名。
+// 无 zoneHint/缓存命中时按 domainutil.ZoneCandidates 从长到短探测。
 // 有 zoneHint 或缓存命中时跳过 list domains 后缀探测。
 func (c *Client) findZone(ctx context.Context, fulldomain, zoneHint string) (zone, sub string, err error) {
 	root, sub := domainutil.SplitDomain(fulldomain, zoneHint)
@@ -306,6 +311,7 @@ type httpStatusError struct {
 	body   string
 }
 
+// Error 返回含状态码与响应正文的错误描述。
 func (e *httpStatusError) Error() string {
 	return fmt.Sprintf("deSEC API error: status %d, body: %s", e.status, e.body)
 }

@@ -1,9 +1,8 @@
 // Package dynv6 实现 Dynv6 免费 DDNS 服务。
 //
 // 认证方式：API Token（Bearer Token）。
-// 必填参数：--token
-//
-// 使用 RESTful JSON API，支持 zone 自动发现与完整 CRUD 操作。
+// 必填参数：--token。
+// 使用 RESTful JSON API；支持 zone 自动发现与 CRUD；路径段经 url.PathEscape 转义。
 package dynv6
 
 import (
@@ -42,6 +41,7 @@ type Client struct {
 type Option func(*Client)
 
 // NewClient 创建 Dynv6 客户端。
+// 默认使用 httputil.NewHTTPClient（超时 + 同主机重定向限制）。
 func NewClient(token string, options ...Option) *Client {
 	c := &Client{
 		token:      token,
@@ -214,7 +214,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	return nil
 }
 
-// GetRecords 查询 DNS 记录。
+// GetRecords 查询 DNS 记录（合并 zone 级 IPv6 与 zone 下 records 列表，再按类型过滤）。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	zoneID, _, err := c.resolveZone(ctx, fulldomain, "")
 	if err != nil {
@@ -281,7 +281,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 }
 
 // resolveZone 解析域名对应的 zone ID 和子域名。
-// 有 zoneHint 时优先按缓存/精确名匹配，避免重复 list zones。
+// 有 zoneHint 时优先按缓存/精确名匹配；否则 list zones 后按后缀匹配。
 func (c *Client) resolveZone(ctx context.Context, domain, zoneHint string) (string, string, error) {
 	root, sub := domainutil.SplitDomain(domain, zoneHint)
 	if root == "" {

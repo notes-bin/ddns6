@@ -1,9 +1,8 @@
 // Package cloudflare 实现 Cloudflare DNS API 服务。
 //
-// 认证方式：API Token（需具有 DNS:Edit 权限）
-// 必填参数：--api-token
-//
-// 使用 RESTful JSON API，支持 Zone ID 自动发现。
+// 认证方式：API Token（需 DNS:Edit；推荐）或旧版 API Key + Email。
+// 必填参数：--api-token（或 --api-key 与 --email）。
+// 使用 RESTful JSON API；Zone ID 可自动发现；路径段经 url.PathEscape 转义。
 package cloudflare
 
 import (
@@ -44,6 +43,7 @@ type Client struct {
 type Option func(*Client)
 
 // NewClient 创建 Cloudflare DNS 客户端。
+// 默认使用 httputil.NewHTTPClient（超时 + 同主机重定向限制）。
 func NewClient(options ...Option) *Client {
 	client := &Client{
 		baseURL:    "https://api.cloudflare.com/client/v4",
@@ -179,7 +179,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	return c.deleteDNSRecord(ctx, zoneID, record.ID)
 }
 
-// GetRecords 查询 DNS 记录。
+// GetRecords 查询 DNS 记录（列出 zone 下指定类型的全部 DNS 记录；不按主机名过滤）。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	zoneID, err := c.getZoneID(ctx, fulldomain, "")
 	if err != nil {
@@ -347,7 +347,7 @@ func (c *Client) updateDNSRecord(ctx context.Context, zoneID, recordID string, r
 	return &result, err
 }
 
-// getZoneID 解析域名对应的 Zone ID。
+// getZoneID 解析域名对应的 Zone ID（缓存优先；未命中则列表探测）。
 //
 // 优先顺序：配置的 ZoneID > zoneHint 缓存/直查 > 对 domain 后缀探测。
 // 配置了 ZoneID 时直接返回，不再每次校验详情（避免多余 API）。
@@ -395,7 +395,7 @@ func (c *Client) getZoneID(ctx context.Context, domain, zoneHint string) (string
 	return "", fmt.Errorf("could not find zone id for domain %s", domain)
 }
 
-// findZoneID 按名称查找 Zone ID。
+// findZoneID 按 zone 名称查找 Zone ID（结果写入 zoneCache）。
 func (c *Client) findZoneID(ctx context.Context, zone string) (string, error) {
 	slog.Debug("looking up Cloudflare zone", "module", "cloudflare", "zone", zone)
 

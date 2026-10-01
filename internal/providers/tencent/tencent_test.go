@@ -73,7 +73,7 @@ func TestDeleteRecord(t *testing.T) {
 	}
 }
 
-// TestGetRecords 验证 DescribeRecordList 解析与过滤。
+// TestGetRecords 验证 DescribeRecordList 解析、子域过滤与 FQDN Name。
 func TestGetRecords(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-TC-Action") == "DescribeDomainList" {
