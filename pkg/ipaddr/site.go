@@ -66,8 +66,9 @@ func (h *HTTPIPv6Fetcher) Fetch(ctx context.Context) (net.IP, error) {
 	}
 
 	body = bytes.TrimSpace(body)
-	if bytes.Contains(body, []byte("%")) {
-		body = bytes.Trim(body, "%") // 部分端点带 zone id 后缀
+	// 部分端点返回带 zone id 的地址（如 2001:db8::1%eth0），按 '%' 截断
+	if i := bytes.IndexByte(body, '%'); i >= 0 {
+		body = body[:i]
 	}
 
 	ip := net.ParseIP(string(body))

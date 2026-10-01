@@ -223,3 +223,21 @@ func TestIPv6Addr_SingleFetcher(t *testing.T) {
 		t.Errorf("应返回 %s, 得到 %s", testIP, ip)
 	}
 }
+
+// TestHTTPIPv6Fetcher_ZoneID 验证响应中的 %zone 后缀被正确剥离。
+func TestHTTPIPv6Fetcher_ZoneID(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("2001:db8::1%eth0\n"))
+	}))
+	defer server.Close()
+
+	fetcher := ipaddr.NewHTTPIPv6Fetcher(server.URL)
+	ip, err := fetcher.Fetch(t.Context())
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if got := ip.String(); got != "2001:db8::1" {
+		t.Fatalf("got %s, want 2001:db8::1", got)
+	}
+}
