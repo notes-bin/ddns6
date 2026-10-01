@@ -100,7 +100,7 @@ func TestExecute_Version(t *testing.T) {
 	requireContains(t, out, "Version:")
 }
 
-// TestExecute_UnknownCommand 验证未知命令打印帮助且返回 nil（不视为致命错误）。
+// TestExecute_UnknownCommand 验证未知命令打印帮助并以非 nil error 返回（非 0 退出）。
 func TestExecute_UnknownCommand(t *testing.T) {
 	initRootCmd()
 	withArgs(t, "ddns6", "not-a-real-command")
@@ -114,13 +114,39 @@ func TestExecute_UnknownCommand(t *testing.T) {
 	err = Execute()
 	w.Close()
 	os.Stderr, os.Stdout = oldErr, oldOut
-	if err != nil {
-		t.Fatalf("未知命令应返回 nil: %v", err)
+	if err == nil {
+		t.Fatal("未知命令应返回 error")
 	}
+	requireErrContains(t, err, "command failed")
 	var buf bytes.Buffer
 	io.Copy(&buf, r)
 	if buf.Len() == 0 {
 		t.Error("未知命令应有错误/帮助输出")
+	}
+}
+
+// TestExecute_UnknownFlag 验证非法 flag 打印帮助并以非 nil error 返回。
+func TestExecute_UnknownFlag(t *testing.T) {
+	initRootCmd()
+	withArgs(t, "ddns6", "--not-a-real-flag")
+
+	oldErr, oldOut := os.Stderr, os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr, os.Stdout = w, w
+	err = Execute()
+	w.Close()
+	os.Stderr, os.Stdout = oldErr, oldOut
+	if err == nil {
+		t.Fatal("非法 flag 应返回 error")
+	}
+	requireErrContains(t, err, "command failed")
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	if buf.Len() == 0 {
+		t.Error("非法 flag 应有错误/帮助输出")
 	}
 }
 
