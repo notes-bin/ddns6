@@ -20,7 +20,11 @@ import (
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
+	"github.com/notes-bin/ddns6/internal/httputil"
 )
+
+// 编译期断言：Client 实现 ddns.DNSProvider。
+var _ ddns.DNSProvider = (*Client)(nil)
 
 // Client GoDaddy DNS API 客户端。
 type Client struct {
@@ -271,7 +275,7 @@ func (c *Client) makeRequest(ctx context.Context, method, url string, body io.Re
 	slog.Debug("GoDaddy API response", "module", "godaddy", "method", method, "status", resp.StatusCode)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		bodyBytes, readErr := io.ReadAll(resp.Body)
+		bodyBytes, readErr := httputil.ReadBody(resp.Body)
 		if readErr != nil {
 			return fmt.Errorf("failed to read error response body: %w", readErr)
 		}
@@ -282,7 +286,7 @@ func (c *Client) makeRequest(ctx context.Context, method, url string, body io.Re
 	}
 
 	if result != nil {
-		if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
+		if err := json.NewDecoder(httputil.LimitBody(resp.Body)).Decode(result); err != nil {
 			return err
 		}
 	}

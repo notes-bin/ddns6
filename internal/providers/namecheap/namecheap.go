@@ -11,7 +11,6 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
-	"io"
 	"log/slog"
 	"maps"
 	"net/http"
@@ -21,8 +20,12 @@ import (
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
+	"github.com/notes-bin/ddns6/internal/httputil"
 	"github.com/notes-bin/ddns6/pkg/domainutil"
 )
+
+// 编译期断言：Client 实现 ddns.DNSProvider。
+var _ ddns.DNSProvider = (*Client)(nil)
 
 const defaultBaseURL = "https://api.namecheap.com/xml.response"
 
@@ -243,7 +246,7 @@ func (c *Client) call(ctx context.Context, command string, extra url.Values) (*a
 		return nil, fmt.Errorf("namecheap api request failed: %w", err)
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	body, err := httputil.ReadBody(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read namecheap response: %w", err)
 	}

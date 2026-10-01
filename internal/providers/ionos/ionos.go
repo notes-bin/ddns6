@@ -12,15 +12,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
+	"github.com/notes-bin/ddns6/internal/httputil"
 	"github.com/notes-bin/ddns6/pkg/domainutil"
 )
+
+// 编译期断言：Client 实现 ddns.DNSProvider。
+var _ ddns.DNSProvider = (*Client)(nil)
 
 const defaultBaseURL = "https://api.hosting.ionos.com/dns/v1"
 
@@ -244,7 +247,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body []byte
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := httputil.ReadBody(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read ionos response: %w", err)
 	}

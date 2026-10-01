@@ -9,7 +9,6 @@ package duckdns
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -17,7 +16,11 @@ import (
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
+	"github.com/notes-bin/ddns6/internal/httputil"
 )
+
+// 编译期断言：Client 实现 ddns.DNSProvider。
+var _ ddns.DNSProvider = (*Client)(nil)
 
 const (
 	defaultBaseURL = "https://www.duckdns.org"
@@ -127,7 +130,7 @@ func (c *Client) update(ctx context.Context, domain, ip string) error {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := httputil.ReadBody(resp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to read response: %w", err)
 	}

@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"github.com/notes-bin/ddns6/internal/crypto"
+	"github.com/notes-bin/ddns6/internal/httputil"
 	"io"
 	"maps"
 	"net/http"
@@ -135,7 +136,7 @@ func requestPayload(r *http.Request) ([]byte, error) {
 	if r.Body == nil {
 		return []byte(""), nil
 	}
-	b, err := io.ReadAll(r.Body)
+	b, err := httputil.ReadBody(r.Body)
 	if err != nil {
 		return []byte(""), err
 	}

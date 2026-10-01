@@ -20,7 +20,11 @@ import (
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
+	"github.com/notes-bin/ddns6/internal/httputil"
 )
+
+// 编译期断言：Client 实现 ddns.DNSProvider。
+var _ ddns.DNSProvider = (*Client)(nil)
 
 // Client Cloudflare DNS API 客户端。
 type Client struct {
@@ -277,7 +281,7 @@ func (c *Client) listRequest(ctx context.Context, reqURL string) ([]DNSRecord, *
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		var apiResp APIResponse
-		if err := json.NewDecoder(resp.Body).Decode(&apiResp); err == nil {
+		if err := json.NewDecoder(httputil.LimitBody(resp.Body)).Decode(&apiResp); err == nil {
 			if len(apiResp.Errors) > 0 {
 				return nil, nil, fmt.Errorf("cloudflare api error: %s (code %d)",
 					apiResp.Errors[0].Message, apiResp.Errors[0].Code)
@@ -293,7 +297,7 @@ func (c *Client) listRequest(ctx context.Context, reqURL string) ([]DNSRecord, *
 		ResultInfo *resultInfo    `json:"result_info"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+	if err := json.NewDecoder(httputil.LimitBody(resp.Body)).Decode(&apiResp); err != nil {
 		return nil, nil, err
 	}
 
@@ -474,7 +478,7 @@ func (c *Client) makeRequest(ctx context.Context, method, url string, body io.Re
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		var apiResp APIResponse
-		if err := json.NewDecoder(resp.Body).Decode(&apiResp); err == nil {
+		if err := json.NewDecoder(httputil.LimitBody(resp.Body)).Decode(&apiResp); err == nil {
 			if len(apiResp.Errors) > 0 {
 				slog.Error("Cloudflare API returned error",
 					"module", "cloudflare",
@@ -490,7 +494,7 @@ func (c *Client) makeRequest(ctx context.Context, method, url string, body io.Re
 
 	if result != nil {
 		var apiResp APIResponse
-		if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+		if err := json.NewDecoder(httputil.LimitBody(resp.Body)).Decode(&apiResp); err != nil {
 			return err
 		}
 

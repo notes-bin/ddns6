@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"github.com/notes-bin/ddns6/internal/httputil"
 	"io"
 	"net/http"
 	"slices"
@@ -111,7 +112,7 @@ func requestPayload(r *http.Request) ([]byte, error) {
 	if r.Body == nil {
 		return nil, nil
 	}
-	body, err := io.ReadAll(r.Body)
+	body, err := httputil.ReadBody(r.Body)
 	if err != nil {
 		return nil, err
 	}

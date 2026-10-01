@@ -7,6 +7,9 @@ import (
 	"net"
 )
 
+// 编译期断言：DNSFetcher 实现 IPv6Fetcher。
+var _ IPv6Fetcher = (*DNSFetcher)(nil)
+
 // DNSFetcher 通过向指定 DNS 服务器发起 UDP6 拨号，从本地套接字地址获取本机 IPv6。
 //
 // 底层值为 DNS 服务器 IPv6 地址（不含端口，固定使用 53）。
