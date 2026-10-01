@@ -13,7 +13,8 @@ import (
 	"github.com/notes-bin/ddns6/pkg/ipaddr"
 )
 
-// TestDNSFetcher 验证 DNSFetcher 的 String 与 Fetch（无 IPv6 时仅记录日志）。
+// TestDNSFetcher 验证 DNSFetcher 的 String 与 Fetch；
+// 无 IPv6 网络时仅记录日志，不视为失败。
 func TestDNSFetcher(t *testing.T) {
 	dnsServer := "2001:4860:4860::8888" // Google DNS
 	fetcher := ipaddr.NewDNSFetcher(dnsServer)
@@ -38,7 +39,7 @@ func TestDNSFetcher(t *testing.T) {
 	}
 }
 
-// TestHTTPIPv6Fetcher 用 httptest 验证合法 IPv6 解析与非法正文失败。
+// TestHTTPIPv6Fetcher 用 httptest 验证合法 IPv6 解析成功，以及非法正文返回错误。
 func TestHTTPIPv6Fetcher(t *testing.T) {
 	mockIPv6 := "2001:db8::1"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -85,6 +86,7 @@ type slowFetcher struct {
 	canceledCh chan struct{} // 取消时关闭（可选，至多一次）
 }
 
+// Fetch 在 delay 后返回 IP；若 ctx 先取消则关闭 canceledCh（若已设置）并返回 ctx.Err()。
 func (s *slowFetcher) Fetch(ctx context.Context) (net.IP, error) {
 	select {
 	case <-ctx.Done():
@@ -101,7 +103,7 @@ func (s *slowFetcher) Fetch(ctx context.Context) (net.IP, error) {
 	}
 }
 
-// TestIPv6Addr_RaceCancel 验证快 fetcher 胜出时慢方取消不影响结果。
+// TestIPv6Addr_RaceCancel 验证快 fetcher 胜出时，慢方取消不影响成功结果。
 func TestIPv6Addr_RaceCancel(t *testing.T) {
 	fastIP := net.ParseIP("2001:db8::1")
 	slowIP := net.ParseIP("2001:db8::2")
@@ -130,6 +132,7 @@ func TestIPv6Addr_RaceCancel(t *testing.T) {
 // failFetcher 始终返回错误的 IPv6Fetcher。
 type failFetcher struct{ err error }
 
+// Fetch 直接返回预设错误。
 func (f *failFetcher) Fetch(context.Context) (net.IP, error) {
 	return nil, f.err
 }
@@ -162,6 +165,7 @@ type hungFetcher struct {
 	started chan struct{}
 }
 
+// Fetch 通知 started 后阻塞直至 stop 关闭。
 func (h *hungFetcher) Fetch(context.Context) (net.IP, error) {
 	if h.started != nil {
 		select {
@@ -174,7 +178,7 @@ func (h *hungFetcher) Fetch(context.Context) (net.IP, error) {
 	return nil, errors.New("stopped")
 }
 
-// TestIPv6Addr_ParentCancel 验证忽略 ctx 的 fetcher 下，父取消仍立即返回。
+// TestIPv6Addr_ParentCancel 验证忽略 ctx 的 fetcher 下，父 context 取消仍立即返回。
 func TestIPv6Addr_ParentCancel(t *testing.T) {
 	stop := make(chan struct{})
 	defer close(stop)

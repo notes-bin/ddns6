@@ -26,7 +26,9 @@ func (d *DNSFetcher) String() string {
 	return string(*d)
 }
 
-// Fetch 拨号 DNS 服务器并返回本地 UDP 地址中的全局 IPv6；失败则返回错误。
+// Fetch 拨号 DNS 服务器并返回本地 UDP 地址中的 IPv6；失败则返回错误。
+//
+// 仅当本地地址为合法 IPv6（非 IPv4）时成功。
 func (d *DNSFetcher) Fetch(ctx context.Context) (net.IP, error) {
 	slog.Debug("fetching IPv6 via DNS", "module", "ipaddr", "dns_server", d.String())
 

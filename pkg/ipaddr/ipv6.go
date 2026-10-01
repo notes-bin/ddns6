@@ -1,9 +1,8 @@
 // Package ipaddr 提供本机公网 IPv6 地址获取。
 //
-// 入口为 IPv6Addr：对多个 IPv6Fetcher 随机打乱后并发竞速，
-// 取首个成功结果。内置 HTTPIPv6Fetcher（HTTP 纯文本端点）与
-// DNSFetcher（UDP6 拨号取本地地址）；库调用方也可传入
-// ddns.DefaultIPv6Fetchers()。
+// 入口为 IPv6Addr：对多个 IPv6Fetcher 随机打乱后并发竞速，取首个成功结果。
+// 内置 HTTPIPv6Fetcher（HTTP 纯文本端点）与 DNSFetcher（UDP6 拨号取本地地址）；
+// 库调用方也可传入 ddns.DefaultIPv6Fetchers()。
 //
 // 使用示例：
 //
@@ -30,7 +29,7 @@ type IPv6Fetcher interface {
 	Fetch(ctx context.Context) (net.IP, error)
 }
 
-// fetchTimeout 单次 IPv6Addr 竞速的总超时。
+// fetchTimeout 为单次 IPv6Addr 竞速的总超时。
 const fetchTimeout = 5 * time.Second
 
 // IPv6Addr 获取本机 IPv6 地址。

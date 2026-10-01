@@ -2,7 +2,7 @@ package domainutil
 
 import "testing"
 
-// TestSplitDomain 覆盖无/有 rootDomain、多部分 TLD 及 apex（@）场景。
+// TestSplitDomain 覆盖无/有 rootDomain、多部分 TLD、apex（@）及单段主机名场景。
 func TestSplitDomain(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -40,7 +40,8 @@ func TestSplitDomain(t *testing.T) {
 	}
 }
 
-// FuzzSplitDomain 对任意输入执行 SplitDomain，确保不 panic 且根域名非空时结果自洽。
+// FuzzSplitDomain 对任意输入执行 SplitDomain，确保不 panic，
+// 且非空输入时 root 非空、apex 场景结果自洽。
 func FuzzSplitDomain(f *testing.F) {
 	f.Add("www.example.com", "example.com")
 	f.Add("example.com", "")
@@ -62,7 +63,8 @@ func FuzzSplitDomain(f *testing.F) {
 	})
 }
 
-// TestZoneCandidates 覆盖空输入、单段、apex、子域与多部分 TLD 候选列表。
+// TestZoneCandidates 覆盖空输入、尾点、单段、apex、多层子域与多部分 TLD；
+// 确认不含单段纯 TLD，但会保留两段后缀（如 co.uk）。
 func TestZoneCandidates(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

@@ -37,6 +37,9 @@ func (h *HTTPIPv6Fetcher) String() string {
 }
 
 // Fetch 请求端点并将响应正文解析为 IPv6 地址。
+//
+// 正文会去除首尾空白；若含 "%"（zone id 后缀）则一并剥离。
+// 仅接受合法 IPv6（非 IPv4 映射）；否则返回错误。
 func (h *HTTPIPv6Fetcher) Fetch(ctx context.Context) (net.IP, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, h.url, nil)
 	if err != nil {
