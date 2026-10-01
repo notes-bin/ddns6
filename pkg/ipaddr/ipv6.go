@@ -36,6 +36,7 @@ const fetchTimeout = 5 * time.Second
 //
 // 每次调用随机打乱 fetchers 后并发执行，返回第一个成功地址；
 // 全部失败则返回错误。总超时 5 秒，并受父 context 约束。
+// 取消或超时时立即返回，不再等待忽略 ctx 的 fetcher。
 func IPv6Addr(ctx context.Context, fetchers ...IPv6Fetcher) (net.IP, error) {
 	if len(fetchers) == 0 {
 		return nil, fmt.Errorf("no fetcher provided")
@@ -73,7 +74,8 @@ func IPv6Addr(ctx context.Context, fetchers ...IPv6Fetcher) (net.IP, error) {
 				errCh <- err
 				return
 			}
-			resultCh <- ip
+			// 拷贝后再发送，避免与 dial/缓冲底层切片别名
+			resultCh <- append(net.IP(nil), ip...)
 		}()
 	}
 
@@ -99,6 +101,14 @@ func IPv6Addr(ctx context.Context, fetchers ...IPv6Fetcher) (net.IP, error) {
 			default:
 				failedCount++
 			}
+		case <-ctx.Done():
+			// 立即解除调用方阻塞；其余 fetcher 依赖缓冲 channel 与 cancel 收尾
+			slog.Error("IPv6 fetch canceled or timed out",
+				"module", "ipaddr",
+				"total", len(fetchers),
+				"canceled", canceledCount, "timed_out", timeoutCount, "failed", failedCount,
+				"err", ctx.Err())
+			return nil, ctx.Err()
 		}
 	}
 
