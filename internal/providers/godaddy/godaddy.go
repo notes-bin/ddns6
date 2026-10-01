@@ -14,6 +14,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"sync"
@@ -45,7 +46,7 @@ func NewClient(apiKey, apiSecret string, options ...Option) *Client {
 		apiKey:     apiKey,
 		apiSecret:  apiSecret,
 		baseURL:    "https://api.godaddy.com/v1",
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient: httputil.NewHTTPClient(30 * time.Second),
 	}
 
 	for _, option := range options {
@@ -203,7 +204,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 // getRecords 获取指定类型的记录。
 func (c *Client) getRecords(ctx context.Context, domain, subDomain, rtype string) ([]dnsRecord, error) {
 	// subDomain 为 "@" 时表示根域名，不传入 name 路径段以获取该域名下所有记录
-	url := fmt.Sprintf("%s/domains/%s/records/%s", c.baseURL, domain, rtype)
+	url := fmt.Sprintf("%s/domains/%s/records/%s", c.baseURL, url.PathEscape(domain), url.PathEscape(rtype))
 	if subDomain != "@" {
 		url += "/" + subDomain
 	}
@@ -214,7 +215,7 @@ func (c *Client) getRecords(ctx context.Context, domain, subDomain, rtype string
 
 // updateRecords 更新指定子域名的记录集。
 func (c *Client) updateRecords(ctx context.Context, domain, subDomain, rtype string, records []dnsRecord) error {
-	url := fmt.Sprintf("%s/domains/%s/records/%s/%s", c.baseURL, domain, rtype, subDomain)
+	url := fmt.Sprintf("%s/domains/%s/records/%s/%s", c.baseURL, url.PathEscape(domain), url.PathEscape(rtype), url.PathEscape(subDomain))
 	body, err := json.Marshal(records)
 	if err != nil {
 		return err
@@ -224,7 +225,7 @@ func (c *Client) updateRecords(ctx context.Context, domain, subDomain, rtype str
 
 // deleteRecords 删除指定子域名的全部记录。
 func (c *Client) deleteRecords(ctx context.Context, domain, subDomain, rtype string) error {
-	url := fmt.Sprintf("%s/domains/%s/records/%s/%s", c.baseURL, domain, rtype, subDomain)
+	url := fmt.Sprintf("%s/domains/%s/records/%s/%s", c.baseURL, url.PathEscape(domain), url.PathEscape(rtype), url.PathEscape(subDomain))
 	return c.makeRequest(ctx, "DELETE", url, nil, nil)
 }
 
@@ -260,7 +261,7 @@ func (c *Client) getRootDomain(ctx context.Context, domain, zoneHint string) (st
 
 // getDomain 检查域名是否存在于 GoDaddy 账户。
 func (c *Client) getDomain(ctx context.Context, domain string) error {
-	url := fmt.Sprintf("%s/domains/%s", c.baseURL, domain)
+	url := fmt.Sprintf("%s/domains/%s", c.baseURL, url.PathEscape(domain))
 	return c.makeRequest(ctx, "GET", url, nil, nil)
 }
 

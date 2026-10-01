@@ -47,7 +47,7 @@ type Option func(*Client)
 func NewClient(options ...Option) *Client {
 	client := &Client{
 		baseURL:    "https://api.cloudflare.com/client/v4",
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient: httputil.NewHTTPClient(30 * time.Second),
 	}
 
 	for _, option := range options {
@@ -237,7 +237,7 @@ func (c *Client) listDNSRecords(ctx context.Context, zoneID, name, rtype, conten
 		if content != "" {
 			query.Set("content", content)
 		}
-		reqURL := fmt.Sprintf("%s/zones/%s/dns_records?%s", c.baseURL, zoneID, query.Encode())
+		reqURL := fmt.Sprintf("%s/zones/%s/dns_records?%s", c.baseURL, url.PathEscape(zoneID), query.Encode())
 
 		records, info, err := c.listRequest(ctx, reqURL)
 		if err != nil {
@@ -316,7 +316,7 @@ func (c *Client) listRequest(ctx context.Context, reqURL string) ([]dnsRecord, *
 
 // getRecordByID 根据记录 ID 获取 DNS 记录。
 func (c *Client) getRecordByID(ctx context.Context, zoneID, recordID string) (*dnsRecord, error) {
-	url := fmt.Sprintf("%s/zones/%s/dns_records/%s", c.baseURL, zoneID, recordID)
+	url := fmt.Sprintf("%s/zones/%s/dns_records/%s", c.baseURL, url.PathEscape(zoneID), url.PathEscape(recordID))
 	var result dnsRecord
 	err := c.makeRequest(ctx, "GET", url, nil, &result)
 	return &result, err
@@ -328,7 +328,7 @@ func (c *Client) updateDNSRecord(ctx context.Context, zoneID, recordID string, r
 		"module", "cloudflare",
 		"record_id", recordID, "type", record.Type, "zone_id", zoneID)
 
-	url := fmt.Sprintf("%s/zones/%s/dns_records/%s", c.baseURL, zoneID, recordID)
+	url := fmt.Sprintf("%s/zones/%s/dns_records/%s", c.baseURL, url.PathEscape(zoneID), url.PathEscape(recordID))
 
 	body, err := json.Marshal(record)
 	if err != nil {
@@ -431,7 +431,7 @@ func (c *Client) createDNSRecord(ctx context.Context, zoneID string, record dnsR
 		"module", "cloudflare",
 		"type", record.Type, "name", record.Name, "zone_id", zoneID)
 
-	url := fmt.Sprintf("%s/zones/%s/dns_records", c.baseURL, zoneID)
+	url := fmt.Sprintf("%s/zones/%s/dns_records", c.baseURL, url.PathEscape(zoneID))
 
 	body, err := json.Marshal(record)
 	if err != nil {
@@ -452,7 +452,7 @@ func (c *Client) createDNSRecord(ctx context.Context, zoneID string, record dnsR
 func (c *Client) deleteDNSRecord(ctx context.Context, zoneID, recordID string) error {
 	slog.Info("deleting Cloudflare DNS record", "module", "cloudflare", "record_id", recordID, "zone_id", zoneID)
 
-	url := fmt.Sprintf("%s/zones/%s/dns_records/%s", c.baseURL, zoneID, recordID)
+	url := fmt.Sprintf("%s/zones/%s/dns_records/%s", c.baseURL, url.PathEscape(zoneID), url.PathEscape(recordID))
 	err := c.makeRequest(ctx, "DELETE", url, nil, nil)
 	if err != nil {
 		slog.Debug("failed to delete Cloudflare DNS record", "module", "cloudflare", "record_id", recordID, "err", err)
