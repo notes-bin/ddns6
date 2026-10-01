@@ -105,21 +105,22 @@ func runService(ctx context.Context, domains []*Domain, p DNSProvider, interval 
 		"domain_count", len(domains),
 		"mode", platformTriggerMode())
 
-	// 跟踪进行中的同步：单飞避免密集触发叠多层；关机时 WaitGroup 等待结束
+	// 跟踪进行中的同步：单飞避免密集触发叠多层；跳过时置 dirty，结束后补跑。
 	var syncWG sync.WaitGroup
 	var syncing atomic.Bool
+	var dirty atomic.Bool
 
 	for {
 		select {
 		case <-triggerCh:
 			if !syncing.CompareAndSwap(false, true) {
+				dirty.Store(true)
 				metrics.IncSyncSkipped()
 				slog.Debug("sync already in progress, skipping trigger", "module", "ddns")
 				continue
 			}
 			syncWG.Go(func() {
-				defer syncing.Store(false)
-				runTriggeredSync(ctx, domains, p, fetchers)
+				runSyncWithDirtyRetry(ctx, &syncing, &dirty, domains, p, fetchers)
 			})
 
 		case <-ctx.Done():
@@ -140,6 +141,25 @@ func runService(ctx context.Context, domains []*Domain, p DNSProvider, interval 
 			slog.Info("ddns6 stopped", "module", "ddns")
 			return nil
 		}
+	}
+}
+
+// runSyncWithDirtyRetry 在单飞持有期间执行同步；若期间有触发被跳过（dirty），则补跑直至干净。
+//
+// 释放 syncing 后再检查 dirty，并用 CAS 重新获取，避免与新触发竞态导致漏同步。
+func runSyncWithDirtyRetry(ctx context.Context, syncing, dirty *atomic.Bool, domains []*Domain, p DNSProvider, fetchers []ipaddr.IPv6Fetcher) {
+	for {
+		dirty.Store(false)
+		runTriggeredSync(ctx, domains, p, fetchers)
+		syncing.Store(false)
+		if !dirty.Load() {
+			return
+		}
+		if !syncing.CompareAndSwap(false, true) {
+			// 其他 goroutine 已接管后续同步
+			return
+		}
+		slog.Debug("re-running sync after skipped trigger", "module", "ddns")
 	}
 }
 
