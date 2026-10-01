@@ -167,6 +167,27 @@ func TestSyncAllDomains_Success(t *testing.T) {
 	}
 }
 
+// TestSyncAllDomains_MergesGetRecords 验证同根域名多子域只调用一次 GetRecords。
+func TestSyncAllDomains_MergesGetRecords(t *testing.T) {
+	addr := net.ParseIP("2001:db8::2")
+	domains := []*Domain{
+		{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600},
+		{Domain: "example.com", SubDomain: "api", Type: "AAAA", TTL: 600},
+	}
+	m := &mockProvider{
+		records: []RecordInfo{
+			{ID: "1", Name: "www.example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600},
+			{ID: "2", Name: "api.example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600},
+		},
+	}
+	if err := syncAllDomains(t.Context(), domains, addr, m, true); err != nil {
+		t.Fatalf("syncAllDomains 不应失败: %v", err)
+	}
+	if m.getCalls != 1 {
+		t.Fatalf("同 zone 多子域应只 GetRecords 一次, got %d", m.getCalls)
+	}
+}
+
 // TestRunService_InitialFetchFailed 验证首次获取 IPv6 失败时立即返回。
 func TestRunService_InitialFetchFailed(t *testing.T) {
 	domains := []*Domain{{Domain: "example.com", SubDomain: "@", Type: "AAAA", TTL: 600}}

@@ -105,13 +105,15 @@ func TestRecordInfoKey_EmptyID(t *testing.T) {
 
 // mockProvider 实现 DNSProvider，供 syncDNSRecord / CollectMatchingRecords 测试使用。
 type mockProvider struct {
-	records []RecordInfo
-	addErr  error
-	modErr  error
-	getErr  error
+	records  []RecordInfo
+	addErr   error
+	modErr   error
+	getErr   error
+	getCalls int
 }
 
 func (m *mockProvider) GetRecords(_ context.Context, _, _ string) ([]RecordInfo, error) {
+	m.getCalls++
 	return m.records, m.getErr
 }
 

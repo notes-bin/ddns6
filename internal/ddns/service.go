@@ -124,22 +124,31 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 	}
 }
 
-// syncAllDomains 并发同步所有域名的 DNS 记录。
+// syncAllDomains 按根域名分组同步，同 zone 只查询一次 GetRecords。
 //
-// failFast=true 时遇错立即返回第一个错误；failFast=false 时遇错只记日志并继续处理剩余域名。
+// failFast=true 时返回第一个错误（仍等待各组结束）；failFast=false 时遇错只记日志。
 func syncAllDomains(ctx context.Context, domains []*Domain, ip net.IP, p DNSProvider, failFast bool) error {
-	var wg sync.WaitGroup
-	errCh := make(chan error, len(domains))
+	type groupKey struct {
+		root string
+		typ  string
+	}
+	groups := make(map[groupKey][]*Domain, len(domains))
 	for _, d := range domains {
+		k := groupKey{root: d.Domain, typ: d.Type}
+		groups[k] = append(groups[k], d)
+	}
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, len(groups))
+	for key, group := range groups {
 		wg.Go(func() {
-			if err := SyncRecord(ctx, d, ip, p); err != nil {
+			if err := syncDomainGroup(ctx, key.root, key.typ, group, ip, p); err != nil {
 				if failFast {
-					errCh <- fmt.Errorf("sync failed for %s/%s: %w",
-						d.Domain, d.SubDomain, err)
+					errCh <- err
 				} else {
-					slog.Error("sync failed on trigger",
+					slog.Error("sync group failed on trigger",
 						"module", "ddns",
-						"domain", d.Domain, "subdomain", d.SubDomain, "err", err)
+						"domain", key.root, "type", key.typ, "err", err)
 				}
 			}
 		})
@@ -151,6 +160,49 @@ func syncAllDomains(ctx context.Context, domains []*Domain, ip net.IP, p DNSProv
 			if err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+// syncDomainGroup 同步同一根域名下的多个子域名：先过滤需更新项，再一次 GetRecords 后逐个 apply。
+func syncDomainGroup(ctx context.Context, root, typ string, group []*Domain, ip net.IP, p DNSProvider) error {
+	need := make([]*Domain, 0, len(group))
+	for _, d := range group {
+		d.lock()
+		select {
+		case <-ctx.Done():
+			d.unlock()
+			return ctx.Err()
+		default:
+		}
+		if !hasAddressChanged(d.Addr, ip) {
+			slog.Debug("IPv6 address unchanged, skipping update", "module", "ddns",
+				"domain", d.Domain, "subdomain", d.SubDomain)
+			d.unlock()
+			continue
+		}
+		d.unlock()
+		need = append(need, d)
+	}
+	if len(need) == 0 {
+		return nil
+	}
+
+	slog.Debug("querying DNS records for zone", "module", "ddns",
+		"domain", root, "type", typ, "subdomain_count", len(need))
+
+	records, err := p.GetRecords(ctx, root, typ)
+	if err != nil {
+		return fmt.Errorf("failed to query records for %s: %w", root, err)
+	}
+
+	for _, d := range need {
+		d.lock()
+		err := applyDNSRecords(ctx, d, p, ip, records)
+		d.unlock()
+		if err != nil {
+			return fmt.Errorf("sync failed for %s/%s: %w", d.Domain, d.SubDomain, err)
 		}
 	}
 	return nil
