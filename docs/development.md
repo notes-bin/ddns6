@@ -65,10 +65,11 @@ go tool cover -func=coverage.out | tail -n 1   # 总覆盖率须 ≥ 80%
 
 ```
 ddns6/
-├── main.go
-├── cmd/                             # Cobra：run / init / check / list / records / clean …
-│   └── providers.go                 # 23 家 providerFactories
+├── cmd/
+│   └── ddns6/main.go                # 程序入口（仅调用 cli.Execute）
 ├── internal/
+│   ├── cli/                         # Cobra：run / init / check / list / records / clean …
+│   │   └── providers.go             # 23 家 providerFactories
 │   ├── config/                      # 配置读写；Unix 0600 fail-closed
 │   ├── crypto/                      # 签名辅助
 │   ├── ddns/                        # 触发、单飞同步、records/clean
@@ -91,7 +92,7 @@ ddns6/
 
 | 路径 | 职责 |
 |------|------|
-| `cmd/providers.go` | 注册工厂；`optional` flag 不强制非空 |
+| `internal/cli/providers.go` | 注册工厂；`optional` flag 不强制非空 |
 | `internal/ddns` | 编排；同根域一次 `GetRecords` |
 | `internal/httputil` | `NewHTTPClient`（同主机重定向）、`RedactSecrets` |
 | `pkg/domainutil` | zone 后缀候选 `ZoneCandidates` |
@@ -99,7 +100,7 @@ ddns6/
 
 ## 新增 DNS 运营商
 
-遵循 `cmd/providers.go` 文件头注释。
+遵循 `internal/cli/providers.go` 文件头注释。
 
 ### 1. 实现 Provider
 
