@@ -8,7 +8,8 @@
 //	Linux: Netlink 监听地址变化 -> debounce 10s -> 获取 IPv6 -> 同步 DNS 记录
 //	其他:  定时轮询 -> 获取 IPv6 -> 同步 DNS 记录
 //
-// 同步策略：查询目标子域名记录；IP 相同则跳过，不同则修改；无记录则新增。
+// 同步策略：按根域名分组，同 zone 只调用一次 GetRecords；再按子域名匹配。
+// IP 相同则跳过，不同则修改；无记录则新增。运行中同步单飞，避免触发堆积。
 //
 // 使用示例（作为库调用）：
 //
@@ -53,8 +54,9 @@ func (r RecordInfo) Key() string {
 
 // ValueFromID 从复合 ID（格式 "任意前缀|值"）解析旧记录值；无分隔符则回退到 Value。
 //
-// 前缀可含多个 "|"（如 gcloud 的 name|type|value）；取最后一个分隔符之后作为值。
-// deSEC / Hetzner 等运营商在 Modify 时用 ID 携带旧值以构造替换请求。
+// 使用 strings.CutLast 按最后一个 "|" 切割，故前缀可含多个 "|"
+// （如 gcloud 的 name|type|value）。deSEC / Hetzner 等运营商在 Modify 时
+// 用 ID 携带旧值以构造替换请求。
 func (r RecordInfo) ValueFromID() string {
 	if _, value, ok := strings.CutLast(r.ID, "|"); ok {
 		return value
@@ -69,7 +71,10 @@ func (r RecordInfo) ValueFromID() string {
 // 并发安全：同一 Client 可能被 syncAllDomains / clean 等路径并发调用，
 // 实现须对共享可变状态（缓存、RMW 写路径、token）自行同步。
 type DNSProvider interface {
-	// GetRecords 按 domain 与 recordType 查询记录列表。
+	// GetRecords 查询 domain 对应 zone 下指定类型的记录列表。
+	//
+	// 编排层传入的 domain 通常为根域名；实现须返回该 zone 内该类型的全部记录，
+	// 由调用方按子域名过滤（同根多子域只查一次）。
 	GetRecords(ctx context.Context, domain, recordType string) ([]RecordInfo, error)
 	// AddRecord 添加一条 DNS 记录。
 	AddRecord(ctx context.Context, record RecordInfo) error

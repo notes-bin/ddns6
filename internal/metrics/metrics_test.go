@@ -11,6 +11,7 @@ import (
 	"time"
 )
 
+// TestHandler_ExposesCounters 验证 /metrics 输出含同步、IPv6、跳过与成功时间戳指标。
 func TestHandler_ExposesCounters(t *testing.T) {
 	ResetForTest()
 	IncIPv6Fetch(true)
@@ -44,7 +45,7 @@ func TestServe_EmptyAddr(t *testing.T) {
 	}
 }
 
-// TestServe_RejectsNonLoopback 验证非 loopback 地址被拒绝。
+// TestServe_RejectsNonLoopback 验证非 loopback 地址被拒绝（仅允许环回绑定）。
 func TestServe_RejectsNonLoopback(t *testing.T) {
 	err := Serve(t.Context(), "0.0.0.0:0")
 	if err == nil {
@@ -55,7 +56,7 @@ func TestServe_RejectsNonLoopback(t *testing.T) {
 	}
 }
 
-// TestServe_ListenAndShutdown 验证监听 /metrics 后 context 取消可优雅退出。
+// TestServe_ListenAndShutdown 验证 loopback 上监听 /metrics 后 context 取消可优雅退出。
 func TestServe_ListenAndShutdown(t *testing.T) {
 	ResetForTest()
 	IncSync(false)

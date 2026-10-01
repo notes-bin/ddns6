@@ -1,6 +1,6 @@
 // Package crypto 提供密码学工具函数，供各 DNS 运营商计算签名与摘要。
 //
-// 函数均接收标准 Go 类型（[]byte），调用方按需转换编码。
+// 函数均接收标准 Go 类型（[]byte），调用方按需转换编码（如 hex、base64）。
 package crypto
 
 import (

@@ -7,7 +7,8 @@ import (
 
 // CollectMatchingRecords 查询 DNS 记录并收集匹配结果，供 records/clean 使用。
 //
-// 流程：按根域名分组（每组只查一次 API）-> 匹配子域名 -> 去重 -> 汇总。
+// 按根域名分组（每组只查一次 GetRecords，与同步路径的 root-domain merge 一致）
+// -> 匹配子域名 -> 去重 -> 汇总。
 //
 // 参数:
 //   - p: DNS 记录查询器

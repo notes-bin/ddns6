@@ -73,6 +73,8 @@ func ConfigPath() (string, error) {
 // Load 读取并解析 ~/.ddns6/config.yaml。
 //
 // 文件不存在或格式错误时返回错误；调用方可据此区分「未初始化」与「解析失败」。
+// 非 Windows 上对权限 fail-closed：group/other 任一可读（非 0600）则拒绝加载，
+// 避免明文凭据泄露；Generate 写入时使用 0600。
 func Load() (*Config, error) {
 	path, err := ConfigPath()
 	if err != nil {
@@ -87,7 +89,7 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("cannot read config file %s: %w", path, err)
 	}
 
-	// Unix 上拒绝 group/other 可读的配置文件，避免明文凭据泄露
+	// fail-closed：拒绝 group/other 可读的配置文件
 	if runtime.GOOS != "windows" {
 		if fi, err := os.Stat(path); err == nil {
 			if fi.Mode().Perm()&0077 != 0 {
@@ -201,7 +203,7 @@ subdomains:{{if .Subdomains}}{{range .Subdomains}}
 {{if .TTL}}ttl: {{.TTL}}{{else}}# ttl: 600{{end}}
 `
 
-// Generate 创建 ~/.ddns6/ 目录并写入 config.yaml（已存在则拒绝覆盖）。
+// Generate 创建 ~/.ddns6/ 目录（0700）并写入 config.yaml（0600；已存在则拒绝覆盖）。
 //
 // params 中非零字段预填入配置；零值字段保留为注释默认值。
 func Generate(params InitParams) error {

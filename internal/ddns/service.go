@@ -168,7 +168,7 @@ func runTriggeredSync(ctx context.Context, domains []*Domain, p DNSProvider, fet
 // maxSyncGroupConcurrency 同轮 sync 中并发处理的 zone 组上限。
 const maxSyncGroupConcurrency = 5
 
-// syncAllDomains 按根域名分组同步，同 zone 只查询一次 GetRecords。
+// syncAllDomains 按根域名+类型分组同步：同 zone 只调用一次 GetRecords（root-domain merge）。
 //
 // failFast=true 时返回第一个错误（仍等待各组结束）；failFast=false 时遇错只在组内记一次日志。
 // 并发组数受 maxSyncGroupConcurrency 限制，避免瞬时打满上游 API。
@@ -221,7 +221,7 @@ func syncAllDomains(ctx context.Context, domains []*Domain, ip net.IP, p DNSProv
 	return nil
 }
 
-// syncDomainGroup 同步同一根域名下的多个子域名：先过滤需更新项，再一次 GetRecords 后逐个 apply。
+// syncDomainGroup 同步同一根域名下的多个子域名：先过滤需更新项，再一次 GetRecords 后逐个 apply（merge）。
 func syncDomainGroup(ctx context.Context, root, typ string, group []*Domain, ip net.IP, p DNSProvider) error {
 	syncID := SyncIDFrom(ctx)
 	need := make([]*Domain, 0, len(group))

@@ -190,7 +190,7 @@ func TestLoad_DefaultAuth(t *testing.T) {
 	}
 }
 
-// TestLoad_ConfigDirPermissions 验证权限警告不导致 Load 失败。
+// TestLoad_ConfigDirPermissions 验证 0600 权限下 Load 成功（与 fail-closed 过宽权限对照）。
 func TestLoad_ConfigDirPermissions(t *testing.T) {
 	tmpDir := t.TempDir()
 	configDirForTest(t, tmpDir)
@@ -353,7 +353,7 @@ func TestGenerate_DefaultParams(t *testing.T) {
 	}
 }
 
-// TestLoad_RejectsWorldReadable 验证过宽权限时拒绝加载。
+// TestLoad_RejectsWorldReadable 验证非 0600（group/other 可读）时 fail-closed 拒绝加载。
 func TestLoad_RejectsWorldReadable(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Windows 不检查 Unix 权限位")
