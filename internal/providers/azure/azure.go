@@ -173,19 +173,18 @@ func (c *Client) upsert(ctx context.Context, info ddns.RecordInfo) error {
 	if err != nil {
 		return err
 	}
-	payload := map[string]any{
-		"properties": map[string]any{
-			"TTL": ddns.RecordTTL(info.TTL),
-		},
+	props := map[string]any{
+		"TTL": ddns.RecordTTL(info.TTL),
 	}
 	switch info.Type {
 	case "AAAA":
-		payload["properties"].(map[string]any)["AAAARecords"] = []map[string]string{{"ipv6Address": info.Value}}
+		props["AAAARecords"] = []map[string]string{{"ipv6Address": info.Value}}
 	case "A":
-		payload["properties"].(map[string]any)["ARecords"] = []map[string]string{{"ipv4Address": info.Value}}
+		props["ARecords"] = []map[string]string{{"ipv4Address": info.Value}}
 	default:
 		return fmt.Errorf("unsupported azure record type: %s", info.Type)
 	}
+	payload := map[string]any{"properties": props}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %w", err)

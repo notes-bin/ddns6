@@ -272,8 +272,10 @@ func isNotFound(err error) bool {
 // preferredRoot 非空时优先按该根域名直查并缓存，避免后缀探测。
 func (c *Client) findZone(ctx context.Context, fulldomain, preferredRoot string) (int64, string, error) {
 	if preferredRoot != "" {
-		if id, ok := c.zoneCache.Load(preferredRoot); ok {
-			return id.(int64), preferredRoot, nil
+		if v, ok := c.zoneCache.Load(preferredRoot); ok {
+			if id, ok := v.(int64); ok {
+				return id, preferredRoot, nil
+			}
 		}
 		if id, name, err := c.lookupZone(ctx, preferredRoot); err == nil {
 			c.zoneCache.Store(preferredRoot, id)
@@ -285,8 +287,10 @@ func (c *Client) findZone(ctx context.Context, fulldomain, preferredRoot string)
 	parts := strings.Split(candidate, ".")
 	for i := range len(parts) - 1 {
 		root := strings.Join(parts[i+1:], ".")
-		if id, ok := c.zoneCache.Load(root); ok {
-			return id.(int64), root, nil
+		if v, ok := c.zoneCache.Load(root); ok {
+			if id, ok := v.(int64); ok {
+				return id, root, nil
+			}
 		}
 		if id, name, err := c.lookupZone(ctx, root); err == nil {
 			c.zoneCache.Store(root, id)
