@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -20,8 +19,12 @@ import (
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
+	"github.com/notes-bin/ddns6/internal/httputil"
 	"github.com/notes-bin/ddns6/pkg/domainutil"
 )
+
+// 编译期断言：Client 实现 ddns.DNSProvider。
+var _ ddns.DNSProvider = (*Client)(nil)
 
 const (
 	management = "https://management.azure.com"
@@ -269,7 +272,7 @@ func (c *Client) accessToken(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("azure token request failed: %w", err)
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	body, err := httputil.ReadBody(resp.Body)
 	if err != nil {
 		return "", err
 	}
@@ -314,7 +317,7 @@ func (c *Client) doJSON(ctx context.Context, method, path string, body []byte) (
 		return nil, fmt.Errorf("azure dns request failed: %w", err)
 	}
 	defer resp.Body.Close()
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := httputil.ReadBody(resp.Body)
 	if err != nil {
 		return nil, err
 	}

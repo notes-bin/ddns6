@@ -12,7 +12,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -20,7 +19,11 @@ import (
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
+	"github.com/notes-bin/ddns6/internal/httputil"
 )
+
+// 编译期断言：Client 实现 ddns.DNSProvider。
+var _ ddns.DNSProvider = (*Client)(nil)
 
 const (
 	defaultBaseURL = "https://dns.myhuaweicloud.com"
@@ -302,7 +305,7 @@ func (c *Client) request(ctx context.Context, method, url string, payload any) (
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := httputil.ReadBody(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
@@ -335,12 +338,12 @@ func (c *Client) requestRaw(ctx context.Context, method, url string, result any)
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		bodyBytes, readErr := io.ReadAll(resp.Body)
+		bodyBytes, readErr := httputil.ReadBody(resp.Body)
 		if readErr != nil {
 			return fmt.Errorf("failed to read error response body: %w", readErr)
 		}
 		return fmt.Errorf("huaweicloud api error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
-	return json.NewDecoder(resp.Body).Decode(result)
+	return json.NewDecoder(httputil.LimitBody(resp.Body)).Decode(result)
 }

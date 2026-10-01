@@ -11,14 +11,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
+	"github.com/notes-bin/ddns6/internal/httputil"
 )
+
+// 编译期断言：Client 实现 ddns.DNSProvider。
+var _ ddns.DNSProvider = (*Client)(nil)
 
 const (
 	defaultBaseURL = "https://dynv6.com"
@@ -117,7 +120,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		bodyBytes, readErr := io.ReadAll(resp.Body)
+		bodyBytes, readErr := httputil.ReadBody(resp.Body)
 		if readErr != nil {
 			return fmt.Errorf("failed to read error response body: %w", readErr)
 		}
@@ -162,7 +165,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, readErr := io.ReadAll(resp.Body)
+		bodyBytes, readErr := httputil.ReadBody(resp.Body)
 		if readErr != nil {
 			return fmt.Errorf("failed to read error response body: %w", readErr)
 		}
@@ -196,7 +199,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		bodyBytes, readErr := io.ReadAll(resp.Body)
+		bodyBytes, readErr := httputil.ReadBody(resp.Body)
 		if readErr != nil {
 			return fmt.Errorf("failed to read error response body: %w", readErr)
 		}
@@ -243,7 +246,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, readErr := io.ReadAll(resp.Body)
+		bodyBytes, readErr := httputil.ReadBody(resp.Body)
 		if readErr != nil {
 			return nil, fmt.Errorf("failed to read error response body: %w", readErr)
 		}
@@ -251,7 +254,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	}
 
 	var records []Record
-	if err := json.NewDecoder(resp.Body).Decode(&records); err != nil {
+	if err := json.NewDecoder(httputil.LimitBody(resp.Body)).Decode(&records); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
@@ -291,7 +294,7 @@ func (c *Client) resolveZone(ctx context.Context, domain string) (string, string
 	}
 
 	var zones []Zone
-	if err := json.NewDecoder(resp.Body).Decode(&zones); err != nil {
+	if err := json.NewDecoder(httputil.LimitBody(resp.Body)).Decode(&zones); err != nil {
 		return "", "", fmt.Errorf("failed to decode zones: %w", err)
 	}
 
@@ -334,7 +337,7 @@ func (c *Client) getZone(ctx context.Context, zoneID string) (*Zone, error) {
 	}
 
 	var zone Zone
-	if err := json.NewDecoder(resp.Body).Decode(&zone); err != nil {
+	if err := json.NewDecoder(httputil.LimitBody(resp.Body)).Decode(&zone); err != nil {
 		return nil, fmt.Errorf("failed to decode zone response: %w", err)
 	}
 	return &zone, nil
@@ -363,7 +366,7 @@ func (c *Client) updateZoneIP(ctx context.Context, zoneID, ipv6 string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, readErr := io.ReadAll(resp.Body)
+		bodyBytes, readErr := httputil.ReadBody(resp.Body)
 		if readErr != nil {
 			return fmt.Errorf("failed to read error response body: %w", readErr)
 		}

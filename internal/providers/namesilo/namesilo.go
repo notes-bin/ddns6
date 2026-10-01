@@ -11,7 +11,6 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -20,8 +19,12 @@ import (
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
+	"github.com/notes-bin/ddns6/internal/httputil"
 	"github.com/notes-bin/ddns6/pkg/domainutil"
 )
+
+// 编译期断言：Client 实现 ddns.DNSProvider。
+var _ ddns.DNSProvider = (*Client)(nil)
 
 const defaultBaseURL = "https://www.namesilo.com/api"
 
@@ -266,7 +269,7 @@ func (c *Client) fetch(ctx context.Context, action string, params url.Values) ([
 		return nil, fmt.Errorf("namesilo api request failed: %w", err)
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	body, err := httputil.ReadBody(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read namesilo response: %w", err)
 	}

@@ -12,7 +12,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -21,7 +20,11 @@ import (
 
 	"github.com/notes-bin/ddns6/internal/crypto"
 	"github.com/notes-bin/ddns6/internal/ddns"
+	"github.com/notes-bin/ddns6/internal/httputil"
 )
+
+// 编译期断言：DNSPod 实现 ddns.DNSProvider。
+var _ ddns.DNSProvider = (*DNSPod)(nil)
 
 const (
 	service           = "dnspod"
@@ -497,7 +500,7 @@ func (ds *DNSPod) makeRequest(ctx context.Context, action string, payload any, r
 	defer resp.Body.Close()
 
 	// 提前读完整 body，后续错误与成功路径共用，避免重复 ReadAll
-	bodyBytes, err := io.ReadAll(resp.Body)
+	bodyBytes, err := httputil.ReadBody(resp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to read response body: %w", err)
 	}

@@ -14,7 +14,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"maps"
 	"net/http"
@@ -24,7 +23,11 @@ import (
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
+	"github.com/notes-bin/ddns6/internal/httputil"
 )
+
+// 编译期断言：Client 实现 ddns.DNSProvider。
+var _ ddns.DNSProvider = (*Client)(nil)
 
 // Client 阿里云 DNS API 客户端。
 type Client struct {
@@ -312,7 +315,7 @@ func (c *Client) makeV1Request(ctx context.Context, params map[string]string) ([
 		return nil, fmt.Errorf("api request failed with status %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := httputil.ReadBody(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -390,7 +393,7 @@ func (c *Client) makeV3Request(ctx context.Context, params map[string]string) ([
 	slog.Debug("Alibaba Cloud API V3 response", "module", "alicloud", "action", action, "status", resp.StatusCode)
 
 	if resp.StatusCode != http.StatusOK {
-		body, readErr := io.ReadAll(resp.Body)
+		body, readErr := httputil.ReadBody(resp.Body)
 		if readErr != nil {
 			return nil, fmt.Errorf("failed to read error response body: %w", readErr)
 		}
@@ -400,7 +403,7 @@ func (c *Client) makeV3Request(ctx context.Context, params map[string]string) ([
 		return nil, fmt.Errorf("api request failed with status %d, body: %s", resp.StatusCode, truncateString(string(body), 200))
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := httputil.ReadBody(resp.Body)
 	if err != nil {
 		return nil, err
 	}

@@ -4,12 +4,16 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/notes-bin/ddns6/internal/httputil"
 )
+
+// 编译期断言：HTTPIPv6Fetcher 实现 IPv6Fetcher。
+var _ IPv6Fetcher = (*HTTPIPv6Fetcher)(nil)
 
 // HTTPIPv6Fetcher 通过 HTTP GET 访问返回纯文本 IP 的端点，解析本机公网 IPv6。
 //
@@ -49,7 +53,7 @@ func (h *HTTPIPv6Fetcher) Fetch(ctx context.Context) (net.IP, error) {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := httputil.ReadIPBody(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body from %s: %w", h.url, err)
 	}
