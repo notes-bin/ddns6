@@ -2,9 +2,10 @@
 # Release 自动发布工作流
 #
 # 当推送符合 v* 模式的 tag（如 v0.0.170）时自动触发：
-#   1. 跨平台构建（linux + darwin, amd64 + arm64）
-#   2. 创建 GitHub Release（自动生成变更日志）
-#   3. 上传编译产物（含 LICENSE 和 systemd 服务文件）
+#   1. 质量门禁（与 PR CI 对齐：verify / govulncheck / race 测试）
+#   2. 跨平台构建（linux + darwin, amd64 + arm64）
+#   3. 创建 GitHub Release（自动生成变更日志）
+#   4. 上传编译产物
 # ============================================================
 
 name: Release
@@ -18,14 +19,33 @@ permissions:
   contents: write
 
 jobs:
+  quality:
+    name: quality gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: 校验、漏洞扫描与竞态测试
+        run: |
+          go mod verify
+          go tool govulncheck ./...
+          go vet ./...
+          go test ./... -race -count=1
+
   build:
     name: ${{ matrix.goos }}/${{ matrix.goarch }}
+    needs: quality
     runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
           - goos: linux
             goarch: amd64
+          - goos: linux
+            goarch: arm64
           - goos: darwin
             goarch: amd64
           - goos: darwin
@@ -35,19 +55,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.27.1"
+          go-version-file: go.mod
           cache: true
-
-      - name: 运行测试并静态分析
-        run: |
-          go test ./... -count=1
-          go vet ./...
 
       - name: 构建并打包
         run: |
           BINARY="ddns6_${{ matrix.goos }}_${{ matrix.goarch }}"
           CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
             go build \
+            -trimpath \
             -ldflags "-s -w \
               -X github.com/notes-bin/ddns6/cmd.Version=${{ github.ref_name }} \
               -X github.com/notes-bin/ddns6/cmd.Commit=${{ github.sha }} \
@@ -78,6 +94,7 @@ jobs:
           generate_release_notes: true
           files: |
             linux_amd64/ddns6_linux_amd64.tar.gz
+            linux_arm64/ddns6_linux_arm64.tar.gz
             darwin_amd64/ddns6_darwin_amd64.tar.gz
             darwin_arm64/ddns6_darwin_arm64.tar.gz
           draft: false
