@@ -29,7 +29,8 @@ func TestRecordInfo_ValueFromID(t *testing.T) {
 		want string
 	}{
 		{name: "复合 ID", r: RecordInfo{ID: "www|2001:db8::1", Value: "ignored"}, want: "2001:db8::1"},
-		{name: "多段取首个分隔后", r: RecordInfo{ID: "a|b|c", Value: "fallback"}, want: "b|c"},
+		{name: "多段取末段值", r: RecordInfo{ID: "a|b|c", Value: "fallback"}, want: "c"},
+		{name: "gcloud 三段 ID", r: RecordInfo{ID: "www.example.com.|AAAA|2001:db8::1", Value: "ignored"}, want: "2001:db8::1"},
 		{name: "无分隔符回退 Value", r: RecordInfo{ID: "rec-123", Value: "2001:db8::2"}, want: "2001:db8::2"},
 		{name: "空 ID 回退 Value", r: RecordInfo{ID: "", Value: "2001:db8::3"}, want: "2001:db8::3"},
 		{name: "仅分隔符", r: RecordInfo{ID: "|", Value: "fallback"}, want: ""},
