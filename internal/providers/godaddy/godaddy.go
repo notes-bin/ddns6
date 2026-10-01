@@ -278,7 +278,7 @@ func (c *Client) makeRequest(ctx context.Context, method, url string, body io.Re
 		slog.Error("GoDaddy API returned error status",
 			"module", "godaddy",
 			"method", method, "status", resp.StatusCode)
-		return fmt.Errorf("HTTP request failed with status %d: %s", resp.StatusCode, string(bodyBytes))
+		return fmt.Errorf("http request failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	if result != nil {

@@ -249,7 +249,7 @@ func TestDo_SimulateHTTPRetry(t *testing.T) {
 	err := Do(ctx, 3, 10*time.Millisecond, func(ctx context.Context) error {
 		n := count.Add(1)
 		if n < 3 {
-			return Retryable(fmt.Errorf("HTTP 503 Service Unavailable"))
+			return Retryable(fmt.Errorf("http 503 service unavailable"))
 		}
 		return nil
 	})
@@ -269,7 +269,7 @@ func TestDo_SimulateHTTPClientError(t *testing.T) {
 
 	err := Do(ctx, 3, 10*time.Millisecond, func(ctx context.Context) error {
 		count.Add(1)
-		return fmt.Errorf("HTTP 400 Bad Request")
+		return fmt.Errorf("http 400 bad request")
 	})
 
 	if err == nil {
@@ -288,7 +288,7 @@ func TestDo_SimulateHTTPRateLimit(t *testing.T) {
 	err := Do(ctx, 4, 10*time.Millisecond, func(ctx context.Context) error {
 		n := count.Add(1)
 		if n < 4 {
-			return Retryable(fmt.Errorf("HTTP 429 Too Many Requests"))
+			return Retryable(fmt.Errorf("http 429 too many requests"))
 		}
 		return nil
 	})

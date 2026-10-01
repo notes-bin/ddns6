@@ -156,7 +156,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	if err := json.Unmarshal(body, &resp); err != nil {
 		var records []domainRecord
 		if err2 := json.Unmarshal(body, &records); err2 != nil {
-			return nil, fmt.Errorf("failed to decode Linode records: %w", err)
+			return nil, fmt.Errorf("failed to decode linode records: %w", err)
 		}
 		return c.filterRecords(records, zone, recordType), nil
 	}
@@ -223,7 +223,7 @@ func (c *Client) findDomainID(ctx context.Context, fulldomain string) (int, stri
 		if err := json.Unmarshal(body, &resp); err != nil {
 			var domains []domain
 			if err2 := json.Unmarshal(body, &domains); err2 != nil {
-				return 0, "", fmt.Errorf("failed to decode Linode domains: %w", err)
+				return 0, "", fmt.Errorf("failed to decode linode domains: %w", err)
 			}
 			for _, d := range domains {
 				if strings.EqualFold(d.Domain, candidate) {
@@ -243,7 +243,7 @@ func (c *Client) findDomainID(ctx context.Context, fulldomain string) (int, stri
 			}
 		}
 	}
-	return 0, "", fmt.Errorf("Linode domain not found for %s", fulldomain)
+	return 0, "", fmt.Errorf("linode domain not found for %s", fulldomain)
 }
 
 // doRequestWithFilter 带 X-Filter 的域名列表查询。
@@ -258,7 +258,7 @@ func (c *Client) doRequestWithFilter(ctx context.Context, filter string) ([]byte
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("Linode API request failed: %w", err)
+		return nil, fmt.Errorf("linode api request failed: %w", err)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
@@ -292,13 +292,13 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body []byte
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("Linode API request failed: %w", err)
+		return nil, fmt.Errorf("linode api request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read Linode response: %w", err)
+		return nil, fmt.Errorf("failed to read linode response: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, &httpStatusError{status: resp.StatusCode, body: string(respBody)}

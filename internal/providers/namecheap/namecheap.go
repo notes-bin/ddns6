@@ -240,26 +240,26 @@ func (c *Client) call(ctx context.Context, command string, extra url.Values) (*a
 	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("Namecheap API request failed: %w", err)
+		return nil, fmt.Errorf("namecheap api request failed: %w", err)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read Namecheap response: %w", err)
+		return nil, fmt.Errorf("failed to read namecheap response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, &httpStatusError{status: resp.StatusCode, body: string(body)}
 	}
 	var reply apiReply
 	if err := xml.Unmarshal(body, &reply); err != nil {
-		return nil, fmt.Errorf("failed to decode Namecheap response: %w", err)
+		return nil, fmt.Errorf("failed to decode namecheap response: %w", err)
 	}
 	if reply.Status != "OK" {
 		msg := "unknown error"
 		if len(reply.Errors.Error) > 0 {
 			msg = reply.Errors.Error[0].Text
 		}
-		return nil, fmt.Errorf("Namecheap API error: %s", msg)
+		return nil, fmt.Errorf("namecheap api error: %s", msg)
 	}
 	return &reply, nil
 }
@@ -269,7 +269,7 @@ func (c *Client) splitDomain(name, zoneHint string) (sld, tld, sub string, err e
 	root, sub := domainutil.SplitDomain(name, zoneHint)
 	parts := strings.Split(strings.ToLower(strings.TrimSuffix(root, ".")), ".")
 	if len(parts) < 2 {
-		return "", "", "", fmt.Errorf("invalid Namecheap domain: %s", name)
+		return "", "", "", fmt.Errorf("invalid namecheap domain: %s", name)
 	}
 	tld = parts[len(parts)-1]
 	sld = parts[len(parts)-2]

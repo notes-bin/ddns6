@@ -111,7 +111,7 @@ func (c *Client) AddRecord(ctx context.Context, info ddns.RecordInfo) error {
 		return err
 	}
 	if resp.Status.Code != "1" {
-		return fmt.Errorf("DNSPod intl API error: %s (code: %s)", resp.Status.Message, resp.Status.Code)
+		return fmt.Errorf("dnspod intl api error: %s (code: %s)", resp.Status.Message, resp.Status.Code)
 	}
 	slog.Info("DNSPod intl record added", "module", "dpi", "domain", domain, "type", info.Type, "ipv6", info.Value)
 	return nil
@@ -136,7 +136,7 @@ func (c *Client) ModifyRecord(ctx context.Context, info ddns.RecordInfo) error {
 		return err
 	}
 	if resp.Status.Code != "1" {
-		return fmt.Errorf("DNSPod intl API error: %s (code: %s)", resp.Status.Message, resp.Status.Code)
+		return fmt.Errorf("dnspod intl api error: %s (code: %s)", resp.Status.Message, resp.Status.Code)
 	}
 	return nil
 }
@@ -155,7 +155,7 @@ func (c *Client) DeleteRecord(ctx context.Context, info ddns.RecordInfo) error {
 		return err
 	}
 	if resp.Status.Code != "1" {
-		return fmt.Errorf("DNSPod intl API error: %s (code: %s)", resp.Status.Message, resp.Status.Code)
+		return fmt.Errorf("dnspod intl api error: %s (code: %s)", resp.Status.Message, resp.Status.Code)
 	}
 	return nil
 }
@@ -179,7 +179,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		return nil, err
 	}
 	if resp.Status.Code != "1" {
-		return nil, fmt.Errorf("DNSPod intl API error: %s (code: %s)", resp.Status.Message, resp.Status.Code)
+		return nil, fmt.Errorf("dnspod intl api error: %s (code: %s)", resp.Status.Message, resp.Status.Code)
 	}
 	result := make([]ddns.RecordInfo, 0, len(resp.Records))
 	for _, r := range resp.Records {
@@ -211,7 +211,7 @@ func (c *Client) post(ctx context.Context, path string, params url.Values, resul
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("DNSPod intl API request failed: %w", err)
+		return fmt.Errorf("dnspod intl api request failed: %w", err)
 	}
 	defer resp.Body.Close()
 

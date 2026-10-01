@@ -111,7 +111,7 @@ func (c *Client) update(ctx context.Context, hostname, ip string) error {
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		slog.Error("HE DNS API request failed", "module", "he", "hostname", hostname, "err", err)
-		return fmt.Errorf("HE DNS request failed: %w", err)
+		return fmt.Errorf("he dns request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -131,17 +131,17 @@ func (c *Client) update(ctx context.Context, hostname, ip string) error {
 		slog.Debug("HE DNS record unchanged", "module", "he", "hostname", hostname, "ipv6", ip)
 		return nil
 	case response == "nohost":
-		return fmt.Errorf("HE DNS hostname not found: %s", hostname)
+		return fmt.Errorf("he dns hostname not found: %s", hostname)
 	case response == "badauth":
-		return fmt.Errorf("HE DNS authentication failed: invalid DDNS key")
+		return fmt.Errorf("he dns authentication failed: invalid ddns key")
 	case response == "badagent":
-		return fmt.Errorf("HE DNS bad agent")
+		return fmt.Errorf("he dns bad agent")
 	case response == "!":
-		return fmt.Errorf("HE DNS abuse detected")
+		return fmt.Errorf("he dns abuse detected")
 	default:
 		slog.Error("HE DNS API returned unexpected response",
 			"module", "he",
 			"hostname", hostname, "response", response)
-		return fmt.Errorf("HE DNS update failed: %s", response)
+		return fmt.Errorf("he dns update failed: %s", response)
 	}
 }

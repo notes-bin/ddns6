@@ -174,7 +174,7 @@ func TestExecute_CommandFailed(t *testing.T) {
 	initRootCmd()
 	t.Setenv("HOME", t.TempDir())
 	withArgs(t, "ddns6", "records", "--log-file", "")
-	requireErrContains(t, Execute(), "Command failed")
+	requireErrContains(t, Execute(), "command failed")
 }
 
 // TestCheckCmd_CLIMode 覆盖 check 命令行模式的主要分支。

@@ -84,10 +84,10 @@ var providerFactories = []providerFactory{
 			if err != nil {
 				return nil, nil, err
 			}
-			return domains, tencent.NewDNSPod(getString(cmd, "secret-id"), getString(cmd, "secret-key")), nil
+			return domains, tencent.New(getString(cmd, "secret-id"), getString(cmd, "secret-key")), nil
 		},
 		fromConfig: func(cfg *config.Config) (ddns.DNSProvider, error) {
-			return tencent.NewDNSPod(cfg.Auth["secret_id"], cfg.Auth["secret_key"]), nil
+			return tencent.New(cfg.Auth["secret_id"], cfg.Auth["secret_key"]), nil
 		},
 	},
 	{
@@ -606,7 +606,7 @@ func registerRestrictedCommand(parent *cobra.Command, commandName string, pd *pr
 		Use:   pd.name,
 		Short: fmt.Sprintf("%s - %s API 不记录/管理", pd.name, pd.short),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("%s does not support '%s' via API - %s only provides update endpoints, use its web panel to manage records", pd.name, commandName, pd.name)
+			return fmt.Errorf("%s does not support '%s' via api - %s only provides update endpoints, use its web panel to manage records", pd.name, commandName, pd.name)
 		},
 	}
 	parent.AddCommand(cmd)
@@ -651,10 +651,10 @@ func requireFlags(cmd *cobra.Command, flags []providerFlag) error {
 func runWithConfig(cmd *cobra.Command, commandName string, handler func(cmd *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error) error {
 	cfg, err := config.Load()
 	if err != nil {
-		return fmt.Errorf("cannot load config: %w\n\nUse 'ddns6 init' to create a config file, or specify a provider: ddns6 %s <provider> --help", err, commandName)
+		return fmt.Errorf("cannot load config: %w\n\nuse 'ddns6 init' to create a config file, or specify a provider: ddns6 %s <provider> --help", err, commandName)
 	}
 
-	domains := buildDomains(cfg.Domain, cfg.Subdomains, cfg.GetTTL())
+	domains := buildDomains(cfg.Domain, cfg.Subdomains, cfg.EffectiveTTL())
 	p, err := createProviderFromConfig(cfg)
 	if err != nil {
 		return err
@@ -665,7 +665,7 @@ func runWithConfig(cmd *cobra.Command, commandName string, handler func(cmd *cob
 
 // runServiceFromConfigHandler 合并配置与命令行（命令行优先）后启动 DDNS 服务。
 func runServiceFromConfigHandler(cmd *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error {
-	interval, err := cfg.GetInterval()
+	interval, err := cfg.ParseInterval()
 	if err != nil {
 		return err
 	}

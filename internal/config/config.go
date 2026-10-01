@@ -107,10 +107,10 @@ func Load() (*Config, error) {
 	return &cfg, nil
 }
 
-// GetInterval 解析轮询间隔字符串为 time.Duration。
+// ParseInterval 解析轮询间隔字符串为 time.Duration。
 //
 // 未设置或解析失败时返回默认 5 分钟；解析失败时同时返回错误说明。
-func (c *Config) GetInterval() (time.Duration, error) {
+func (c *Config) ParseInterval() (time.Duration, error) {
 	if c.Interval == "" {
 		return 5 * time.Minute, nil
 	}
@@ -121,8 +121,8 @@ func (c *Config) GetInterval() (time.Duration, error) {
 	return d, nil
 }
 
-// GetTTL 返回 TTL；未设置或非正数时使用 ddns.DefaultTTL。
-func (c *Config) GetTTL() int {
+// EffectiveTTL 返回生效 TTL；未设置或非正数时使用 ddns.DefaultTTL。
+func (c *Config) EffectiveTTL() int {
 	if c.TTL <= 0 {
 		return ddns.DefaultTTL
 	}

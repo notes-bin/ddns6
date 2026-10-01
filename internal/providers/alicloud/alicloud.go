@@ -28,7 +28,7 @@ import (
 
 // Client 阿里云 DNS API 客户端。
 type Client struct {
-	AccessKeyId     string
+	AccessKeyID     string
 	AccessKeySecret string
 	BaseURL         string
 	httpClient      *http.Client
@@ -39,9 +39,9 @@ type Client struct {
 type Option func(*Client)
 
 // NewClient 创建阿里云 DNS 客户端。
-func NewClient(accessKeyId, accessKeySecret string, options ...Option) *Client {
+func NewClient(accessKeyID, accessKeySecret string, options ...Option) *Client {
 	client := &Client{
-		AccessKeyId:     accessKeyId,
+		AccessKeyID:     accessKeyID,
 		AccessKeySecret: accessKeySecret,
 		BaseURL:         "https://alidns.aliyuncs.com/",
 		httpClient:      &http.Client{Timeout: 30 * time.Second},
@@ -78,7 +78,7 @@ func WithSignVersion(version string) Option {
 
 // DNSRecord 表示阿里云 DNS 记录。
 type DNSRecord struct {
-	RecordId string `json:"RecordId"`
+	RecordID string `json:"RecordId"`
 	Domain   string `json:"DomainName"`
 	RR       string `json:"RR"`
 	Type     string `json:"Type"`
@@ -180,7 +180,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 			continue
 		}
 		records = append(records, ddns.RecordInfo{
-			ID:    r.RecordId,
+			ID:    r.RecordID,
 			Name:  r.RR,
 			Type:  r.Type,
 			Value: r.Value,
@@ -271,7 +271,7 @@ func (c *Client) makeV1Request(ctx context.Context, params map[string]string) ([
 	maps.Copy(reqParams, params)
 	reqParams["Format"] = "JSON"
 	reqParams["Version"] = "2015-01-09"
-	reqParams["AccessKeyId"] = c.AccessKeyId
+	reqParams["AccessKeyId"] = c.AccessKeyID
 	reqParams["SignatureMethod"] = "HMAC-SHA1"
 	reqParams["Timestamp"] = time.Now().UTC().Format("2006-01-02T15:04:05Z")
 	reqParams["SignatureVersion"] = "1.0"
@@ -309,7 +309,7 @@ func (c *Client) makeV1Request(ctx context.Context, params map[string]string) ([
 		slog.Debug("Alibaba Cloud API returned non-200 status",
 			"module", "alicloud",
 			"action", action, "status", resp.StatusCode)
-		return nil, fmt.Errorf("API request failed with status %d", resp.StatusCode)
+		return nil, fmt.Errorf("api request failed with status %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -324,7 +324,7 @@ func (c *Client) makeV1Request(ctx context.Context, params map[string]string) ([
 		slog.Error("Alibaba Cloud API business error",
 			"module", "alicloud",
 			"action", action, "message", apiError.Message)
-		return nil, fmt.Errorf("API error: %s", apiError.Message)
+		return nil, fmt.Errorf("api error: %s", apiError.Message)
 	}
 
 	return body, nil
@@ -338,13 +338,13 @@ func (c *Client) makeV1Request(ctx context.Context, params map[string]string) ([
 func (c *Client) makeV3Request(ctx context.Context, params map[string]string) ([]byte, error) {
 	action := params["Action"]
 	if action == "" {
-		return nil, fmt.Errorf("makeV3Request: missing 'Action' parameter")
+		return nil, fmt.Errorf("makev3request: missing 'action' parameter")
 	}
 	slog.Debug("Alibaba Cloud API V3 request", "module", "alicloud", "action", action)
 
 	u, err := url.Parse(c.BaseURL)
 	if err != nil {
-		return nil, fmt.Errorf("invalid base URL: %w", err)
+		return nil, fmt.Errorf("invalid base url: %w", err)
 	}
 
 	headers := map[string]string{
@@ -365,7 +365,7 @@ func (c *Client) makeV3Request(ctx context.Context, params map[string]string) ([
 	}
 
 	v3Req := &V3Request{
-		AccessKeyId:     c.AccessKeyId,
+		AccessKeyID:     c.AccessKeyID,
 		AccessKeySecret: c.AccessKeySecret,
 		Method:          "GET",
 		Scheme:          u.Scheme,
@@ -397,7 +397,7 @@ func (c *Client) makeV3Request(ctx context.Context, params map[string]string) ([
 		slog.Debug("Alibaba Cloud API V3 returned non-200 status",
 			"module", "alicloud",
 			"action", action, "status", resp.StatusCode, "body", truncateString(string(body), 200))
-		return nil, fmt.Errorf("API request failed with status %d, body: %s", resp.StatusCode, truncateString(string(body), 200))
+		return nil, fmt.Errorf("api request failed with status %d, body: %s", resp.StatusCode, truncateString(string(body), 200))
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -413,7 +413,7 @@ func (c *Client) makeV3Request(ctx context.Context, params map[string]string) ([
 		slog.Error("Alibaba Cloud API V3 business error",
 			"module", "alicloud",
 			"action", action, "message", apiError.Message)
-		return nil, fmt.Errorf("API error: %s", apiError.Message)
+		return nil, fmt.Errorf("api error: %s", apiError.Message)
 	}
 
 	return body, nil

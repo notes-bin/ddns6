@@ -19,8 +19,8 @@ import (
 
 // V3Request V3 签名机制的请求参数。
 type V3Request struct {
-	// AccessKeyId 阿里云 AccessKey ID
-	AccessKeyId string
+	// AccessKeyID 阿里云 AccessKey ID
+	AccessKeyID string
 	// AccessKeySecret 阿里云 AccessKey Secret
 	AccessKeySecret string
 	// SecurityToken 可选：STS 临时安全令牌（使用 RAM 角色时必填）
@@ -111,7 +111,7 @@ func SignV3(ctx context.Context, req *V3Request) (*http.Request, error) {
 	// === 5. 构建 Authorization ===
 	authorization := fmt.Sprintf(
 		"ACS3-HMAC-SHA256 Credential=%s,SignedHeaders=%s,Signature=%s",
-		req.AccessKeyId, signedHeaders, signature,
+		req.AccessKeyID, signedHeaders, signature,
 	)
 	headers["Authorization"] = authorization
 
@@ -127,7 +127,7 @@ func SignV3(ctx context.Context, req *V3Request) (*http.Request, error) {
 
 	httpReq, err := http.NewRequestWithContext(ctx, req.Method, rawURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
+		return nil, fmt.Errorf("failed to create http request: %w", err)
 	}
 
 	// 设置请求头

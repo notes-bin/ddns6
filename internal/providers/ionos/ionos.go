@@ -160,7 +160,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 
 	var z zone
 	if err := json.Unmarshal(body, &z); err != nil {
-		return nil, fmt.Errorf("failed to decode IONOS zone: %w", err)
+		return nil, fmt.Errorf("failed to decode ionos zone: %w", err)
 	}
 
 	result := make([]ddns.RecordInfo, 0, len(z.Records))
@@ -203,7 +203,7 @@ func (c *Client) findZone(ctx context.Context, fulldomain string) (zoneID, zoneN
 
 	var zones []zone
 	if err := json.Unmarshal(body, &zones); err != nil {
-		return "", "", fmt.Errorf("failed to decode IONOS zones: %w", err)
+		return "", "", fmt.Errorf("failed to decode ionos zones: %w", err)
 	}
 
 	candidate := strings.ToLower(strings.TrimSuffix(fulldomain, "."))
@@ -216,7 +216,7 @@ func (c *Client) findZone(ctx context.Context, fulldomain string) (zoneID, zoneN
 			}
 		}
 	}
-	return "", "", fmt.Errorf("IONOS zone not found for %s", fulldomain)
+	return "", "", fmt.Errorf("ionos zone not found for %s", fulldomain)
 }
 
 // doRequest 执行 IONOS DNS HTTP 请求。
@@ -240,13 +240,13 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body []byte
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("IONOS API request failed: %w", err)
+		return nil, fmt.Errorf("ionos api request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read IONOS response: %w", err)
+		return nil, fmt.Errorf("failed to read ionos response: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, &httpStatusError{status: resp.StatusCode, body: string(respBody)}

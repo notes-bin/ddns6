@@ -111,7 +111,7 @@ func (c *Client) update(ctx context.Context, hostname, ip string) error {
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		slog.Error("No-IP API request failed", "module", "noip", "hostname", hostname, "err", err)
-		return fmt.Errorf("No-IP request failed: %w", err)
+		return fmt.Errorf("no-ip request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -131,17 +131,17 @@ func (c *Client) update(ctx context.Context, hostname, ip string) error {
 		slog.Debug("No-IP record unchanged", "module", "noip", "hostname", hostname, "ipv6", ip)
 		return nil
 	case response == "nohost":
-		return fmt.Errorf("No-IP hostname not found: %s", hostname)
+		return fmt.Errorf("no-ip hostname not found: %s", hostname)
 	case response == "badauth":
-		return fmt.Errorf("No-IP authentication failed: invalid username or password")
+		return fmt.Errorf("no-ip authentication failed: invalid username or password")
 	case response == "badagent":
-		return fmt.Errorf("No-IP bad agent: disabled User-Agent")
+		return fmt.Errorf("no-ip bad agent: disabled user-agent")
 	case response == "!":
-		return fmt.Errorf("No-IP abuse detected: too many updates")
+		return fmt.Errorf("no-ip abuse detected: too many updates")
 	default:
 		slog.Error("No-IP API returned unexpected response",
 			"module", "noip",
 			"hostname", hostname, "response", response)
-		return fmt.Errorf("No-IP update failed: %s", response)
+		return fmt.Errorf("no-ip update failed: %s", response)
 	}
 }

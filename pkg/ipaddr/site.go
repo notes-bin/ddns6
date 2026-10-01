@@ -11,29 +11,29 @@ import (
 	"time"
 )
 
-// HttpIPv6Fetcher 通过 HTTP GET 访问返回纯文本 IP 的端点，解析本机公网 IPv6。
+// HTTPIPv6Fetcher 通过 HTTP GET 访问返回纯文本 IP 的端点，解析本机公网 IPv6。
 //
 // 客户端单次请求超时为 5 秒；总超时仍受调用方 context 约束。
-type HttpIPv6Fetcher struct {
+type HTTPIPv6Fetcher struct {
 	url    string
 	client *http.Client
 }
 
-// NewHttpIPv6Fetcher 创建指向 url 的 HTTP IPv6 获取器。
-func NewHttpIPv6Fetcher(url string) *HttpIPv6Fetcher {
-	return &HttpIPv6Fetcher{
+// NewHTTPIPv6Fetcher 创建指向 url 的 HTTP IPv6 获取器。
+func NewHTTPIPv6Fetcher(url string) *HTTPIPv6Fetcher {
+	return &HTTPIPv6Fetcher{
 		url:    url,
 		client: &http.Client{Timeout: 5 * time.Second},
 	}
 }
 
 // String 返回目标 URL。
-func (h *HttpIPv6Fetcher) String() string {
+func (h *HTTPIPv6Fetcher) String() string {
 	return h.url
 }
 
 // Fetch 请求端点并将响应正文解析为 IPv6 地址。
-func (h *HttpIPv6Fetcher) Fetch(ctx context.Context) (net.IP, error) {
+func (h *HTTPIPv6Fetcher) Fetch(ctx context.Context) (net.IP, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, h.url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request for %s: %w", h.url, err)
@@ -74,5 +74,5 @@ func (h *HttpIPv6Fetcher) Fetch(ctx context.Context) (net.IP, error) {
 		"response", respStr,
 	)
 
-	return nil, fmt.Errorf("no valid IPv6 address found from %s", h.url)
+	return nil, fmt.Errorf("no valid ipv6 address found from %s", h.url)
 }

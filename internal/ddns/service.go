@@ -16,17 +16,17 @@ import (
 
 // DefaultIPv6Fetchers 返回默认的 IPv6 地址获取器列表（每次调用返回新切片，避免调用方污染全局状态）。
 //
-// 每次触发同步时由 GetIPv6Addr 随机打乱顺序后并发竞速，取第一个成功结果。
+// 每次触发同步时由 IPv6Addr 随机打乱顺序后并发竞速，取第一个成功结果。
 // 包含 HTTP 与 DNS 两种来源，互为备份。
 func DefaultIPv6Fetchers() []ipaddr.IPv6Fetcher {
 	return []ipaddr.IPv6Fetcher{
-		ipaddr.NewHttpIPv6Fetcher("https://6.ipw.cn"),
-		ipaddr.NewHttpIPv6Fetcher("https://ifconfig.co"),
-		ipaddr.NewHttpIPv6Fetcher("https://v6.ident.me"),
-		ipaddr.NewDnsFetcher("2402:4e00::"),
-		ipaddr.NewDnsFetcher("2400:3200:baba::1"),
-		ipaddr.NewDnsFetcher("2001:4860:4860::8888"),
-		ipaddr.NewDnsFetcher("2606:4700:4700::1111"),
+		ipaddr.NewHTTPIPv6Fetcher("https://6.ipw.cn"),
+		ipaddr.NewHTTPIPv6Fetcher("https://ifconfig.co"),
+		ipaddr.NewHTTPIPv6Fetcher("https://v6.ident.me"),
+		ipaddr.NewDNSFetcher("2402:4e00::"),
+		ipaddr.NewDNSFetcher("2400:3200:baba::1"),
+		ipaddr.NewDNSFetcher("2001:4860:4860::8888"),
+		ipaddr.NewDNSFetcher("2606:4700:4700::1111"),
 	}
 }
 
@@ -62,9 +62,9 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 
 	// 启动时立即做一次完整同步，避免等待首次 Netlink 事件或轮询周期
 	slog.Info("performing initial IPv6 address fetch", "module", "ddns")
-	ip, err := ipaddr.GetIPv6Addr(ctx, fetchers...)
+	ip, err := ipaddr.IPv6Addr(ctx, fetchers...)
 	if err != nil {
-		return fmt.Errorf("initial IPv6 fetch failed: %w", err)
+		return fmt.Errorf("initial ipv6 fetch failed: %w", err)
 	}
 	slog.Info("initial IPv6 address obtained", "module", "ddns", "ipv6", ip.String())
 
@@ -92,7 +92,7 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 		select {
 		case <-triggerCh:
 			go func() {
-				ip, err := ipaddr.GetIPv6Addr(ctx, fetchers...)
+				ip, err := ipaddr.IPv6Addr(ctx, fetchers...)
 				if err != nil {
 					slog.Error("failed to get IPv6 address on trigger", "module", "ddns", "err", err)
 					syncDoneCh <- struct{}{}

@@ -1,16 +1,16 @@
 // Package ipaddr 提供本机公网 IPv6 地址获取。
 //
-// 入口为 GetIPv6Addr：对多个 IPv6Fetcher 随机打乱后并发竞速，
-// 取首个成功结果。内置 HttpIPv6Fetcher（HTTP 纯文本端点）与
-// DnsFetcher（UDP6 拨号取本地地址）；库调用方也可传入
+// 入口为 IPv6Addr：对多个 IPv6Fetcher 随机打乱后并发竞速，
+// 取首个成功结果。内置 HTTPIPv6Fetcher（HTTP 纯文本端点）与
+// DNSFetcher（UDP6 拨号取本地地址）；库调用方也可传入
 // ddns.DefaultIPv6Fetchers()。
 //
 // 使用示例：
 //
 //	ctx := context.Background()
-//	ip, err := ipaddr.GetIPv6Addr(ctx,
-//	    ipaddr.NewHttpIPv6Fetcher("https://6.ipw.cn"),
-//	    ipaddr.NewDnsFetcher("2001:4860:4860::8888"),
+//	ip, err := ipaddr.IPv6Addr(ctx,
+//	    ipaddr.NewHTTPIPv6Fetcher("https://6.ipw.cn"),
+//	    ipaddr.NewDNSFetcher("2001:4860:4860::8888"),
 //	)
 package ipaddr
 
@@ -29,14 +29,14 @@ type IPv6Fetcher interface {
 	Fetch(ctx context.Context) (net.IP, error)
 }
 
-// fetchTimeout 单次 GetIPv6Addr 竞速的总超时。
+// fetchTimeout 单次 IPv6Addr 竞速的总超时。
 const fetchTimeout = 5 * time.Second
 
-// GetIPv6Addr 获取本机 IPv6 地址。
+// IPv6Addr 获取本机 IPv6 地址。
 //
 // 每次调用随机打乱 fetchers 后并发执行，返回第一个成功地址；
 // 全部失败则返回错误。总超时 5 秒，并受父 context 约束。
-func GetIPv6Addr(ctx context.Context, fetchers ...IPv6Fetcher) (net.IP, error) {
+func IPv6Addr(ctx context.Context, fetchers ...IPv6Fetcher) (net.IP, error) {
 	if len(fetchers) == 0 {
 		return nil, fmt.Errorf("no fetcher provided")
 	}

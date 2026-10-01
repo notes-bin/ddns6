@@ -204,87 +204,87 @@ func TestLoad_ConfigDirPermissions(t *testing.T) {
 	}
 }
 
-// TestGetInterval_Default 验证零值 Config 的间隔默认为 5m。
-func TestGetInterval_Default(t *testing.T) {
+// TestParseInterval_Default 验证零值 Config 的间隔默认为 5m。
+func TestParseInterval_Default(t *testing.T) {
 	c := &Config{}
-	d, err := c.GetInterval()
+	d, err := c.ParseInterval()
 	if err != nil {
-		t.Fatalf("GetInterval() 不应返回错误: %v", err)
+		t.Fatalf("ParseInterval() 不应返回错误: %v", err)
 	}
 	if d != 5*60*1000000000 {
-		t.Errorf("GetInterval() 默认应为 5m, 得到 %v", d)
+		t.Errorf("ParseInterval() 默认应为 5m, 得到 %v", d)
 	}
 }
 
-// TestGetInterval_Empty 验证空字符串间隔回退到 5m。
-func TestGetInterval_Empty(t *testing.T) {
+// TestParseInterval_Empty 验证空字符串间隔回退到 5m。
+func TestParseInterval_Empty(t *testing.T) {
 	c := &Config{Interval: ""}
-	d, err := c.GetInterval()
+	d, err := c.ParseInterval()
 	if err != nil {
-		t.Fatalf("GetInterval() 不应返回错误: %v", err)
+		t.Fatalf("ParseInterval() 不应返回错误: %v", err)
 	}
 	if d != 5*60*1000000000 {
-		t.Errorf("GetInterval() 默认为空时应返回 5m, 得到 %v", d)
+		t.Errorf("ParseInterval() 默认为空时应返回 5m, 得到 %v", d)
 	}
 }
 
-// TestGetInterval_Custom 验证自定义间隔字符串可正确解析。
-func TestGetInterval_Custom(t *testing.T) {
+// TestParseInterval_Custom 验证自定义间隔字符串可正确解析。
+func TestParseInterval_Custom(t *testing.T) {
 	c := &Config{Interval: "10m"}
-	d, err := c.GetInterval()
+	d, err := c.ParseInterval()
 	if err != nil {
-		t.Fatalf("GetInterval() 不应返回错误: %v", err)
+		t.Fatalf("ParseInterval() 不应返回错误: %v", err)
 	}
 	if d != 10*60*1000000000 {
-		t.Errorf("GetInterval() 应为 10m, 得到 %v", d)
+		t.Errorf("ParseInterval() 应为 10m, 得到 %v", d)
 	}
 }
 
-// TestGetInterval_Invalid 验证非法间隔回退 5m 并返回错误。
-func TestGetInterval_Invalid(t *testing.T) {
+// TestParseInterval_Invalid 验证非法间隔回退 5m 并返回错误。
+func TestParseInterval_Invalid(t *testing.T) {
 	c := &Config{Interval: "invalid"}
-	d, err := c.GetInterval()
+	d, err := c.ParseInterval()
 	if err == nil {
-		t.Error("GetInterval() 无效格式时应返回错误")
+		t.Error("ParseInterval() 无效格式时应返回错误")
 	}
 	if d != 5*60*1000000000 {
-		t.Errorf("GetInterval() 无效格式时应回退到 5m, 得到 %v", d)
+		t.Errorf("ParseInterval() 无效格式时应回退到 5m, 得到 %v", d)
 	}
 }
 
-// TestGetTTL_Default 验证未设置 TTL 时使用默认值 600。
-func TestGetTTL_Default(t *testing.T) {
+// TestEffectiveTTL_Default 验证未设置 TTL 时使用默认值 600。
+func TestEffectiveTTL_Default(t *testing.T) {
 	c := &Config{}
-	ttl := c.GetTTL()
+	ttl := c.EffectiveTTL()
 	if ttl != 600 {
-		t.Errorf("GetTTL() 默认应为 600, 得到 %d", ttl)
+		t.Errorf("EffectiveTTL() 默认应为 600, 得到 %d", ttl)
 	}
 }
 
-// TestGetTTL_Zero 验证 TTL 为 0 时回退默认值。
-func TestGetTTL_Zero(t *testing.T) {
+// TestEffectiveTTL_Zero 验证 TTL 为 0 时回退默认值。
+func TestEffectiveTTL_Zero(t *testing.T) {
 	c := &Config{TTL: 0}
-	ttl := c.GetTTL()
+	ttl := c.EffectiveTTL()
 	if ttl != 600 {
-		t.Errorf("GetTTL() 零值时应返回 600, 得到 %d", ttl)
+		t.Errorf("EffectiveTTL() 零值时应返回 600, 得到 %d", ttl)
 	}
 }
 
-// TestGetTTL_Custom 验证自定义正数 TTL 原样返回。
-func TestGetTTL_Custom(t *testing.T) {
+// TestEffectiveTTL_Custom 验证自定义正数 TTL 原样返回。
+func TestEffectiveTTL_Custom(t *testing.T) {
 	c := &Config{TTL: 300}
-	ttl := c.GetTTL()
+	ttl := c.EffectiveTTL()
 	if ttl != 300 {
-		t.Errorf("GetTTL() 应为 300, 得到 %d", ttl)
+		t.Errorf("EffectiveTTL() 应为 300, 得到 %d", ttl)
 	}
 }
 
-// TestGetTTL_Negative 验证负 TTL 回退默认值。
-func TestGetTTL_Negative(t *testing.T) {
+// TestEffectiveTTL_Negative 验证负 TTL 回退默认值。
+func TestEffectiveTTL_Negative(t *testing.T) {
 	c := &Config{TTL: -1}
-	ttl := c.GetTTL()
+	ttl := c.EffectiveTTL()
 	if ttl != 600 {
-		t.Errorf("GetTTL() 负值时应返回 600, 得到 %d", ttl)
+		t.Errorf("EffectiveTTL() 负值时应返回 600, 得到 %d", ttl)
 	}
 }
 

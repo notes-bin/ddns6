@@ -138,14 +138,14 @@ func checkFromConfig(cfg *config.Config) error {
 		fmt.Println("auth: empty")
 		return nil
 	}
-	interval, err := cfg.GetInterval()
+	interval, err := cfg.ParseInterval()
 	if err != nil {
 		fmt.Printf("interval: %s (parse error: %v)\n", interval, err)
 	} else {
 		fmt.Printf("interval: %s\n", interval)
 	}
 	fmt.Printf("interface: %s\n", cfg.Interface)
-	fmt.Printf("ttl: %d\n", cfg.GetTTL())
+	fmt.Printf("ttl: %d\n", cfg.EffectiveTTL())
 
 	var factory *providerFactory
 	for i, p := range providerFactories {
@@ -168,7 +168,7 @@ func checkFromConfig(cfg *config.Config) error {
 		return nil
 	}
 
-	domains := buildDomains(cfg.Domain, cfg.Subdomains, cfg.GetTTL())
+	domains := buildDomains(cfg.Domain, cfg.Subdomains, cfg.EffectiveTTL())
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
