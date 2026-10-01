@@ -69,13 +69,13 @@ type DNSProvider interface {
 // Domain 表示待同步的域名配置及缓存的 IPv6 地址。
 //
 // Domain/SubDomain/Type/TTL 在服务启动后视为只读，可无锁并发读。
-// Addr 缓存由 mu 保护；外部应通过 CheckAndSetAddr / AddrString 访问，勿直接读写 Addr。
+// addr 缓存由 mu 保护；外部应通过 CheckAndSetAddr / AddrString 访问。
 type Domain struct {
 	Domain    string // 根域名
 	SubDomain string // 子域名；"@" 表示根域名本身
 	Type      string // 记录类型，通常为 AAAA
 	TTL       int    // TTL（秒）
-	Addr      net.IP // 最近一次成功同步的地址缓存（须经方法或包内锁访问）
+	addr      net.IP // 最近一次成功同步的地址缓存（须经方法或包内锁访问）
 	mu        sync.Mutex
 }
 
@@ -93,7 +93,7 @@ func RecordTTL(ttl int) int {
 // String 返回 Domain 的可读描述（线程安全）。
 func (d *Domain) String() string {
 	d.mu.Lock()
-	addr := d.Addr.String()
+	addr := d.addr.String()
 	d.mu.Unlock()
 	return fmt.Sprintf("fullDomain: %s, type: %s, addr: %s", d.FullDomain(), d.Type, addr)
 }
@@ -113,11 +113,11 @@ func (d *Domain) FullDomain() string {
 func (d *Domain) CheckAndSetAddr(newAddr net.IP) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if d.Addr != nil && d.Addr.Equal(newAddr) {
+	if d.addr != nil && d.addr.Equal(newAddr) {
 		return false
 	}
-	d.Addr = make(net.IP, len(newAddr))
-	copy(d.Addr, newAddr)
+	d.addr = make(net.IP, len(newAddr))
+	copy(d.addr, newAddr)
 	return true
 }
 
@@ -125,7 +125,7 @@ func (d *Domain) CheckAndSetAddr(newAddr net.IP) bool {
 func (d *Domain) AddrString() string {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	return d.Addr.String()
+	return d.addr.String()
 }
 
 // lock 供 SyncRecord 等包内函数在跨方法持锁时使用。
