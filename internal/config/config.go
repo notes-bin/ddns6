@@ -161,9 +161,7 @@ const configTemplate = `# DDNS6 配置文件
 #
 # 各字段说明见下方注释，更多信息请参考 ddns6 run --help
 
-# 必填：DNS 运营商名称
-# 支持: tencent, cloudflare, alicloud, godaddy, huaweicloud, duckdns,
-#       noip, he, dynv6, porkbun, digitalocean, baiducloud, dnspod
+# 必填：DNS 运营商名称（完整列表见: ddns6 list）
 provider: {{yamlScalar .Provider}}
 
 # 必填：运营商认证凭据（不同运营商字段不同）
@@ -189,9 +187,9 @@ subdomains:{{if .Subdomains}}{{range .Subdomains}}
   - {{yamlScalar .}}{{end}}{{else}}
   - "@"{{end}}
 
-# 可选：非 Linux 平台的轮询间隔
-# 格式：数字+单位（s=秒, m=分, h=时），默认 5m
-# Linux 平台由 Netlink 事件驱动，此选项无效
+# 可选：轮询间隔（格式：数字+单位 s/m/h，默认 5m）
+# 非 Linux：定时轮询使用此间隔
+# Linux：正常由 Netlink 事件驱动；仅当 Netlink 失败回退轮询时生效
 {{if .Interval}}interval: {{yamlScalar .Interval}}{{else}}# interval: 5m{{end}}
 
 # 可选：监听的网络接口（仅 Linux Netlink 模式有效）
