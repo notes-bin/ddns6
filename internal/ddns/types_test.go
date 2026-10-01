@@ -8,6 +8,7 @@ import (
 
 // TestRecordTTL 验证零值/负值回退 DefaultTTL。
 func TestRecordTTL(t *testing.T) {
+	t.Parallel()
 	if got := RecordTTL(0); got != DefaultTTL {
 		t.Fatalf("RecordTTL(0)=%d, want %d", got, DefaultTTL)
 	}
@@ -16,6 +17,30 @@ func TestRecordTTL(t *testing.T) {
 	}
 	if got := RecordTTL(300); got != 300 {
 		t.Fatalf("RecordTTL(300)=%d, want 300", got)
+	}
+}
+
+// TestRecordInfo_ValueFromID 覆盖复合 ID 解析与无分隔符时回退 Value。
+func TestRecordInfo_ValueFromID(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		r    RecordInfo
+		want string
+	}{
+		{name: "复合 ID", r: RecordInfo{ID: "www|2001:db8::1", Value: "ignored"}, want: "2001:db8::1"},
+		{name: "多段取首个分隔后", r: RecordInfo{ID: "a|b|c", Value: "fallback"}, want: "b|c"},
+		{name: "无分隔符回退 Value", r: RecordInfo{ID: "rec-123", Value: "2001:db8::2"}, want: "2001:db8::2"},
+		{name: "空 ID 回退 Value", r: RecordInfo{ID: "", Value: "2001:db8::3"}, want: "2001:db8::3"},
+		{name: "仅分隔符", r: RecordInfo{ID: "|", Value: "fallback"}, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tt.r.ValueFromID(); got != tt.want {
+				t.Errorf("ValueFromID() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 
