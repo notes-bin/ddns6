@@ -180,17 +180,15 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	}})
 }
 
-// GetRecords 查询 DNS 记录。
+// GetRecords 查询 DNS 记录（列出 zone 下指定类型的全部 rrset）。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	zone, sub, err := c.findZone(ctx, fulldomain, "")
+	zone, _, err := c.findZone(ctx, fulldomain, "")
 	if err != nil {
 		return nil, err
 	}
-	if sub == "@" {
-		sub = ""
-	}
+	recordType = cmp.Or(recordType, "AAAA")
 
-	body, err := c.doRequest(ctx, http.MethodGet, fmt.Sprintf("/domains/%s/rrsets/%s/%s/", zone, url.PathEscape(sub), recordType), nil)
+	body, err := c.doRequest(ctx, http.MethodGet, fmt.Sprintf("/domains/%s/rrsets/?type=%s", url.PathEscape(zone), url.QueryEscape(recordType)), nil)
 	if err != nil {
 		if isNotFound(err) {
 			return nil, nil
@@ -198,32 +196,35 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		return nil, err
 	}
 
-	var rs rrset
-	if err := json.Unmarshal(body, &rs); err != nil {
-		return nil, fmt.Errorf("failed to decode desec rrset: %w", err)
+	var sets []rrset
+	if err := json.Unmarshal(body, &sets); err != nil {
+		return nil, fmt.Errorf("failed to decode desec rrsets: %w", err)
 	}
 
-	result := make([]ddns.RecordInfo, 0, len(rs.Records))
-	for _, v := range rs.Records {
-		name := zone
-		if sub != "" && sub != "@" {
-			name = sub + "." + zone
+	result := make([]ddns.RecordInfo, 0)
+	for _, rs := range sets {
+		sub := rs.Subname
+		for _, v := range rs.Records {
+			name := zone
+			if sub != "" && sub != "@" {
+				name = sub + "." + zone
+			}
+			result = append(result, ddns.RecordInfo{
+				ID:    fmt.Sprintf("%s|%s", sub, v),
+				Name:  name,
+				Zone:  zone,
+				Type:  rs.Type,
+				Value: v,
+				TTL:   rs.TTL,
+			})
 		}
-		result = append(result, ddns.RecordInfo{
-			ID:    fmt.Sprintf("%s|%s", sub, v),
-			Name:  name,
-			Zone:  zone,
-			Type:  rs.Type,
-			Value: v,
-			TTL:   rs.TTL,
-		})
 	}
 	return result, nil
 }
 
 // getRRSet 获取指定 subname 与类型的 RRset 记录值。
 func (c *Client) getRRSet(ctx context.Context, zone, sub, recordType string) ([]string, error) {
-	body, err := c.doRequest(ctx, http.MethodGet, fmt.Sprintf("/domains/%s/rrsets/%s/%s/", zone, url.PathEscape(sub), recordType), nil)
+	body, err := c.doRequest(ctx, http.MethodGet, fmt.Sprintf("/domains/%s/rrsets/%s/%s/", url.PathEscape(zone), url.PathEscape(sub), url.PathEscape(recordType)), nil)
 	if err != nil {
 		if isNotFound(err) {
 			return nil, nil
@@ -244,7 +245,7 @@ func (c *Client) putRRSets(ctx context.Context, zone string, sets []rrset) error
 		return fmt.Errorf("failed to marshal rrsets: %w", err)
 	}
 	slog.Debug("updating deSEC rrsets", "module", "desec", "zone", zone, "count", len(sets))
-	_, err = c.doRequest(ctx, http.MethodPut, fmt.Sprintf("/domains/%s/rrsets/", zone), payload)
+	_, err = c.doRequest(ctx, http.MethodPut, fmt.Sprintf("/domains/%s/rrsets/", url.PathEscape(zone)), payload)
 	return err
 }
 
@@ -277,11 +278,12 @@ func (c *Client) findZone(ctx context.Context, fulldomain, zoneHint string) (zon
 		return root, sub, nil
 	}
 
-	parts := strings.Split(strings.ToLower(strings.TrimSuffix(fulldomain, ".")), ".")
-	for i := range len(parts) - 1 {
-		candidate := strings.Join(parts[i+1:], ".")
+	for _, candidate := range domainutil.ZoneCandidates(fulldomain) {
+		if candidate == root {
+			continue
+		}
 		if _, ok := c.zoneCache.Load(candidate); ok {
-			sub = cmp.Or(strings.Join(parts[:i+1], "."), "@")
+			_, sub = domainutil.SplitDomain(fulldomain, candidate)
 			return candidate, sub, nil
 		}
 	}

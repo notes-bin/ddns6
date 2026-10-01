@@ -128,15 +128,15 @@ func (c *Client) DeleteRecord(ctx context.Context, info ddns.RecordInfo) error {
 	return c.change(ctx, info, "DELETE")
 }
 
-// GetRecords 查询 DNS 记录。
+// GetRecords 查询 DNS 记录（列出 Hosted Zone 下指定类型的全部 RRSet）。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	zoneID, zoneName, rrName, err := c.resolveRecord(ctx, fulldomain, "")
+	zoneID, zoneName, _, err := c.resolveRecord(ctx, fulldomain, "")
 	if err != nil {
 		return nil, err
 	}
-	q := url.Values{
-		"name": {rrName},
-		"type": {recordType},
+	q := url.Values{}
+	if recordType != "" {
+		q.Set("type", recordType)
 	}
 	body, err := c.doRequest(ctx, http.MethodGet, "/2013-04-01"+zoneID+"/rrset", q, nil)
 	if err != nil {
@@ -193,11 +193,11 @@ func (c *Client) change(ctx context.Context, info ddns.RecordInfo, action string
 
 // resolveRecord 解析 Hosted Zone 与 ResourceRecord 名称。
 func (c *Client) resolveRecord(ctx context.Context, fulldomain, zoneHint string) (zoneID, zoneName, rrName string, err error) {
-	root, sub := domainutil.SplitDomain(fulldomain, zoneHint)
-	candidate := strings.ToLower(strings.TrimSuffix(root, "."))
-	parts := strings.Split(candidate, ".")
-	for i := range len(parts) - 1 {
-		zone := strings.Join(parts[i:], ".")
+	candidates := domainutil.ZoneCandidates(fulldomain)
+	if zoneHint != "" {
+		candidates = []string{strings.ToLower(strings.TrimSuffix(zoneHint, "."))}
+	}
+	for _, zone := range candidates {
 		id, name, err := c.findHostedZone(ctx, zone)
 		if err != nil {
 			return "", "", "", err
@@ -205,7 +205,8 @@ func (c *Client) resolveRecord(ctx context.Context, fulldomain, zoneHint string)
 		if id == "" {
 			continue
 		}
-		rr := candidate + "."
+		_, sub := domainutil.SplitDomain(fulldomain, zone)
+		rr := zone + "."
 		if sub != "" && sub != "@" {
 			rr = sub + "." + zone + "."
 		}

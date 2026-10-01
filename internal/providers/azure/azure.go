@@ -105,6 +105,8 @@ type aaaaRecord struct {
 
 // recordSet 表示 Azure DNS 记录集。
 type recordSet struct {
+	Name       string `json:"name"`
+	ID         string `json:"id"`
 	Properties struct {
 		TTL         int          `json:"ttl"`
 		AAAARecords []aaaaRecord `json:"aaaaRecords"`
@@ -112,6 +114,11 @@ type recordSet struct {
 			IPv4Address string `json:"ipv4Address"`
 		} `json:"aRecords"`
 	} `json:"properties"`
+}
+
+// recordSetList 为记录集列表响应。
+type recordSetList struct {
+	Value []recordSet `json:"value"`
 }
 
 // AddRecord 添加 DNS 记录。
@@ -134,13 +141,15 @@ func (c *Client) DeleteRecord(ctx context.Context, info ddns.RecordInfo) error {
 	return err
 }
 
-// GetRecords 查询 DNS 记录。
+// GetRecords 查询 DNS 记录（列出 zone 下指定类型的全部记录集）。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	recordType = cmp.Or(recordType, "AAAA")
-	path, zone, displayName, err := c.recordPath(ctx, fulldomain, "", recordType)
+	zoneID, zoneName, _, err := c.findZone(ctx, fulldomain, "")
 	if err != nil {
 		return nil, err
 	}
+	path := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnsZones/%s/%s?api-version=%s",
+		url.PathEscape(c.subscriptionID), url.PathEscape(extractResourceGroup(zoneID)), url.PathEscape(zoneName), url.PathEscape(recordType), apiVersion)
 	body, err := c.doJSON(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		if isNotFound(err) {
@@ -148,20 +157,43 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		}
 		return nil, err
 	}
-	var rs recordSet
-	if err := json.Unmarshal(body, &rs); err != nil {
-		return nil, fmt.Errorf("failed to decode azure record set: %w", err)
+	var list recordSetList
+	if err := json.Unmarshal(body, &list); err != nil {
+		return nil, fmt.Errorf("failed to decode azure record sets: %w", err)
 	}
-	result := make([]ddns.RecordInfo, 0, len(rs.Properties.AAAARecords))
-	for _, rec := range rs.Properties.AAAARecords {
-		result = append(result, ddns.RecordInfo{
-			ID:    path,
-			Name:  displayName,
-			Zone:  zone,
-			Type:  recordType,
-			Value: rec.IPv6Address,
-			TTL:   rs.Properties.TTL,
-		})
+	result := make([]ddns.RecordInfo, 0)
+	for _, rs := range list.Value {
+		name := zoneName
+		rr := rs.Name
+		if rr != "" && rr != "@" {
+			name = rr + "." + zoneName
+		}
+		recPath := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnsZones/%s/%s/%s?api-version=%s",
+			url.PathEscape(c.subscriptionID), url.PathEscape(extractResourceGroup(zoneID)), url.PathEscape(zoneName), url.PathEscape(recordType), url.PathEscape(cmp.Or(rr, "@")), apiVersion)
+		switch recordType {
+		case "AAAA":
+			for _, rec := range rs.Properties.AAAARecords {
+				result = append(result, ddns.RecordInfo{
+					ID:    recPath,
+					Name:  name,
+					Zone:  zoneName,
+					Type:  recordType,
+					Value: rec.IPv6Address,
+					TTL:   rs.Properties.TTL,
+				})
+			}
+		case "A":
+			for _, rec := range rs.Properties.ARecords {
+				result = append(result, ddns.RecordInfo{
+					ID:    recPath,
+					Name:  name,
+					Zone:  zoneName,
+					Type:  recordType,
+					Value: rec.IPv4Address,
+					TTL:   rs.Properties.TTL,
+				})
+			}
+		}
 	}
 	return result, nil
 }
@@ -208,7 +240,7 @@ func (c *Client) recordPath(ctx context.Context, name, zoneHint, recordType stri
 		displayName = rr + "." + zoneName
 	}
 	path = fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnsZones/%s/%s/%s?api-version=%s",
-		c.subscriptionID, extractResourceGroup(zoneID), zoneName, recordType, rr, apiVersion)
+		url.PathEscape(c.subscriptionID), url.PathEscape(extractResourceGroup(zoneID)), url.PathEscape(zoneName), url.PathEscape(recordType), url.PathEscape(rr), apiVersion)
 	return path, zoneName, displayName, nil
 }
 
@@ -226,9 +258,7 @@ func extractResourceGroup(zoneID string) string {
 
 // findZone 查找 fulldomain 对应的 DNS Zone。
 func (c *Client) findZone(ctx context.Context, fulldomain, zoneHint string) (zoneID, zoneName, sub string, err error) {
-	root, sub := domainutil.SplitDomain(fulldomain, zoneHint)
-	candidate := strings.ToLower(strings.TrimSuffix(root, "."))
-	path := fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Network/dnsZones?api-version=%s", c.subscriptionID, apiVersion)
+	path := fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Network/dnsZones?api-version=%s", url.PathEscape(c.subscriptionID), apiVersion)
 	body, err := c.doJSON(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return "", "", "", err
@@ -237,10 +267,22 @@ func (c *Client) findZone(ctx context.Context, fulldomain, zoneHint string) (zon
 	if err := json.Unmarshal(body, &list); err != nil {
 		return "", "", "", fmt.Errorf("failed to decode azure zones: %w", err)
 	}
+	byName := make(map[string]dnsZone, len(list.Value))
 	for _, z := range list.Value {
-		if strings.EqualFold(strings.TrimSuffix(z.Name, "."), candidate) {
-			return z.ID, z.Name, sub, nil
+		byName[strings.ToLower(strings.TrimSuffix(z.Name, "."))] = z
+	}
+
+	candidates := domainutil.ZoneCandidates(fulldomain)
+	if zoneHint != "" {
+		candidates = []string{strings.ToLower(strings.TrimSuffix(zoneHint, "."))}
+	}
+	for _, candidate := range candidates {
+		z, ok := byName[candidate]
+		if !ok {
+			continue
 		}
+		_, sub = domainutil.SplitDomain(fulldomain, candidate)
+		return z.ID, z.Name, sub, nil
 	}
 	return "", "", "", fmt.Errorf("azure dns zone not found for %s", fulldomain)
 }
@@ -262,7 +304,7 @@ func (c *Client) accessToken(ctx context.Context) (string, error) {
 		"client_secret": {c.clientSecret},
 		"scope":         {tokenScope},
 	}
-	endpoint := fmt.Sprintf("%s/%s/oauth2/v2.0/token", c.loginBase, c.tenantID)
+	endpoint := fmt.Sprintf("%s/%s/oauth2/v2.0/token", c.loginBase, url.PathEscape(c.tenantID))
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
 		return "", err

@@ -26,6 +26,10 @@ func TestClient(t *testing.T) {
 				switch {
 				case r.URL.Path == "/api/v1/domains/":
 					json.NewEncoder(w).Encode([]domainInfo{{Name: "example.com"}})
+				case (strings.Contains(r.URL.Path, "/rrsets/") && r.URL.RawQuery != "") || strings.HasSuffix(r.URL.Path, "/rrsets/"):
+					json.NewEncoder(w).Encode([]rrset{
+						{Subname: "www", Type: "AAAA", TTL: 3600, Records: []string{"2001:db8::1"}},
+					})
 				case strings.Contains(r.URL.Path, "/rrsets/www/AAAA/"):
 					json.NewEncoder(w).Encode(rrset{
 						Subname: "www", Type: "AAAA", TTL: 3600, Records: []string{"2001:db8::1"},

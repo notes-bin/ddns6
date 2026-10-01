@@ -115,13 +115,13 @@ func (c *Client) DeleteRecord(ctx context.Context, info ddns.RecordInfo) error {
 
 // GetRecords 查询 DNS 记录。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	zone, rrName, zoneDNS, err := c.resolve(ctx, fulldomain, "")
+	zone, _, zoneDNS, err := c.resolve(ctx, fulldomain, "")
 	if err != nil {
 		return nil, err
 	}
 	recordType = cmp.Or(recordType, "AAAA")
-	path := fmt.Sprintf("/projects/%s/managedZones/%s/rrsets", c.project, zone)
-	q := url.Values{"name": {rrName}, "type": {recordType}}
+	path := fmt.Sprintf("/projects/%s/managedZones/%s/rrsets", url.PathEscape(c.project), url.PathEscape(zone))
+	q := url.Values{"type": {recordType}}
 	body, err := c.doRequest(ctx, http.MethodGet, path, q, nil)
 	if err != nil {
 		if isNotFound(err) {
@@ -176,7 +176,7 @@ func (c *Client) applyChange(ctx context.Context, info ddns.RecordInfo, action s
 	if err != nil {
 		return fmt.Errorf("failed to marshal change: %w", err)
 	}
-	path := fmt.Sprintf("/projects/%s/managedZones/%s/changes", c.project, zone)
+	path := fmt.Sprintf("/projects/%s/managedZones/%s/changes", url.PathEscape(c.project), url.PathEscape(zone))
 	slog.Debug("applying Cloud DNS change", "module", "gcloud", "zone", zone, "action", action, "type", info.Type)
 	_, err = c.doRequest(ctx, http.MethodPost, path, nil, payload)
 	return err
@@ -184,9 +184,7 @@ func (c *Client) applyChange(ctx context.Context, info ddns.RecordInfo, action s
 
 // resolve 解析托管区域名与 RR 名称。
 func (c *Client) resolve(ctx context.Context, name, zoneHint string) (zoneName, rrName, zoneDNS string, err error) {
-	root, sub := domainutil.SplitDomain(name, zoneHint)
-	candidate := strings.ToLower(strings.TrimSuffix(root, ".")) + "."
-	body, err := c.doRequest(ctx, http.MethodGet, fmt.Sprintf("/projects/%s/managedZones", c.project), nil, nil)
+	body, err := c.doRequest(ctx, http.MethodGet, fmt.Sprintf("/projects/%s/managedZones", url.PathEscape(c.project)), nil, nil)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -194,14 +192,25 @@ func (c *Client) resolve(ctx context.Context, name, zoneHint string) (zoneName, 
 	if err := json.Unmarshal(body, &list); err != nil {
 		return "", "", "", fmt.Errorf("failed to decode managed zones: %w", err)
 	}
+	byDNS := make(map[string]managedZone, len(list.ManagedZones))
 	for _, z := range list.ManagedZones {
-		if strings.EqualFold(z.DNSName, candidate) {
-			rr := candidate
-			if sub != "" && sub != "@" {
-				rr = sub + "." + candidate
-			}
-			return z.Name, rr, z.DNSName, nil
+		byDNS[strings.ToLower(strings.TrimSuffix(z.DNSName, "."))] = z
+	}
+	candidates := domainutil.ZoneCandidates(name)
+	if zoneHint != "" {
+		candidates = []string{strings.ToLower(strings.TrimSuffix(zoneHint, "."))}
+	}
+	for _, candidate := range candidates {
+		z, ok := byDNS[candidate]
+		if !ok {
+			continue
 		}
+		_, sub := domainutil.SplitDomain(name, candidate)
+		rr := candidate + "."
+		if sub != "" && sub != "@" {
+			rr = sub + "." + candidate + "."
+		}
+		return z.Name, rr, z.DNSName, nil
 	}
 	return "", "", "", fmt.Errorf("cloud dns managed zone not found for %s", name)
 }

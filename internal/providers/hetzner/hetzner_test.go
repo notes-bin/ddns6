@@ -26,6 +26,13 @@ func TestClient(t *testing.T) {
 				switch {
 				case strings.HasPrefix(r.URL.Path, "/v1/zones/example.com"):
 					json.NewEncoder(w).Encode(zoneResponse{Zone: zone{ID: 99, Name: "example.com."}})
+				case strings.Contains(r.URL.Path, "/rrsets") && r.URL.RawQuery != "":
+					json.NewEncoder(w).Encode(map[string]any{
+						"rrsets": []map[string]any{{
+							"id": "rs1", "name": "www", "type": "AAAA", "ttl": 600,
+							"records": []map[string]string{{"value": "2001:db8::1"}},
+						}},
+					})
 				case strings.Contains(r.URL.Path, "/rrsets/www/AAAA"):
 					json.NewEncoder(w).Encode(rrsetResponse{RRSet: rrset{
 						ID: "rs1", Name: "www", Type: "AAAA", TTL: 600,
