@@ -38,9 +38,10 @@ clean:
 	rm -f *.tar.gz *.zip
 	$(GO) clean --cache --testcache
 
-# 交叉编译
+# 交叉编译（与 .github/workflows/release.yml 平台矩阵对齐）
 cross-build: $(BIN_DIR)
 	GOOS=linux GOARCH=amd64 $(GO) build $(BUILD_FLAGS) -o $(BIN_DIR)/$(BINARY_NAME)_linux_amd64 ./cmd/ddns6
+	GOOS=linux GOARCH=arm64 $(GO) build $(BUILD_FLAGS) -o $(BIN_DIR)/$(BINARY_NAME)_linux_arm64 ./cmd/ddns6
 	GOOS=darwin GOARCH=amd64 $(GO) build $(BUILD_FLAGS) -o $(BIN_DIR)/$(BINARY_NAME)_darwin_amd64 ./cmd/ddns6
 	GOOS=darwin GOARCH=arm64 $(GO) build $(BUILD_FLAGS) -o $(BIN_DIR)/$(BINARY_NAME)_darwin_arm64 ./cmd/ddns6
 
@@ -57,6 +58,7 @@ release: clean
 	$(MAKE) cross-build
 	mkdir -p $(DIST_DIR)
 	$(call pack-release,linux_amd64)
+	$(call pack-release,linux_arm64)
 	$(call pack-release,darwin_amd64)
 	$(call pack-release,darwin_arm64)
 
