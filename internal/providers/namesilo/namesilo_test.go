@@ -58,6 +58,24 @@ func TestClient(t *testing.T) {
 			},
 		},
 		{
+			name: "ModifyRecord",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				if got := r.URL.Query().Get("rrid"); got != "" && got != "1" {
+					t.Errorf("rrid=%q, want 1", got)
+				}
+				fmt.Fprint(w, actionOK)
+			},
+			run: func(t *testing.T, c *Client) {
+				err := c.ModifyRecord(t.Context(), ddns.RecordInfo{
+					Name: "www.example.com", Zone: "example.com", ID: "1",
+					Type: "AAAA", Value: "2001:db8::2", TTL: 600,
+				})
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+			},
+		},
+		{
 			name: "DeleteRecord",
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprint(w, actionOK)
@@ -68,6 +86,23 @@ func TestClient(t *testing.T) {
 				})
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
+				}
+			},
+		},
+		{
+			name: "ApiError",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				http.Error(w, "forbidden", http.StatusForbidden)
+			},
+			run: func(t *testing.T, c *Client) {
+				err := c.AddRecord(t.Context(), ddns.RecordInfo{
+					Name: "www.example.com", Zone: "example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600,
+				})
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if !strings.Contains(err.Error(), "403") {
+					t.Fatalf("error should mention status, got: %v", err)
 				}
 			},
 		},
