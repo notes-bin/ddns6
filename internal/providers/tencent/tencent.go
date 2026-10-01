@@ -33,13 +33,13 @@ const (
 	defaultRecordLine = "默认" // 默认 DNS 解析线路
 )
 
-// DNSRecord 表示腾讯云 DNS 记录。
+// dnsRecord 表示腾讯云 DNS 记录。
 // RecordID 在 API v20210323 中为数字类型。
 //
 // 请求（CreateRecord）使用 SubDomain/RecordType/RecordLine，
 // 响应（DescribeRecordList/DescribeRecord）使用 Name/Type/Line/LineId；
 // 通过 UnmarshalJSON 映射，使同一结构体可同时用于请求与响应。
-type DNSRecord struct {
+type dnsRecord struct {
 	DomainID     int    `json:"DomainId,omitzero"`
 	Domain       string `json:"Domain,omitempty"`
 	SubDomain    string `json:"SubDomain,omitempty"`
@@ -57,9 +57,9 @@ type DNSRecord struct {
 // 而非创建/修改请求中的 SubDomain/RecordType/RecordLine/RecordLineId。
 // 此方法读取响应中的 Name/Type/Line/LineId 值并映射到对应的 Go 字段，
 // 确保同一结构体既能正确序列化请求，也能正确反序列化响应。
-func (r *DNSRecord) UnmarshalJSON(data []byte) error {
+func (r *dnsRecord) UnmarshalJSON(data []byte) error {
 	// 使用类型别名避免无限递归
-	type Alias DNSRecord
+	type Alias dnsRecord
 	aux := &struct {
 		*Alias
 		Name   string `json:"Name"`
@@ -165,7 +165,7 @@ func (ds *DNSPod) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		return fmt.Errorf("failed to get root domain: %w", err)
 	}
 
-	dnsRecord := DNSRecord{
+	dnsRecord := dnsRecord{
 		Domain:     domain,
 		SubDomain:  subDomain,
 		RecordType: record.Type,
@@ -258,7 +258,7 @@ func (ds *DNSPod) ModifyRecord(ctx context.Context, record ddns.RecordInfo) erro
 		return fmt.Errorf("invalid record id %q: %w", record.ID, err)
 	}
 
-	payload := DNSRecord{
+	payload := dnsRecord{
 		Domain:     domain,
 		SubDomain:  subDomain,
 		RecordID:   recordID,
@@ -294,7 +294,7 @@ func (ds *DNSPod) DeleteRecord(ctx context.Context, record ddns.RecordInfo) erro
 		return fmt.Errorf("invalid record id %q: %w", record.ID, err)
 	}
 
-	payload := DNSRecord{Domain: domain, RecordID: recordID}
+	payload := dnsRecord{Domain: domain, RecordID: recordID}
 	response := new(Response)
 	err = ds.makeRequest(ctx, "DeleteRecord", payload, response)
 	if err != nil {
@@ -340,7 +340,7 @@ func (ds *DNSPod) GetRecords(ctx context.Context, fulldomain, recordType string)
 }
 
 // GetDomainRecord 查询单条 DNS 记录详情。
-func (ds *DNSPod) GetDomainRecord(ctx context.Context, fulldomain, recordID string) (*DNSRecord, error) {
+func (ds *DNSPod) GetDomainRecord(ctx context.Context, fulldomain, recordID string) (*dnsRecord, error) {
 	domain, _, err := ds.getRootDomain(ctx, fulldomain, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root domain: %w", err)
@@ -351,10 +351,10 @@ func (ds *DNSPod) GetDomainRecord(ctx context.Context, fulldomain, recordID stri
 		return nil, fmt.Errorf("invalid record id %q: %w", recordID, err)
 	}
 
-	payload := DNSRecord{Domain: domain, RecordID: id}
+	payload := dnsRecord{Domain: domain, RecordID: id}
 
 	var response struct {
-		RecordInfo DNSRecord `json:"RecordInfo"`
+		RecordInfo dnsRecord `json:"RecordInfo"`
 	}
 
 	err = ds.makeRequest(ctx, "DescribeRecord", payload, &response)
@@ -419,14 +419,14 @@ func (ds *DNSPod) getRootDomain(ctx context.Context, domain, zoneHint string) (s
 }
 
 // describeRecords 查询域名下解析记录；subDomain 非 "@" 时按主机名过滤。
-func (ds *DNSPod) describeRecords(ctx context.Context, domain, subDomain string) ([]DNSRecord, error) {
+func (ds *DNSPod) describeRecords(ctx context.Context, domain, subDomain string) ([]dnsRecord, error) {
 	slog.Debug("querying Tencent DNS records", "module", "tencent", "domain", domain, "subdomain", subDomain)
 
 	payload := map[string]any{"Domain": domain, "Limit": 3000}
 	slog.Debug("DescribeRecordList payload", "module", "tencent", "json", fmt.Sprintf("%v", payload))
 
 	var response struct {
-		RecordList []DNSRecord `json:"RecordList"`
+		RecordList []dnsRecord `json:"RecordList"`
 	}
 	if err := ds.makeRequest(ctx, "DescribeRecordList", payload, &response); err != nil {
 		return nil, err
@@ -438,7 +438,7 @@ func (ds *DNSPod) describeRecords(ctx context.Context, domain, subDomain string)
 		return recordList, nil
 	}
 
-	filtered := make([]DNSRecord, 0, len(recordList))
+	filtered := make([]dnsRecord, 0, len(recordList))
 	for _, r := range recordList {
 		if r.SubDomain == subDomain {
 			filtered = append(filtered, r)

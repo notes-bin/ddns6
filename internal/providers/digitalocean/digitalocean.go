@@ -65,8 +65,8 @@ func WithHTTPClient(httpClient *http.Client) Option {
 	}
 }
 
-// DomainRecord 表示 DigitalOcean DNS 记录。
-type DomainRecord struct {
+// domainRecord 表示 DigitalOcean DNS 记录。
+type domainRecord struct {
 	ID       int    `json:"id"`
 	Type     string `json:"type"`
 	Name     string `json:"name"`
@@ -80,7 +80,7 @@ type DomainRecord struct {
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	domain, subDomain := domainutil.SplitDomain(record.Name, record.Zone)
 
-	dnsRecord := DomainRecord{
+	dnsRecord := domainRecord{
 		Type: record.Type,
 		Name: subDomain,
 		Data: record.Value,
@@ -108,7 +108,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
 	domain, _ := domainutil.SplitDomain(record.Name, record.Zone)
 
-	dnsRecord := DomainRecord{
+	dnsRecord := domainRecord{
 		Type: record.Type,
 		Data: record.Value,
 		TTL:  ddns.RecordTTL(record.TTL),
@@ -160,7 +160,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	}
 
 	var apiResult struct {
-		DomainRecords []DomainRecord `json:"domain_records"`
+		DomainRecords []domainRecord `json:"domain_records"`
 	}
 	if err := json.Unmarshal(respBody, &apiResult); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)

@@ -69,8 +69,8 @@ func WithHTTPClient(httpClient *http.Client) Option {
 	}
 }
 
-// DNSRecord 表示 Porkbun DNS 记录；API 的 TTL 字段为字符串（如 "600"）。
-type DNSRecord struct {
+// dnsRecord 表示 Porkbun DNS 记录；API 的 TTL 字段为字符串（如 "600"）。
+type dnsRecord struct {
 	Name    string `json:"name,omitempty"`
 	Type    string `json:"type,omitempty"`
 	Content string `json:"content"`
@@ -80,14 +80,14 @@ type DNSRecord struct {
 // apiResponse 表示 Porkbun API 通用响应。
 type apiResponse struct {
 	Status  string      `json:"status"`
-	Records []DNSRecord `json:"records,omitempty"`
+	Records []dnsRecord `json:"records,omitempty"`
 }
 
 // AddRecord 添加 DNS 记录。
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	domain, subDomain := splitDomain(record.Name, record.Zone)
 
-	dnsRecord := DNSRecord{
+	dnsRecord := dnsRecord{
 		Name:    subDomain,
 		Type:    record.Type,
 		Content: record.Value,
@@ -114,7 +114,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
 	domain, subDomain := splitDomain(record.Name, record.Zone)
 
-	dnsRecord := DNSRecord{
+	dnsRecord := dnsRecord{
 		Content: record.Value,
 		TTL:     strconv.Itoa(ddns.RecordTTL(record.TTL)),
 	}
@@ -192,15 +192,15 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 type apiRequest struct {
 	APIKey       string `json:"apikey"`
 	SecretAPIKey string `json:"secretapikey"`
-	*DNSRecord
+	*dnsRecord
 }
 
 // post 执行 POST JSON 请求并自动注入认证信息。
-func (c *Client) post(ctx context.Context, url string, record *DNSRecord, result any) error {
+func (c *Client) post(ctx context.Context, url string, record *dnsRecord, result any) error {
 	apiReq := apiRequest{
 		APIKey:       c.apiKey,
 		SecretAPIKey: c.secretAPIKey,
-		DNSRecord:    record,
+		dnsRecord:    record,
 	}
 
 	body, err := json.Marshal(apiReq)

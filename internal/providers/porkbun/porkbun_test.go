@@ -27,7 +27,7 @@ func TestClient_GetRecords(t *testing.T) {
 		}
 		json.NewEncoder(w).Encode(apiResponse{
 			Status: "SUCCESS",
-			Records: []DNSRecord{
+			Records: []dnsRecord{
 				{Name: "www", Type: "AAAA", Content: "2001:db8::1", TTL: "600"},
 			},
 		})

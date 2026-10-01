@@ -31,7 +31,7 @@ var _ ddns.DNSProvider = (*Client)(nil)
 type Client struct {
 	apiKey     string
 	apiSecret  string
-	BaseURL    string
+	baseURL    string
 	httpClient *http.Client
 	mu         sync.Mutex // 保护记录 RMW（Add/Modify/Delete）并发安全
 }
@@ -44,7 +44,7 @@ func NewClient(apiKey, apiSecret string, options ...Option) *Client {
 	client := &Client{
 		apiKey:     apiKey,
 		apiSecret:  apiSecret,
-		BaseURL:    "https://api.godaddy.com/v1",
+		baseURL:    "https://api.godaddy.com/v1",
 		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}
 
@@ -58,7 +58,7 @@ func NewClient(apiKey, apiSecret string, options ...Option) *Client {
 // WithBaseURL 设置自定义 API 地址（测试用）。
 func WithBaseURL(baseURL string) Option {
 	return func(c *Client) {
-		c.BaseURL = baseURL
+		c.baseURL = baseURL
 	}
 }
 
@@ -69,8 +69,8 @@ func WithHTTPClient(httpClient *http.Client) Option {
 	}
 }
 
-// DNSRecord 表示 GoDaddy DNS 记录。
-type DNSRecord struct {
+// dnsRecord 表示 GoDaddy DNS 记录。
+type dnsRecord struct {
 	Data string `json:"data"`
 	Name string `json:"name,omitempty"`
 	Type string `json:"type,omitempty"`
@@ -92,13 +92,13 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		return fmt.Errorf("failed to get existing records: %w", err)
 	}
 
-	if slices.ContainsFunc(existingRecords, func(r DNSRecord) bool {
+	if slices.ContainsFunc(existingRecords, func(r dnsRecord) bool {
 		return r.Data == record.Value
 	}) {
 		return nil
 	}
 
-	newRecord := DNSRecord{
+	newRecord := dnsRecord{
 		Data: record.Value,
 		Type: record.Type,
 		Name: subDomain,
@@ -125,7 +125,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	}
 
 	// record.ID 在 GoDaddy 中用作旧记录值匹配（无独立记录 ID）。
-	i := slices.IndexFunc(existingRecords, func(r DNSRecord) bool {
+	i := slices.IndexFunc(existingRecords, func(r dnsRecord) bool {
 		return r.Data == record.ID
 	})
 	if i < 0 {
@@ -158,7 +158,7 @@ func (c *Client) deleteRecordsByValue(ctx context.Context, domain, subDomain, rt
 		return fmt.Errorf("failed to get existing records: %w", err)
 	}
 
-	newRecords := slices.DeleteFunc(slices.Clone(existingRecords), func(r DNSRecord) bool {
+	newRecords := slices.DeleteFunc(slices.Clone(existingRecords), func(r dnsRecord) bool {
 		return r.Data == value
 	})
 	if len(newRecords) == len(existingRecords) {
@@ -201,20 +201,20 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 }
 
 // getRecords 获取指定类型的记录。
-func (c *Client) getRecords(ctx context.Context, domain, subDomain, rtype string) ([]DNSRecord, error) {
+func (c *Client) getRecords(ctx context.Context, domain, subDomain, rtype string) ([]dnsRecord, error) {
 	// subDomain 为 "@" 时表示根域名，不传入 name 路径段以获取该域名下所有记录
-	url := fmt.Sprintf("%s/domains/%s/records/%s", c.BaseURL, domain, rtype)
+	url := fmt.Sprintf("%s/domains/%s/records/%s", c.baseURL, domain, rtype)
 	if subDomain != "@" {
 		url += "/" + subDomain
 	}
-	var records []DNSRecord
+	var records []dnsRecord
 	err := c.makeRequest(ctx, "GET", url, nil, &records)
 	return records, err
 }
 
 // updateRecords 更新指定子域名的记录集。
-func (c *Client) updateRecords(ctx context.Context, domain, subDomain, rtype string, records []DNSRecord) error {
-	url := fmt.Sprintf("%s/domains/%s/records/%s/%s", c.BaseURL, domain, rtype, subDomain)
+func (c *Client) updateRecords(ctx context.Context, domain, subDomain, rtype string, records []dnsRecord) error {
+	url := fmt.Sprintf("%s/domains/%s/records/%s/%s", c.baseURL, domain, rtype, subDomain)
 	body, err := json.Marshal(records)
 	if err != nil {
 		return err
@@ -224,7 +224,7 @@ func (c *Client) updateRecords(ctx context.Context, domain, subDomain, rtype str
 
 // deleteRecords 删除指定子域名的全部记录。
 func (c *Client) deleteRecords(ctx context.Context, domain, subDomain, rtype string) error {
-	url := fmt.Sprintf("%s/domains/%s/records/%s/%s", c.BaseURL, domain, rtype, subDomain)
+	url := fmt.Sprintf("%s/domains/%s/records/%s/%s", c.baseURL, domain, rtype, subDomain)
 	return c.makeRequest(ctx, "DELETE", url, nil, nil)
 }
 
@@ -241,7 +241,7 @@ func (c *Client) getRootDomain(ctx context.Context, domain, zoneHint string) (st
 		h := strings.Join(parts[i+1:], ".")
 		slog.Debug("probing GoDaddy root domain", "module", "godaddy", "domain", h)
 
-		_, err := c.getDomain(ctx, h)
+		err := c.getDomain(ctx, h)
 		if err == nil {
 			subDomain := strings.Join(parts[:i+1], ".")
 			slog.Info("GoDaddy root domain found", "module", "godaddy", "root", h, "subdomain", subDomain)
@@ -250,7 +250,7 @@ func (c *Client) getRootDomain(ctx context.Context, domain, zoneHint string) (st
 	}
 
 	// 兜底：完整域名即为根域名，使用 @ 表示 apex 记录
-	_, err := c.getDomain(ctx, domain)
+	err := c.getDomain(ctx, domain)
 	if err == nil {
 		return "@", domain, nil
 	}
@@ -259,11 +259,9 @@ func (c *Client) getRootDomain(ctx context.Context, domain, zoneHint string) (st
 }
 
 // getDomain 检查域名是否存在于 GoDaddy 账户。
-func (c *Client) getDomain(ctx context.Context, domain string) (map[string]any, error) {
-	url := fmt.Sprintf("%s/domains/%s", c.BaseURL, domain)
-	var result map[string]any
-	err := c.makeRequest(ctx, "GET", url, nil, &result)
-	return result, err
+func (c *Client) getDomain(ctx context.Context, domain string) error {
+	url := fmt.Sprintf("%s/domains/%s", c.baseURL, domain)
+	return c.makeRequest(ctx, "GET", url, nil, nil)
 }
 
 // makeRequest 向 GoDaddy API 发送 HTTP 请求。

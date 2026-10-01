@@ -20,7 +20,7 @@ func TestClient_GetRecords(t *testing.T) {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
 		json.NewEncoder(w).Encode(baiduListResponse{
-			Result: []DNSRecord{
+			Result: []dnsRecord{
 				{RecordID: "rec1", Domain: "www", RDType: "AAAA", RData: "2001:db8::1", TTL: 300, View: "default", ZoneName: "example.com"},
 			},
 			TotalCount: 1,
@@ -66,7 +66,7 @@ func TestClient_ModifyRecord(t *testing.T) {
 		if strings.HasSuffix(r.URL.Path, "/v1/domain/resolve/list") {
 			listCalled = true
 			json.NewEncoder(w).Encode(baiduListResponse{
-				Result: []DNSRecord{
+				Result: []dnsRecord{
 					{RecordID: "rec1", Domain: "www", RDType: "AAAA", RData: "2001:db8::2", TTL: 300, View: "default", ZoneName: "example.com"},
 				},
 				TotalCount: 1,

@@ -3,7 +3,7 @@
 // 认证方式：API Token（Bearer Token）。
 // 必填参数：--token
 //
-// 使用 RESTful JSON API，支持 Zone 自动发现与完整 CRUD 操作。
+// 使用 RESTful JSON API，支持 zone 自动发现与完整 CRUD 操作。
 package dynv6
 
 import (
@@ -67,16 +67,16 @@ func WithHTTPClient(httpClient *http.Client) Option {
 	}
 }
 
-// Zone Dynv6 区域信息。
-type Zone struct {
+// zone Dynv6 区域信息。
+type zone struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	IPv4 string `json:"ipv4address"`
 	IPv6 string `json:"ipv6address"`
 }
 
-// Record Dynv6 DNS 记录。
-type Record struct {
+// dnsRecord Dynv6 DNS 记录。
+type dnsRecord struct {
 	ID   string `json:"id"`
 	Type string `json:"type"`
 	Name string `json:"name"`
@@ -91,12 +91,12 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		return fmt.Errorf("failed to resolve zone: %w", err)
 	}
 
-	// 主域名（无子域名）直接更新 Zone 的 IPv6 地址
+	// 主域名（无子域名）直接更新 zone 的 IPv6 地址
 	if subDomain == "" || subDomain == "@" {
 		return c.updateZoneIP(ctx, zoneID, record.Value)
 	}
 
-	dnsRec := Record{
+	dnsRec := dnsRecord{
 		Type: record.Type,
 		Name: subDomain,
 		Data: record.Value,
@@ -141,7 +141,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 		return fmt.Errorf("failed to resolve zone: %w", err)
 	}
 
-	dnsRec := Record{
+	dnsRec := dnsRecord{
 		Type: record.Type,
 		Data: record.Value,
 		TTL:  ddns.RecordTTL(record.TTL),
@@ -220,7 +220,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		return nil, fmt.Errorf("failed to resolve zone: %w", err)
 	}
 
-	// 主域名：读取 Zone 的 IPv6 地址
+	// 主域名：读取 zone 的 IPv6 地址
 	if subDomain == "" || subDomain == "@" {
 		zone, err := c.getZone(ctx, zoneID)
 		if err != nil {
@@ -256,7 +256,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		return nil, fmt.Errorf("dynv6 api error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
-	var records []Record
+	var records []dnsRecord
 	if err := json.NewDecoder(httputil.LimitBody(resp.Body)).Decode(&records); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
@@ -277,7 +277,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return result, nil
 }
 
-// resolveZone 解析域名对应的 Zone ID 和子域名。
+// resolveZone 解析域名对应的 zone ID 和子域名。
 // 有 zoneHint 时优先按缓存/精确名匹配，避免重复 list zones。
 func (c *Client) resolveZone(ctx context.Context, domain, zoneHint string) (string, string, error) {
 	root, sub := domainutil.SplitDomain(domain, zoneHint)
@@ -289,8 +289,10 @@ func (c *Client) resolveZone(ctx context.Context, domain, zoneHint string) (stri
 		sub = ""
 	}
 
-	if id, ok := c.zoneCache.Load(root); ok {
-		return id.(string), sub, nil
+	if v, ok := c.zoneCache.Load(root); ok {
+		if id, ok := v.(string); ok {
+			return id, sub, nil
+		}
 	}
 
 	url := c.baseURL + "/api/v2/zones"
@@ -310,7 +312,7 @@ func (c *Client) resolveZone(ctx context.Context, domain, zoneHint string) (stri
 		return "", "", fmt.Errorf("failed to list zones, status: %d", resp.StatusCode)
 	}
 
-	var zones []Zone
+	var zones []zone
 	if err := json.NewDecoder(httputil.LimitBody(resp.Body)).Decode(&zones); err != nil {
 		return "", "", fmt.Errorf("failed to decode zones: %w", err)
 	}
@@ -319,29 +321,35 @@ func (c *Client) resolveZone(ctx context.Context, domain, zoneHint string) (stri
 	for _, z := range zones {
 		c.zoneCache.Store(z.Name, z.ID)
 	}
-	if id, ok := c.zoneCache.Load(root); ok {
-		slog.Debug("resolved Dynv6 zone", "module", "dynv6", "zone", root, "zone_id", id, "subdomain", sub)
-		return id.(string), sub, nil
+	if v, ok := c.zoneCache.Load(root); ok {
+		if id, ok := v.(string); ok {
+			slog.Debug("resolved Dynv6 zone", "module", "dynv6", "zone", root, "zone_id", id, "subdomain", sub)
+			return id, sub, nil
+		}
 	}
 
 	parts := strings.Split(domain, ".")
 	for i := range len(parts) {
 		zoneName := strings.Join(parts[i:], ".")
-		if id, ok := c.zoneCache.Load(zoneName); ok {
+		if v, ok := c.zoneCache.Load(zoneName); ok {
+			id, ok := v.(string)
+			if !ok {
+				continue
+			}
 			subDomain := ""
 			if i > 0 {
 				subDomain = strings.Join(parts[:i], ".")
 			}
 			slog.Debug("resolved Dynv6 zone", "module", "dynv6", "zone", zoneName, "zone_id", id, "subdomain", subDomain)
-			return id.(string), subDomain, nil
+			return id, subDomain, nil
 		}
 	}
 
 	return "", "", fmt.Errorf("zone not found for domain %s", domain)
 }
 
-// getZone 获取单个 Zone 详情。
-func (c *Client) getZone(ctx context.Context, zoneID string) (*Zone, error) {
+// getZone 获取单个 zone 详情。
+func (c *Client) getZone(ctx context.Context, zoneID string) (*zone, error) {
 	url := fmt.Sprintf("%s/api/v2/zones/%s", c.baseURL, zoneID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -359,14 +367,14 @@ func (c *Client) getZone(ctx context.Context, zoneID string) (*Zone, error) {
 		return nil, fmt.Errorf("failed to get zone, status: %d", resp.StatusCode)
 	}
 
-	var zone Zone
+	var zone zone
 	if err := json.NewDecoder(httputil.LimitBody(resp.Body)).Decode(&zone); err != nil {
 		return nil, fmt.Errorf("failed to decode zone response: %w", err)
 	}
 	return &zone, nil
 }
 
-// updateZoneIP 更新 Zone 的 IPv6 地址（用于主域名）。
+// updateZoneIP 更新 zone 的 IPv6 地址（用于主域名）。
 func (c *Client) updateZoneIP(ctx context.Context, zoneID, ipv6 string) error {
 	payload := map[string]string{"ipv6address": ipv6}
 	body, err := json.Marshal(payload)

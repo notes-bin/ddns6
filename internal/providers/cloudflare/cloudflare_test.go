@@ -92,16 +92,16 @@ func TestGetRecords(t *testing.T) {
 	}
 }
 
-// TestGetDomainRecord 验证 GetDomainRecord 单条查询。
+// TestGetDomainRecord 验证 getDomainRecord 单条查询。
 func TestGetDomainRecord(t *testing.T) {
 	ts := newCloudflareTestServer(t)
 	defer ts.Close()
 
 	client := NewClient(WithAPIToken("test-token"), WithBaseURL(ts.URL))
 
-	record, err := client.GetDomainRecord(t.Context(), "test.example.com", "123456")
+	record, err := client.getDomainRecord(t.Context(), "test.example.com", "123456")
 	if err != nil {
-		t.Fatalf("GetDomainRecord failed: %v", err)
+		t.Fatalf("getDomainRecord failed: %v", err)
 	}
 
 	if record.ID != "123456" {
