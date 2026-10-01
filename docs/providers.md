@@ -14,7 +14,7 @@
 
 ## 对照表
 
-共 23 家运营商，与 `cmd/providers.go` 中 `providerFactories` 一致。
+共 23 家运营商，与 `internal/cli/providers.go` 中 `providerFactories` 一致。
 
 | 运营商 | CLI 名称 | 必填参数 | 配置文件字段 (`auth`) | records/clean | 说明 |
 |--------|---------|---------|----------------------|---------------|------|

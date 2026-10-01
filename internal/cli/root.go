@@ -1,4 +1,4 @@
-// Package cmd 实现 ddns6 的 CLI 命令树与运营商注册。
+// Package cli 实现 ddns6 的 CLI 命令树与运营商注册。
 //
 // 对外入口为 Execute。子命令覆盖配置初始化、连通性检查、DDNS 运行、记录查询/删除，
 // 以及 23 家 DNS 运营商的认证参数工厂（见 providers.go）。
@@ -43,7 +43,7 @@
 //   - 临时运行: ddns6 run tencent --domain example.com --subdomain www --secret-id xxx --secret-key yyy
 //   - 长期运行: ddns6 init tencent --domain example.com --secret-id xxx --secret-key yyy -> ddns6 run
 //   - 查看帮助: ddns6 run tencent --help
-package cmd
+package cli
 
 import (
 	"context"

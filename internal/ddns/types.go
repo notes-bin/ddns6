@@ -19,7 +19,7 @@
 //	p := tencent.NewClient("your-secret-id", "your-secret-key")
 //	err := ddns.RunService(domains, p, 5*time.Minute, ddns.DefaultIPv6Fetchers(), "", "")
 //
-// 新增运营商需实现 DNSProvider（4 个方法），并在 cmd/providers.go 注册。
+// 新增运营商需实现 DNSProvider（4 个方法），并在 internal/cli/providers.go 注册。
 package ddns
 
 import (
@@ -66,7 +66,7 @@ func (r RecordInfo) ValueFromID() string {
 
 // DNSProvider 定义 DNS 服务商的记录增删改查接口。
 //
-// 新增运营商需实现全部 4 个方法，并在 cmd/providers.go 的 providerFactories 中注册。
+// 新增运营商需实现全部 4 个方法，并在 internal/cli/providers.go 的 providerFactories 中注册。
 //
 // 并发安全：同一 Client 可能被 syncAllDomains / clean 等路径并发调用，
 // 实现须对共享可变状态（缓存、RMW 写路径、token）自行同步。

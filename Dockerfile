@@ -23,10 +23,10 @@ ARG BUILD_TIME=unknown
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -trimpath \
     -ldflags "-s -w \
-      -X github.com/notes-bin/ddns6/cmd.Version=${VERSION} \
-      -X github.com/notes-bin/ddns6/cmd.Commit=${COMMIT} \
-      -X github.com/notes-bin/ddns6/cmd.buildAt=${BUILD_TIME}" \
-    -o /out/ddns6 .
+      -X github.com/notes-bin/ddns6/internal/cli.Version=${VERSION} \
+      -X github.com/notes-bin/ddns6/internal/cli.Commit=${COMMIT} \
+      -X github.com/notes-bin/ddns6/internal/cli.buildAt=${BUILD_TIME}" \
+    -o /out/ddns6 ./cmd/ddns6
 
 # ---------- 运行阶段 ----------
 # 固定 alpine 小版本，避免 :latest 漂移

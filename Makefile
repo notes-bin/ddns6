@@ -4,7 +4,7 @@ BIN_DIR=bin
 DIST_DIR=dist
 VERSION=$(shell git describe --tags --always --dirty)
 BUILD_TIME=$(shell date +%Y-%m-%dT%H:%M:%S%z)
-BUILD_FLAGS=-ldflags "-X github.com/notes-bin/ddns6/cmd.Version=$(VERSION) -X github.com/notes-bin/ddns6/cmd.Commit=$(shell git rev-parse HEAD) -X github.com/notes-bin/ddns6/cmd.buildAt=$(BUILD_TIME)"
+BUILD_FLAGS=-ldflags "-X github.com/notes-bin/ddns6/internal/cli.Version=$(VERSION) -X github.com/notes-bin/ddns6/internal/cli.Commit=$(shell git rev-parse HEAD) -X github.com/notes-bin/ddns6/internal/cli.buildAt=$(BUILD_TIME)"
 GO=go
 # COPYFILE_DISABLE=1 阻止 macOS 将 AppleDouble (._*) 与扩展属性写入归档
 TAR=COPYFILE_DISABLE=1 tar
@@ -14,11 +14,11 @@ all: build
 
 # 构建二进制文件到 bin/ 目录
 build: $(BIN_DIR)
-	$(GO) build $(BUILD_FLAGS) -o $(BIN_DIR)/$(BINARY_NAME) .
+	$(GO) build $(BUILD_FLAGS) -o $(BIN_DIR)/$(BINARY_NAME) ./cmd/ddns6
 
 # 安装到系统路径
 install:
-	$(GO) install $(BUILD_FLAGS) .
+	$(GO) install $(BUILD_FLAGS) ./cmd/ddns6
 
 # 运行程序（编译后运行）
 run: build
@@ -40,9 +40,9 @@ clean:
 
 # 交叉编译
 cross-build: $(BIN_DIR)
-	GOOS=linux GOARCH=amd64 $(GO) build $(BUILD_FLAGS) -o $(BIN_DIR)/$(BINARY_NAME)_linux_amd64 .
-	GOOS=darwin GOARCH=amd64 $(GO) build $(BUILD_FLAGS) -o $(BIN_DIR)/$(BINARY_NAME)_darwin_amd64 .
-	GOOS=darwin GOARCH=arm64 $(GO) build $(BUILD_FLAGS) -o $(BIN_DIR)/$(BINARY_NAME)_darwin_arm64 .
+	GOOS=linux GOARCH=amd64 $(GO) build $(BUILD_FLAGS) -o $(BIN_DIR)/$(BINARY_NAME)_linux_amd64 ./cmd/ddns6
+	GOOS=darwin GOARCH=amd64 $(GO) build $(BUILD_FLAGS) -o $(BIN_DIR)/$(BINARY_NAME)_darwin_amd64 ./cmd/ddns6
+	GOOS=darwin GOARCH=arm64 $(GO) build $(BUILD_FLAGS) -o $(BIN_DIR)/$(BINARY_NAME)_darwin_arm64 ./cmd/ddns6
 
 # 打包单个平台：二进制 + LICENSE + README → dist/
 # 用法: $(call pack-release,linux_amd64)

@@ -32,7 +32,7 @@
 ```bash
 git clone https://github.com/notes-bin/ddns6.git
 cd ddns6
-go build -o ddns6 .
+go build -o ddns6 ./cmd/ddns6
 # 或
 make build          # 输出 bin/ddns6
 sudo make install   # 安装到 GOPATH/bin
