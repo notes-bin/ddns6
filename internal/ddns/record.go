@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"slices"
 )
 
 // SyncRecord 将 DNS 记录同步为当前 IPv6 地址。
@@ -119,6 +120,5 @@ func applyDNSRecords(ctx context.Context, d *Domain, p DNSProvider, addr net.IP,
 func copyAddrToDomain(d *Domain, addr net.IP) {
 	d.lock()
 	defer d.unlock()
-	d.addr = make(net.IP, len(addr))
-	copy(d.addr, addr)
+	d.addr = slices.Clone(addr)
 }
