@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -43,7 +44,7 @@ func NewClient(token string, options ...Option) *Client {
 	c := &Client{
 		token:      token,
 		baseURL:    defaultBaseURL,
-		httpClient: &http.Client{Timeout: 10 * time.Second},
+		httpClient: httputil.NewHTTPClient(10 * time.Second),
 	}
 	for _, opt := range options {
 		opt(c)
@@ -92,7 +93,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		return fmt.Errorf("failed to marshal record: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/domains/%s/records", c.baseURL, domain)
+	url := fmt.Sprintf("%s/domains/%s/records", c.baseURL, url.PathEscape(domain))
 	slog.Debug("adding DigitalOcean DNS record", "module", "digitalocean", "domain", domain, "type", record.Type)
 
 	_, err = c.doRequest(ctx, http.MethodPost, url, body)
@@ -119,7 +120,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 		return fmt.Errorf("failed to marshal record: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/domains/%s/records/%s", c.baseURL, domain, record.ID)
+	url := fmt.Sprintf("%s/domains/%s/records/%s", c.baseURL, url.PathEscape(domain), url.PathEscape(record.ID))
 	slog.Debug("modifying DigitalOcean DNS record", "module", "digitalocean", "domain", domain, "record_id", record.ID)
 
 	_, err = c.doRequest(ctx, http.MethodPut, url, body)
@@ -135,7 +136,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
 	domain, _ := domainutil.SplitDomain(record.Name, record.Zone)
 
-	url := fmt.Sprintf("%s/domains/%s/records/%s", c.baseURL, domain, record.ID)
+	url := fmt.Sprintf("%s/domains/%s/records/%s", c.baseURL, url.PathEscape(domain), url.PathEscape(record.ID))
 	slog.Debug("deleting DigitalOcean DNS record", "module", "digitalocean", "domain", domain, "record_id", record.ID)
 
 	_, err := c.doRequest(ctx, http.MethodDelete, url, nil)
@@ -151,7 +152,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	domain, _ := domainutil.SplitDomain(fulldomain, "")
 
-	url := fmt.Sprintf("%s/domains/%s/records?per_page=200", c.baseURL, domain)
+	url := fmt.Sprintf("%s/domains/%s/records?per_page=200", c.baseURL, url.PathEscape(domain))
 	slog.Debug("querying DigitalOcean DNS records", "module", "digitalocean", "domain", domain, "type", recordType)
 
 	respBody, err := c.doRequest(ctx, http.MethodGet, url, nil)

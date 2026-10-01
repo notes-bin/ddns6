@@ -43,7 +43,7 @@ func NewClient(apiKey string, options ...Option) *Client {
 	c := &Client{
 		apiKey:     apiKey,
 		baseURL:    defaultBaseURL,
-		httpClient: &http.Client{Timeout: 15 * time.Second},
+		httpClient: httputil.NewHTTPClient(15 * time.Second),
 	}
 	for _, opt := range options {
 		opt(c)
@@ -214,7 +214,11 @@ func (c *Client) findDomainID(ctx context.Context, fulldomain string) (int, stri
 	parts := strings.Split(strings.TrimSuffix(fulldomain, "."), ".")
 	for i := range len(parts) - 1 {
 		candidate := strings.Join(parts[i+1:], ".")
-		filter := url.QueryEscape(fmt.Sprintf(`{"domain":"%s"}`, candidate))
+		filterBytes, err := json.Marshal(map[string]string{"domain": candidate})
+		if err != nil {
+			return 0, "", fmt.Errorf("failed to marshal linode filter: %w", err)
+		}
+		filter := url.QueryEscape(string(filterBytes))
 		body, err := c.doRequestWithFilter(ctx, filter)
 		if err != nil {
 			return 0, "", err
