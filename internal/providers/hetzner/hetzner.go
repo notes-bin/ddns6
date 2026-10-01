@@ -1,7 +1,8 @@
 // Package hetzner 实现 Hetzner Cloud DNS API 服务。
 //
-// 认证方式：API Token（需具有 DNS 权限）。
-// 必填参数：--token
+// 认证方式：API Token（需 DNS 权限）。
+// 必填参数：--token。
+// zone 探测使用 domainutil.ZoneCandidates；路径段经 url.PathEscape 转义。
 //
 // API 文档：https://dns.hetzner.com/api-docs
 package hetzner
@@ -28,6 +29,7 @@ import (
 // 编译期断言：Client 实现 ddns.DNSProvider。
 var _ ddns.DNSProvider = (*Client)(nil)
 
+// defaultBaseURL 为 Hetzner Cloud DNS API 基址。
 const defaultBaseURL = "https://api.hetzner.cloud/v1"
 
 // Client Hetzner Cloud DNS API 客户端。
@@ -42,6 +44,7 @@ type Client struct {
 type Option func(*Client)
 
 // NewClient 创建 Hetzner DNS 客户端。
+// 默认使用 httputil.NewHTTPClient（超时 + 同主机重定向限制）。
 func NewClient(token string, options ...Option) *Client {
 	c := &Client{
 		token:      token,
@@ -265,6 +268,7 @@ type httpStatusError struct {
 	body   string
 }
 
+// Error 返回含状态码与响应正文的错误描述。
 func (e *httpStatusError) Error() string {
 	return fmt.Sprintf("Hetzner API error: status %d, body: %s", e.status, e.body)
 }
@@ -276,6 +280,7 @@ func isNotFound(err error) bool {
 }
 
 // findZone 查找 fulldomain 对应的 Hetzner zone。
+// 按 domainutil.ZoneCandidates 从长到短探测；命中路径经 url.PathEscape。
 // preferredRoot 非空时优先按该根域名直查并缓存，避免后缀探测。
 func (c *Client) findZone(ctx context.Context, fulldomain, preferredRoot string) (int64, string, error) {
 	if preferredRoot != "" {

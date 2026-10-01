@@ -1,10 +1,12 @@
 // Package tencent 实现腾讯云 DNSPod API v3 服务。
 //
-// 认证方式：SecretID + SecretKey（从腾讯云 CAM 获取）。
-// 必填参数：--secret-id、--secret-key。
+// 认证方式：SecretID + SecretKey（TC3-HMAC-SHA256 签名）。
+// 必填参数：--secret-id、--secret-key
 //
-// 使用 Tencent Cloud API v3（2021-03-23），
-// 与 internal/providers/dnspod（DNSPod 旧版 API）不同。
+// 与 internal/providers/dnspod（DNSPod 旧版 Token API）不同。
+// 根域解析：有 zoneHint 直接拆分；否则优先 DescribeDomainList，失败再逐级探测。
+// GetRecords：sub 为 "@" 时返回整区列表，否则按子域过滤；无 URL PathEscape（JSON POST）。
+// 默认基于 httputil.NewHTTPClient，并自定义 Transport（保留 SameHostRedirect）。
 package tencent
 
 import (
@@ -113,7 +115,7 @@ type DNSPod struct {
 // Option 客户端配置选项。
 type Option func(*DNSPod)
 
-// NewClient 创建腾讯云 DNS 客户端。
+// NewClient 创建腾讯云 DNSPod v3 客户端（httputil.NewHTTPClient + 自定义 Transport）。
 func NewClient(secretID, secretKey string, options ...Option) *DNSPod {
 	client := &DNSPod{
 		secretID:  secretID,
@@ -138,7 +140,7 @@ func NewClient(secretID, secretKey string, options ...Option) *DNSPod {
 	return client
 }
 
-// WithBaseURL 设置自定义 API 地址。
+// WithBaseURL 设置自定义 API 地址（测试用）。
 func WithBaseURL(url string) Option {
 	return func(ds *DNSPod) {
 		ds.apiURL = strings.TrimSuffix(url, "/")
@@ -313,7 +315,9 @@ func (ds *DNSPod) DeleteRecord(ctx context.Context, record ddns.RecordInfo) erro
 	return err
 }
 
-// GetRecords 查询 DNS 记录，返回通用 RecordInfo 列表。
+// GetRecords 查询 DNS 记录。
+// getRootDomain 解析后 DescribeRecordList：sub 为 "@" 返回整区，否则按子域过滤；
+// Name 拼成 FQDN，便于后续 DeleteRecord 再拆根域。
 func (ds *DNSPod) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	domain, subDomain, err := ds.getRootDomain(ctx, fulldomain, "")
 	if err != nil {
@@ -330,8 +334,7 @@ func (ds *DNSPod) GetRecords(ctx context.Context, fulldomain, recordType string)
 			continue
 		}
 
-		// 构建完整记录名（含根域名），而非仅 API 返回的标签。
-		// 这样 DeleteRecord 等后续操作能正确提取根域名。
+		// 拼成含根域的完整 Name，供后续 DeleteRecord / getRootDomain 使用
 		recordName := domain
 		if r.SubDomain != "@" && r.SubDomain != "" {
 			recordName = r.SubDomain + "." + domain
@@ -374,14 +377,14 @@ func (ds *DNSPod) GetDomainRecord(ctx context.Context, fulldomain, recordID stri
 }
 
 // getRootDomain 从完整域名解析账户内根域名与子域名。
-// 有 zoneHint 时直接拆分，跳过 API；否则优先 DescribeDomainList，失败时回退逐级探测。
+// 有 zoneHint 时直接 SplitDomain，跳过 API；否则优先 DescribeDomainList，失败再逐级探测。
 func (ds *DNSPod) getRootDomain(ctx context.Context, domain, zoneHint string) (string, string, error) {
 	if zoneHint != "" {
 		root, sub := domainutil.SplitDomain(domain, zoneHint)
 		return root, sub, nil
 	}
 
-	// 优先列表匹配：比逐级探测更可靠，且可避免 DomainInvalid
+	// 优先账户域名列表匹配，避免无效 Domain 探测触发 DomainInvalid
 	domains, err := ds.getDomainList(ctx)
 	if err == nil {
 		for _, d := range domains {
@@ -425,7 +428,7 @@ func (ds *DNSPod) getRootDomain(ctx context.Context, domain, zoneHint string) (s
 	return "", "", fmt.Errorf("could not find root domain for %s", domain)
 }
 
-// describeRecords 查询域名下解析记录；subDomain 非 "@" 时按主机名过滤。
+// describeRecords 调用 DescribeRecordList；subDomain 非 "@" 时再按主机名本地过滤。
 func (ds *DNSPod) describeRecords(ctx context.Context, domain, subDomain string) ([]dnsRecord, error) {
 	slog.Debug("querying Tencent DNS records", "module", "tencent", "domain", domain, "subdomain", subDomain)
 
@@ -515,7 +518,7 @@ func (ds *DNSPod) makeRequest(ctx context.Context, action string, payload any, r
 	}
 	defer resp.Body.Close()
 
-	// 提前读完整 body，后续错误与成功路径共用，避免重复 ReadAll
+	// 先读完整 body，错误与成功路径共用，避免重复读取
 	bodyBytes, err := httputil.ReadBody(resp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to read response body: %w", err)

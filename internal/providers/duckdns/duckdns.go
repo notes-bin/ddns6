@@ -1,9 +1,9 @@
 // Package duckdns 实现 DuckDNS 免费 DDNS 服务。
 //
 // 认证方式：API Token（从 DuckDNS 控制台获取）。
-// 必填参数：--token
-//
-// 注意：仅支持 *.duckdns.org 域名；通过 HTTP GET 更新 IPv6 地址，无记录查询 API。
+// 必填参数：--token。
+// 仅支持 *.duckdns.org；经 HTTP GET 更新 IPv6；无记录列表 API（GetRecords 恒为空）。
+// 查询参数经 url.Values 编码，避免手工拼接注入。
 package duckdns
 
 import (
@@ -38,6 +38,7 @@ type Client struct {
 type Option func(*Client)
 
 // NewClient 创建 DuckDNS 客户端。
+// 默认使用 httputil.NewHTTPClient（超时 + 同主机重定向限制）。
 func NewClient(token string, options ...Option) *Client {
 	c := &Client{
 		token:      token,
@@ -91,7 +92,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return []ddns.RecordInfo{}, nil
 }
 
-// update 执行 DuckDNS 更新请求。
+// update 执行 DuckDNS 更新请求（domains/token/ipv6 经 url.Values 编码）。
 func (c *Client) update(ctx context.Context, domain, ip string) error {
 	// 从 fulldomain 中提取 DuckDNS 域名（去掉 .duckdns.org 后缀）
 	domainName, ok := strings.CutSuffix(domain, ".duckdns.org")

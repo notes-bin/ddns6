@@ -1,7 +1,8 @@
 // Package aws 实现 Amazon Route 53 DNS API 服务。
 //
-// 对应 acme.sh dns_aws。
-// 必填参数：--access-key-id、--secret-access-key
+// 对应 acme.sh dns_aws；使用 AWS SigV4 签名。
+// 必填参数：--access-key-id、--secret-access-key。
+// 可选参数：--session-token（STS/IAM Role 临时凭证）。
 //
 // API 文档：https://docs.aws.amazon.com/Route53/latest/APIReference/
 package aws
@@ -26,6 +27,7 @@ import (
 // 编译期断言：Client 实现 ddns.DNSProvider。
 var _ ddns.DNSProvider = (*Client)(nil)
 
+// defaultHost 为 Route 53 全球 API 主机名。
 const defaultHost = "route53.amazonaws.com"
 
 // Client Route 53 API 客户端。
@@ -42,6 +44,7 @@ type Client struct {
 type Option func(*Client)
 
 // NewClient 创建 Route 53 客户端。
+// 默认使用 httputil.NewHTTPClient（超时 + 同主机重定向限制）。
 func NewClient(accessKeyID, secretAccessKey string, options ...Option) *Client {
 	c := &Client{
 		accessKeyID:     accessKeyID,
@@ -192,6 +195,7 @@ func (c *Client) change(ctx context.Context, info ddns.RecordInfo, action string
 }
 
 // resolveRecord 解析 Hosted Zone 与 ResourceRecord 名称。
+// 无 zoneHint 时按 domainutil.ZoneCandidates 从长到短探测 Hosted Zone。
 func (c *Client) resolveRecord(ctx context.Context, fulldomain, zoneHint string) (zoneID, zoneName, rrName string, err error) {
 	candidates := domainutil.ZoneCandidates(fulldomain)
 	if zoneHint != "" {
@@ -275,6 +279,7 @@ type httpStatusError struct {
 	body   string
 }
 
+// Error 返回含状态码与响应正文的错误描述。
 func (e *httpStatusError) Error() string {
 	return fmt.Sprintf("Route53 API error: status %d, body: %s", e.status, httputil.TruncateForLog(e.body))
 }

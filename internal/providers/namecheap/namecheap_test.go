@@ -35,7 +35,7 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// TestClient_GetRecords 验证 getHosts 解析与记录映射。
+// TestClient_GetRecords 验证 getHosts 解析；子域过滤后仅返回匹配主机。
 func TestClient_GetRecords(t *testing.T) {
 	client := newTestClient(t, defaultHandler)
 	records, err := client.GetRecords(t.Context(), "www.example.com", "AAAA")

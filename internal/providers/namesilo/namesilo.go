@@ -1,7 +1,12 @@
 // Package namesilo 实现 NameSilo DNS API 服务。
 //
-// 认证方式：API Key。
+// 认证方式：API Key（查询参数 key）。
 // 必填参数：--api-key
+//
+// GetRecords / findZone：有 zoneHint 或缓存命中时跳过 listDomains；
+// 否则 listDomains 填充缓存后按 ZoneCandidates 后缀匹配。
+// 写操作直接用 record.Zone / SplitDomain，不经 PathEscape（动作名与参数走查询串）。
+// HTTP 客户端默认 httputil.NewHTTPClient（含 SameHostRedirect）。
 //
 // API 文档：https://www.namesilo.com/api-reference
 package namesilo
@@ -162,7 +167,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	return nil
 }
 
-// GetRecords 查询 DNS 记录。
+// GetRecords 查询 DNS 记录（列出 zone 下全部记录，可按类型过滤）。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	zone, _, err := c.findZone(ctx, fulldomain, "")
 	if err != nil {
@@ -209,8 +214,8 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return result, nil
 }
 
-// findZone 查找 fulldomain 对应的 NameSilo zone 与子名。
-// 有 zoneHint 或缓存命中时跳过 listDomains 后缀探测。
+// findZone 解析 fulldomain 对应的 NameSilo zone 与子名。
+// 有 zoneHint 或 zoneCache 命中时跳过 listDomains；否则拉域名列表再 ZoneCandidates 匹配。
 func (c *Client) findZone(ctx context.Context, fulldomain, zoneHint string) (zone, sub string, err error) {
 	root, sub := domainutil.SplitDomain(fulldomain, zoneHint)
 	if root == "" {
@@ -270,7 +275,7 @@ func (c *Client) get(ctx context.Context, action string, params url.Values) (*na
 	return &reply, nil
 }
 
-// fetch 执行 NameSilo HTTP GET 请求。
+// fetch 执行 NameSilo HTTP GET（动作名拼入路径，参数 Encode 为查询串）。
 func (c *Client) fetch(ctx context.Context, action string, params url.Values) ([]byte, error) {
 	endpoint := fmt.Sprintf("%s/%s?%s", c.baseURL, action, params.Encode())
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)

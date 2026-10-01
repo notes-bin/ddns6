@@ -1,9 +1,8 @@
 // Package godaddy 实现 GoDaddy DNS API 服务。
 //
-// 认证方式：API Key + API Secret（从 GoDaddy Developer Portal 获取）
-// 必填参数：--api-key, --api-secret
-//
-// 注意：GoDaddy API 为生产环境接口，调用频率有限制。
+// 认证方式：API Key + API Secret（Developer Portal）。
+// 必填参数：--api-key、--api-secret。
+// 生产环境有调用频率限制；写操作经互斥锁串行化；路径段经 url.PathEscape 转义。
 package godaddy
 
 import (
@@ -41,6 +40,7 @@ type Client struct {
 type Option func(*Client)
 
 // NewClient 创建 GoDaddy DNS 客户端。
+// 默认使用 httputil.NewHTTPClient（超时 + 同主机重定向限制）。
 func NewClient(apiKey, apiSecret string, options ...Option) *Client {
 	client := &Client{
 		apiKey:     apiKey,
@@ -175,7 +175,7 @@ func (c *Client) deleteRecordsByValue(ctx context.Context, domain, subDomain, rt
 	return c.updateRecords(ctx, domain, subDomain, rtype, newRecords)
 }
 
-// GetRecords 查询 DNS 记录。
+// GetRecords 查询 DNS 记录（按根域与子域名拉取指定类型记录集）。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	subDomain, domain, err := c.getRootDomain(ctx, fulldomain, "")
 	if err != nil {

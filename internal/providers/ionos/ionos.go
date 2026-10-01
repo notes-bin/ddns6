@@ -1,7 +1,11 @@
-// Package ionos 实现 IONOS DNS API 服务。
+// Package ionos 实现 IONOS Hosting DNS API 服务。
 //
-// 认证方式：API Key（由 prefix 与 secret 组成）。
+// 认证方式：X-API-Key（prefix.secret）。
 // 必填参数：--prefix、--secret
+//
+// Zone 解析走账户 zone 列表 + ZoneCandidates 后缀匹配；
+// URL 路径中的 zoneID / recordID 经 url.PathEscape 转义。
+// HTTP 客户端默认 httputil.NewHTTPClient（含 SameHostRedirect）。
 //
 // API 文档：https://developer.hosting.ionos.com/docs/dns
 package ionos
@@ -84,7 +88,7 @@ type record struct {
 	Disabled bool   `json:"disabled"`
 }
 
-// AddRecord 添加 DNS 记录。
+// AddRecord 添加 DNS 记录（POST /zones/{zoneID}/records，zoneID 经 PathEscape）。
 func (c *Client) AddRecord(ctx context.Context, info ddns.RecordInfo) error {
 	zoneID, fqdn, err := c.resolveZone(ctx, info.Name, info.Zone)
 	if err != nil {
@@ -112,7 +116,7 @@ func (c *Client) AddRecord(ctx context.Context, info ddns.RecordInfo) error {
 	return nil
 }
 
-// ModifyRecord 修改 DNS 记录。
+// ModifyRecord 修改 DNS 记录（PUT /zones/{zoneID}/records/{id}，路径段 PathEscape）。
 func (c *Client) ModifyRecord(ctx context.Context, info ddns.RecordInfo) error {
 	zoneID, fqdn, err := c.resolveZone(ctx, info.Name, info.Zone)
 	if err != nil {
@@ -135,7 +139,7 @@ func (c *Client) ModifyRecord(ctx context.Context, info ddns.RecordInfo) error {
 	return err
 }
 
-// DeleteRecord 删除 DNS 记录。
+// DeleteRecord 删除 DNS 记录（DELETE，zoneID 与 recordID 经 PathEscape）。
 func (c *Client) DeleteRecord(ctx context.Context, info ddns.RecordInfo) error {
 	zoneID, _, err := c.resolveZone(ctx, info.Name, info.Zone)
 	if err != nil {
@@ -145,7 +149,8 @@ func (c *Client) DeleteRecord(ctx context.Context, info ddns.RecordInfo) error {
 	return err
 }
 
-// GetRecords 查询 DNS 记录。
+// GetRecords 查询 DNS 记录（按 zone 整区列出；recordType 非空时再本地过滤）。
+// Zone 资源路径对 zoneID 使用 PathEscape。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	zoneID, zoneName, err := c.findZone(ctx, fulldomain)
 	if err != nil {
@@ -183,7 +188,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return result, nil
 }
 
-// resolveZone 解析 zone ID 与 FQDN。
+// resolveZone 结合 zoneHint 拆分域名，并解析 zone ID 与写入用 FQDN。
 func (c *Client) resolveZone(ctx context.Context, name, zoneHint string) (zoneID, fqdn string, err error) {
 	root, sub := domainutil.SplitDomain(name, zoneHint)
 	id, _, err := c.findZone(ctx, name)
@@ -197,7 +202,7 @@ func (c *Client) resolveZone(ctx context.Context, name, zoneHint string) (zoneID
 	return id, fqdn, nil
 }
 
-// findZone 查找 fulldomain 对应的 IONOS zone。
+// findZone 列出账户 zones，再按 ZoneCandidates 后缀探测匹配根域名。
 func (c *Client) findZone(ctx context.Context, fulldomain string) (zoneID, zoneName string, err error) {
 	body, err := c.doRequest(ctx, http.MethodGet, "/zones", nil)
 	if err != nil {
@@ -220,7 +225,7 @@ func (c *Client) findZone(ctx context.Context, fulldomain string) (zoneID, zoneN
 	return "", "", fmt.Errorf("ionos zone not found for %s", fulldomain)
 }
 
-// doRequest 执行 IONOS DNS HTTP 请求。
+// doRequest 执行 IONOS DNS HTTP 请求（X-API-Key = prefix.secret）。
 func (c *Client) doRequest(ctx context.Context, method, path string, body []byte) ([]byte, error) {
 	var req *http.Request
 	var err error

@@ -1,3 +1,4 @@
+// 本文件实现 Route 53 所用的 AWS Signature Version 4 签名。
 package aws
 
 import (
@@ -16,8 +17,8 @@ import (
 )
 
 const (
-	serviceName = "route53"
-	region      = "us-east-1"
+	serviceName = "route53"   // SigV4 服务名
+	region      = "us-east-1" // Route 53 签名区域（全球端点固定）
 )
 
 // signRequest 为 Route 53 API 请求附加 SigV4 认证头。

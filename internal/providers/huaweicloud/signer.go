@@ -71,7 +71,7 @@ func canonicalRequest(r *http.Request, signedHeaders []string) (string, error) {
 	), err
 }
 
-// canonicalURI 返回带尾斜杠的规范化 URI 路径。
+// canonicalURI 返回带尾斜杠的规范化 URI 路径（各段经 url.PathEscape）。
 func canonicalURI(r *http.Request) string {
 	var uri []string
 	for v := range strings.SplitSeq(r.URL.Path, "/") {

@@ -10,7 +10,7 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-// TestClient 表驱动验证 Client CRUD 与 findZone 解析。
+// TestClient 表驱动验证 Client CRUD、findZone 缓存/探测与错误路径。
 func TestClient(t *testing.T) {
 	const listDomainsOK = `<namesilo><reply><code>300</code><detail>success</detail><domains><domain>example.com</domain><domain>other.net</domain></domains></reply></namesilo>`
 	const listRecordsOK = `<namesilo><reply><code>300</code><detail>success</detail><resource_record><record_id>1</record_id><type>AAAA</type><host>www</host><value>2001:db8::1</value><ttl>600</ttl></resource_record></reply></namesilo>`

@@ -1,9 +1,11 @@
-// Package noip 实现 No-IP 免费 DDNS 服务。
+// Package noip 实现 No-IP 免费 DDNS 更新接口。
 //
 // 认证方式：HTTP Basic Auth（用户名 + 密码）。
 // 必填参数：--username、--password
 //
-// 注意：经典 DDNS 更新接口，仅支持 GET 更新，无记录查询与删除 API。
+// 经典 DynDNS 风格：仅 GET /nic/update；无 zone 列表、无 PathEscape 路径段、
+// GetRecords 恒为空、DeleteRecord 为有意空操作（no-op）。
+// HTTP 客户端默认 httputil.NewHTTPClient（含 SameHostRedirect）。
 package noip
 
 import (
@@ -88,7 +90,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 }
 
 // GetRecords 查询 DNS 记录。
-// No-IP 不提供记录查询 API，返回空列表。
+// No-IP 不提供查询 API，恒返回空列表（编排层视为“无现有记录”）。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	slog.Debug("No-IP does not support querying records, returning empty list",
 		"module", "noip",
@@ -96,7 +98,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return []ddns.RecordInfo{}, nil
 }
 
-// update 执行 No-IP DDNS 更新请求。
+// update 执行 No-IP DDNS 更新（hostname/myip 走 url.Values 查询串）。
 func (c *Client) update(ctx context.Context, hostname, ip string) error {
 	q := url.Values{}
 	q.Set("hostname", hostname)
@@ -128,7 +130,7 @@ func (c *Client) update(ctx context.Context, hostname, ip string) error {
 
 	response := strings.TrimSpace(string(body))
 
-	// 解析 No-IP DDNS 响应码
+	// 按 No-IP 文本响应码分支：good/nochg 成功，其余映射为错误
 	switch {
 	case strings.HasPrefix(response, "good"):
 		slog.Info("No-IP record updated successfully", "module", "noip", "hostname", hostname, "ipv6", ip)

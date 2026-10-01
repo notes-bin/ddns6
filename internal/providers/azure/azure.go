@@ -1,7 +1,8 @@
 // Package azure 实现 Azure DNS API 服务。
 //
-// 对应 acme.sh dns_azure，使用 Service Principal 认证。
-// 必填参数：--subscription-id、--tenant-id、--client-id、--client-secret
+// 对应 acme.sh dns_azure，使用 Service Principal（客户端凭据）认证。
+// 必填参数：--subscription-id、--tenant-id、--client-id、--client-secret。
+// 路径段经 url.PathEscape 转义；zone 探测使用 domainutil.ZoneCandidates。
 package azure
 
 import (
@@ -50,6 +51,7 @@ type Client struct {
 type Option func(*Client)
 
 // NewClient 创建 Azure DNS 客户端。
+// 默认使用 httputil.NewHTTPClient（超时 + 同主机重定向限制）。
 func NewClient(subscriptionID, tenantID, clientID, clientSecret string, options ...Option) *Client {
 	c := &Client{
 		subscriptionID: subscriptionID,
@@ -257,6 +259,7 @@ func extractResourceGroup(zoneID string) string {
 }
 
 // findZone 查找 fulldomain 对应的 DNS Zone。
+// 无 zoneHint 时按 domainutil.ZoneCandidates 从长到短匹配订阅内 zone。
 func (c *Client) findZone(ctx context.Context, fulldomain, zoneHint string) (zoneID, zoneName, sub string, err error) {
 	path := fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Network/dnsZones?api-version=%s", url.PathEscape(c.subscriptionID), apiVersion)
 	body, err := c.doJSON(ctx, http.MethodGet, path, nil)
@@ -377,11 +380,13 @@ func (c *Client) doJSON(ctx context.Context, method, path string, body []byte) (
 	return respBody, nil
 }
 
+// httpStatusError 表示 Azure DNS API 返回的非 2xx 响应。
 type httpStatusError struct {
 	status int
 	body   string
 }
 
+// Error 返回含状态码与响应正文的错误描述。
 func (e *httpStatusError) Error() string {
 	return fmt.Sprintf("Azure DNS API error: status %d, body: %s", e.status, e.body)
 }
