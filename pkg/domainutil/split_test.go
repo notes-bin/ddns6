@@ -61,3 +61,36 @@ func FuzzSplitDomain(f *testing.F) {
 		}
 	})
 }
+
+// TestZoneCandidates 覆盖空输入、单段、apex、子域与多部分 TLD 候选列表。
+func TestZoneCandidates(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{name: "空", input: "", want: nil},
+		{name: "点", input: ".", want: nil},
+		{name: "单段", input: "localhost", want: []string{"localhost"}},
+		{name: "apex", input: "example.com", want: []string{"example.com"}},
+		{name: "www", input: "www.example.com", want: []string{"www.example.com", "example.com"}},
+		{name: "多层", input: "a.b.example.com", want: []string{"a.b.example.com", "b.example.com", "example.com"}},
+		{name: "co_uk", input: "www.example.co.uk", want: []string{"www.example.co.uk", "example.co.uk", "co.uk"}},
+		{name: "尾点", input: "www.example.com.", want: []string{"www.example.com", "example.com"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := ZoneCandidates(tt.input)
+			if len(got) != len(tt.want) {
+				t.Fatalf("ZoneCandidates(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Fatalf("ZoneCandidates(%q) = %v, want %v", tt.input, got, tt.want)
+				}
+			}
+		})
+	}
+}

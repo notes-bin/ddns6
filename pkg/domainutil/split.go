@@ -41,3 +41,23 @@ func SplitDomain(fulldomain, rootDomain string) (root, subDomain string) {
 	subDomain = strings.Join(parts[:len(parts)-2], ".")
 	return root, subDomain
 }
+
+// ZoneCandidates 返回用于 zone 查找的候选域名（含完整域名本身，不含纯 TLD）。
+//
+// 例如 ZoneCandidates("www.example.com") → ["www.example.com", "example.com"]
+// ZoneCandidates("example.com") → ["example.com"]
+func ZoneCandidates(fulldomain string) []string {
+	candidate := strings.ToLower(strings.TrimSuffix(fulldomain, "."))
+	if candidate == "" {
+		return nil
+	}
+	parts := strings.Split(candidate, ".")
+	if len(parts) < 2 {
+		return []string{candidate}
+	}
+	out := make([]string, 0, len(parts)-1)
+	for i := range len(parts) - 1 {
+		out = append(out, strings.Join(parts[i:], "."))
+	}
+	return out
+}
