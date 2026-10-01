@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 	"net"
-	"os"
 	"runtime"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -227,9 +225,10 @@ func (c *countingFetcher) Fetch(context.Context) (net.IP, error) {
 	return nil, errors.New("trigger fetch failed")
 }
 
-// TestRunService_GracefulShutdown 验证服务启动、轮询触发获取失败后收到 SIGTERM 可退出。
+// TestRunService_GracefulShutdown 验证服务启动、轮询触发获取失败后取消 context 可退出。
 //
-// 无进行中同步时收到信号应立即退出；有同步时最多等待约 5 秒。
+// 无进行中同步时取消应立即退出；有同步时最多等待约 5 秒。
+// 通过可取消 context 注入关机，避免向 go test 进程发送真实 SIGTERM。
 func TestRunService_GracefulShutdown(t *testing.T) {
 	domains := []*Domain{{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}}
 	m := &mockProvider{
@@ -239,20 +238,17 @@ func TestRunService_GracefulShutdown(t *testing.T) {
 	}
 	fetcher := &countingFetcher{ip: net.ParseIP("2001:db8::1")}
 
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- RunService(domains, m, 30*time.Millisecond, []ipaddr.IPv6Fetcher{fetcher}, "", "")
+		errCh <- runService(ctx, domains, m, 30*time.Millisecond, []ipaddr.IPv6Fetcher{fetcher}, "", "")
 	}()
 
-	// 等待至少一次轮询触发（覆盖 trigger 上获取失败分支）后再发信号
+	// 等待至少一次轮询触发（覆盖 trigger 上获取失败分支）后再取消
 	time.Sleep(120 * time.Millisecond)
-	p, err := os.FindProcess(os.Getpid())
-	if err != nil {
-		t.Fatalf("FindProcess: %v", err)
-	}
-	if err := p.Signal(syscall.SIGTERM); err != nil {
-		t.Fatalf("Signal SIGTERM: %v", err)
-	}
+	cancel()
 
 	select {
 	case err := <-errCh:
@@ -260,6 +256,6 @@ func TestRunService_GracefulShutdown(t *testing.T) {
 			t.Fatalf("优雅退出应返回 nil: %v", err)
 		}
 	case <-time.After(10 * time.Second):
-		t.Fatal("RunService 未在超时前退出")
+		t.Fatal("runService 未在超时前退出")
 	}
 }

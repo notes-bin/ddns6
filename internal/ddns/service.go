@@ -64,7 +64,11 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 	// 可取消 context：SIGINT/SIGTERM 时取消并传播到进行中的获取与同步
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	return runService(ctx, domains, p, interval, fetchers, iface, metricsAddr)
+}
 
+// runService 在给定 ctx 下运行主循环；测试可注入可取消 context，避免向进程发真实信号。
+func runService(ctx context.Context, domains []*Domain, p DNSProvider, interval time.Duration, fetchers []ipaddr.IPv6Fetcher, iface, metricsAddr string) error {
 	if metricsAddr != "" {
 		go func() {
 			if err := metrics.Serve(ctx, metricsAddr); err != nil {
