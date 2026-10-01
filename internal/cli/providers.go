@@ -1,4 +1,4 @@
-package cmd
+package cli
 
 // 本文件集中定义并注册 23 家 DNS 运营商工厂，供 run / records / clean / init 复用。
 //

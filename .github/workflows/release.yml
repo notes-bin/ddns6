@@ -65,10 +65,10 @@ jobs:
             go build \
             -trimpath \
             -ldflags "-s -w \
-              -X github.com/notes-bin/ddns6/cmd.Version=${{ github.ref_name }} \
-              -X github.com/notes-bin/ddns6/cmd.Commit=${{ github.sha }} \
-              -X github.com/notes-bin/ddns6/cmd.buildAt=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            -o "$BINARY" .
+              -X github.com/notes-bin/ddns6/internal/cli.Version=${{ github.ref_name }} \
+              -X github.com/notes-bin/ddns6/internal/cli.Commit=${{ github.sha }} \
+              -X github.com/notes-bin/ddns6/internal/cli.buildAt=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -o "$BINARY" ./cmd/ddns6
           tar -czf "${BINARY}.tar.gz" \
             "$BINARY" LICENSE README.md
 
