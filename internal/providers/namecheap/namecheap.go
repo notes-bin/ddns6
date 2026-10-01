@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
@@ -36,6 +37,7 @@ type Client struct {
 	clientIP   string
 	baseURL    string
 	httpClient *http.Client
+	mu         sync.Mutex // 保护 getHosts+setHosts 读写改写并发安全
 }
 
 // Option 客户端配置选项。
@@ -111,6 +113,10 @@ func (c *Client) DeleteRecord(ctx context.Context, info ddns.RecordInfo) error {
 	if err != nil {
 		return err
 	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	hosts, err := c.getHosts(ctx, sld, tld)
 	if err != nil {
 		return err
@@ -167,6 +173,10 @@ func (c *Client) upsert(ctx context.Context, info ddns.RecordInfo, replace bool)
 	if err != nil {
 		return err
 	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	hosts, err := c.getHosts(ctx, sld, tld)
 	if err != nil {
 		return err

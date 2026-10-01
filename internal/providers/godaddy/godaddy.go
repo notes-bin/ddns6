@@ -33,7 +33,7 @@ type Client struct {
 	APISecret  string
 	BaseURL    string
 	httpClient *http.Client
-	mu         sync.Mutex // 保护 deleteRecordsByValue 并发安全
+	mu         sync.Mutex // 保护记录 RMW（Add/Modify/Delete）并发安全
 }
 
 // Option 客户端配置选项。
@@ -84,6 +84,9 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		return fmt.Errorf("failed to get root domain: %w", err)
 	}
 
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	existingRecords, err := c.getRecords(ctx, domain, subDomain, record.Type)
 	if err != nil {
 		return fmt.Errorf("failed to get existing records: %w", err)
@@ -112,6 +115,9 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	if err != nil {
 		return fmt.Errorf("failed to get root domain: %w", err)
 	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	existingRecords, err := c.getRecords(ctx, domain, subDomain, record.Type)
 	if err != nil {
