@@ -113,7 +113,7 @@ func (c *Client) update(ctx context.Context, hostname, ip string) error {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		slog.Error("No-IP API request failed", "module", "noip", "hostname", hostname, "err", err)
+		slog.Debug("No-IP API request failed", "module", "noip", "hostname", hostname, "err", err)
 		return fmt.Errorf("no-ip request failed: %w", err)
 	}
 	defer resp.Body.Close()
@@ -142,7 +142,7 @@ func (c *Client) update(ctx context.Context, hostname, ip string) error {
 	case response == "!":
 		return fmt.Errorf("no-ip abuse detected: too many updates")
 	default:
-		slog.Error("No-IP API returned unexpected response",
+		slog.Debug("No-IP API returned unexpected response",
 			"module", "noip",
 			"hostname", hostname, "response", response)
 		return fmt.Errorf("no-ip update failed: %s", response)

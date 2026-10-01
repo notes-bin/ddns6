@@ -30,9 +30,9 @@ var _ ddns.DNSProvider = (*Client)(nil)
 
 // Client Cloudflare DNS API 客户端。
 type Client struct {
-	APIKey     string
-	Email      string
-	APIToken   string
+	apiKey     string
+	email      string
+	apiToken   string
 	AccountID  string
 	ZoneID     string
 	BaseURL    string
@@ -57,18 +57,18 @@ func NewClient(options ...Option) *Client {
 	return client
 }
 
-// WithAPIKey 设置 API Key 与 Email（旧版认证方式）。
+// WithAPIKey 设置 API Key 与 email（旧版认证方式）。
 func WithAPIKey(apiKey, email string) Option {
 	return func(c *Client) {
-		c.APIKey = apiKey
-		c.Email = email
+		c.apiKey = apiKey
+		c.email = email
 	}
 }
 
 // WithAPIToken 设置 API Token（推荐认证方式）。
 func WithAPIToken(apiToken string) Option {
 	return func(c *Client) {
-		c.APIToken = apiToken
+		c.apiToken = apiToken
 	}
 }
 
@@ -143,7 +143,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		Type:    record.Type,
 		Name:    record.Name,
 		Content: record.Value,
-		TTL:     record.TTL,
+		TTL:     ddns.RecordTTL(record.TTL),
 	}
 
 	_, err = c.createDNSRecord(ctx, zoneID, cfRecord)
@@ -163,7 +163,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 	}
 
 	cfRecord.Content = record.Value
-	cfRecord.TTL = record.TTL
+	cfRecord.TTL = ddns.RecordTTL(record.TTL)
 
 	_, err = c.updateDNSRecord(ctx, zoneID, cfRecord.ID, *cfRecord)
 	return err
@@ -269,11 +269,11 @@ func (c *Client) listRequest(ctx context.Context, reqURL string) ([]DNSRecord, *
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	if c.APIToken != "" {
-		req.Header.Set("Authorization", "Bearer "+c.APIToken)
+	if c.apiToken != "" {
+		req.Header.Set("Authorization", "Bearer "+c.apiToken)
 	} else {
-		req.Header.Set("X-Auth-Email", c.Email)
-		req.Header.Set("X-Auth-Key", c.APIKey)
+		req.Header.Set("X-Auth-Email", c.email)
+		req.Header.Set("X-Auth-Key", c.apiKey)
 	}
 
 	resp, err := c.httpClient.Do(req)
@@ -338,7 +338,7 @@ func (c *Client) updateDNSRecord(ctx context.Context, zoneID, recordID string, r
 	var result DNSRecord
 	err = c.makeRequest(ctx, "PUT", url, bytes.NewBuffer(body), &result)
 	if err != nil {
-		slog.Error("failed to update Cloudflare DNS record",
+		slog.Debug("failed to update Cloudflare DNS record",
 			"module", "cloudflare",
 			"record_id", recordID, "err", err)
 	}
@@ -453,7 +453,7 @@ func (c *Client) createDNSRecord(ctx context.Context, zoneID string, record DNSR
 	var result DNSRecord
 	err = c.makeRequest(ctx, "POST", url, bytes.NewBuffer(body), &result)
 	if err != nil {
-		slog.Error("failed to create Cloudflare DNS record",
+		slog.Debug("failed to create Cloudflare DNS record",
 			"module", "cloudflare",
 			"type", record.Type, "name", record.Name, "err", err)
 	}
@@ -467,7 +467,7 @@ func (c *Client) deleteDNSRecord(ctx context.Context, zoneID, recordID string) e
 	url := fmt.Sprintf("%s/zones/%s/dns_records/%s", c.BaseURL, zoneID, recordID)
 	err := c.makeRequest(ctx, "DELETE", url, nil, nil)
 	if err != nil {
-		slog.Error("failed to delete Cloudflare DNS record", "module", "cloudflare", "record_id", recordID, "err", err)
+		slog.Debug("failed to delete Cloudflare DNS record", "module", "cloudflare", "record_id", recordID, "err", err)
 	}
 	return err
 }
@@ -482,16 +482,16 @@ func (c *Client) makeRequest(ctx context.Context, method, url string, body io.Re
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	if c.APIToken != "" {
-		req.Header.Set("Authorization", "Bearer "+c.APIToken)
+	if c.apiToken != "" {
+		req.Header.Set("Authorization", "Bearer "+c.apiToken)
 	} else {
-		req.Header.Set("X-Auth-Email", c.Email)
-		req.Header.Set("X-Auth-Key", c.APIKey)
+		req.Header.Set("X-Auth-Email", c.email)
+		req.Header.Set("X-Auth-Key", c.apiKey)
 	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		slog.Error("Cloudflare API request failed", "module", "cloudflare", "method", method, "url", url, "err", err)
+		slog.Debug("Cloudflare API request failed", "module", "cloudflare", "method", method, "url", url, "err", err)
 		return err
 	}
 	defer resp.Body.Close()
@@ -502,7 +502,7 @@ func (c *Client) makeRequest(ctx context.Context, method, url string, body io.Re
 		var apiResp APIResponse
 		if err := json.NewDecoder(httputil.LimitBody(resp.Body)).Decode(&apiResp); err == nil {
 			if len(apiResp.Errors) > 0 {
-				slog.Error("Cloudflare API returned error",
+				slog.Debug("Cloudflare API returned error",
 					"module", "cloudflare",
 					"method", method, "status", resp.StatusCode,
 					"code", apiResp.Errors[0].Code,
@@ -522,7 +522,7 @@ func (c *Client) makeRequest(ctx context.Context, method, url string, body io.Re
 
 		if !apiResp.Success {
 			if len(apiResp.Errors) > 0 {
-				slog.Error("Cloudflare API operation failed",
+				slog.Debug("Cloudflare API operation failed",
 					"module", "cloudflare",
 					"method", method, "message", apiResp.Errors[0].Message)
 				return fmt.Errorf("cloudflare api error: %s", apiResp.Errors[0].Message)

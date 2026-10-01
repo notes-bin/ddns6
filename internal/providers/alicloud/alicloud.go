@@ -32,8 +32,8 @@ var _ ddns.DNSProvider = (*Client)(nil)
 
 // Client 阿里云 DNS API 客户端。
 type Client struct {
-	AccessKeyID     string
-	AccessKeySecret string
+	accessKeyID     string
+	accessKeySecret string
 	BaseURL         string
 	httpClient      *http.Client
 	SignVersion     string // 签名版本："v1"（默认，HMAC-SHA1）或 "v3"（ACS3-HMAC-SHA256）
@@ -45,8 +45,8 @@ type Option func(*Client)
 // NewClient 创建阿里云 DNS 客户端。
 func NewClient(accessKeyID, accessKeySecret string, options ...Option) *Client {
 	client := &Client{
-		AccessKeyID:     accessKeyID,
-		AccessKeySecret: accessKeySecret,
+		accessKeyID:     accessKeyID,
+		accessKeySecret: accessKeySecret,
 		BaseURL:         "https://alidns.aliyuncs.com/",
 		httpClient:      &http.Client{Timeout: 30 * time.Second},
 		SignVersion:     "v1",
@@ -103,7 +103,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		"RR":         subDomain,
 		"Type":       record.Type,
 		"Value":      record.Value,
-		"TTL":        fmt.Sprintf("%d", record.TTL),
+		"TTL":        fmt.Sprintf("%d", ddns.RecordTTL(record.TTL)),
 		"RecordLine": "default",
 	}
 
@@ -124,7 +124,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 		"RR":       subDomain,
 		"Type":     record.Type,
 		"Value":    record.Value,
-		"TTL":      fmt.Sprintf("%d", record.TTL),
+		"TTL":      fmt.Sprintf("%d", ddns.RecordTTL(record.TTL)),
 	}
 
 	_, err = c.makeRequest(ctx, params)
@@ -281,7 +281,7 @@ func (c *Client) makeV1Request(ctx context.Context, params map[string]string) ([
 	maps.Copy(reqParams, params)
 	reqParams["Format"] = "JSON"
 	reqParams["Version"] = "2015-01-09"
-	reqParams["AccessKeyId"] = c.AccessKeyID
+	reqParams["AccessKeyId"] = c.accessKeyID
 	reqParams["SignatureMethod"] = "HMAC-SHA1"
 	reqParams["Timestamp"] = time.Now().UTC().Format("2006-01-02T15:04:05Z")
 	reqParams["SignatureVersion"] = "1.0"
@@ -294,7 +294,7 @@ func (c *Client) makeV1Request(ctx context.Context, params map[string]string) ([
 	queryString := strings.Join(queryParts, "&")
 
 	stringToSign := fmt.Sprintf("GET&%%2F&%s", url.QueryEscape(queryString))
-	mac := hmac.New(sha1.New, []byte(c.AccessKeySecret+"&"))
+	mac := hmac.New(sha1.New, []byte(c.accessKeySecret+"&"))
 	mac.Write([]byte(stringToSign))
 	signature := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 	signature = url.QueryEscape(signature)
@@ -308,7 +308,7 @@ func (c *Client) makeV1Request(ctx context.Context, params map[string]string) ([
 	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		slog.Error("Alibaba Cloud API request failed", "module", "alicloud", "action", action, "err", err)
+		slog.Debug("Alibaba Cloud API request failed", "module", "alicloud", "action", action, "err", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -331,7 +331,7 @@ func (c *Client) makeV1Request(ctx context.Context, params map[string]string) ([
 		Message string `json:"Message"`
 	}
 	if err := json.Unmarshal(body, &apiError); err == nil && apiError.Message != "" {
-		slog.Error("Alibaba Cloud API business error",
+		slog.Debug("Alibaba Cloud API business error",
 			"module", "alicloud",
 			"action", action, "message", apiError.Message)
 		return nil, fmt.Errorf("api error: %s", apiError.Message)
@@ -375,8 +375,8 @@ func (c *Client) makeV3Request(ctx context.Context, params map[string]string) ([
 	}
 
 	v3Req := &V3Request{
-		AccessKeyID:     c.AccessKeyID,
-		AccessKeySecret: c.AccessKeySecret,
+		accessKeyID:     c.accessKeyID,
+		accessKeySecret: c.accessKeySecret,
 		Method:          "GET",
 		Scheme:          u.Scheme,
 		Host:            u.Host,
@@ -392,7 +392,7 @@ func (c *Client) makeV3Request(ctx context.Context, params map[string]string) ([
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
-		slog.Error("Alibaba Cloud API V3 request failed", "module", "alicloud", "action", action, "err", err)
+		slog.Debug("Alibaba Cloud API V3 request failed", "module", "alicloud", "action", action, "err", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -420,7 +420,7 @@ func (c *Client) makeV3Request(ctx context.Context, params map[string]string) ([
 		Message string `json:"Message"`
 	}
 	if err := json.Unmarshal(body, &apiError); err == nil && apiError.Message != "" {
-		slog.Error("Alibaba Cloud API V3 business error",
+		slog.Debug("Alibaba Cloud API V3 business error",
 			"module", "alicloud",
 			"action", action, "message", apiError.Message)
 		return nil, fmt.Errorf("api error: %s", apiError.Message)

@@ -29,8 +29,8 @@ var _ ddns.DNSProvider = (*Client)(nil)
 
 // Client GoDaddy DNS API 客户端。
 type Client struct {
-	APIKey     string
-	APISecret  string
+	apiKey     string
+	apiSecret  string
 	BaseURL    string
 	httpClient *http.Client
 	mu         sync.Mutex // 保护记录 RMW（Add/Modify/Delete）并发安全
@@ -42,8 +42,8 @@ type Option func(*Client)
 // NewClient 创建 GoDaddy DNS 客户端。
 func NewClient(apiKey, apiSecret string, options ...Option) *Client {
 	client := &Client{
-		APIKey:     apiKey,
-		APISecret:  apiSecret,
+		apiKey:     apiKey,
+		apiSecret:  apiSecret,
 		BaseURL:    "https://api.godaddy.com/v1",
 		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}
@@ -102,7 +102,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		Data: record.Value,
 		Type: record.Type,
 		Name: subDomain,
-		TTL:  record.TTL,
+		TTL:  ddns.RecordTTL(record.TTL),
 	}
 	newRecords := append(existingRecords, newRecord)
 
@@ -132,7 +132,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 		return fmt.Errorf("record not found")
 	}
 	existingRecords[i].Data = record.Value
-	existingRecords[i].TTL = record.TTL
+	existingRecords[i].TTL = ddns.RecordTTL(record.TTL)
 
 	return c.updateRecords(ctx, domain, subDomain, record.Type, existingRecords)
 }
@@ -275,12 +275,12 @@ func (c *Client) makeRequest(ctx context.Context, method, url string, body io.Re
 		return err
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("sso-key %s:%s", c.APIKey, c.APISecret))
+	req.Header.Set("Authorization", fmt.Sprintf("sso-key %s:%s", c.apiKey, c.apiSecret))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		slog.Error("GoDaddy API request failed", "module", "godaddy", "method", method, "url", url, "err", err)
+		slog.Debug("GoDaddy API request failed", "module", "godaddy", "method", method, "url", url, "err", err)
 		return err
 	}
 	defer resp.Body.Close()
@@ -292,7 +292,7 @@ func (c *Client) makeRequest(ctx context.Context, method, url string, body io.Re
 		if readErr != nil {
 			return fmt.Errorf("failed to read error response body: %w", readErr)
 		}
-		slog.Error("GoDaddy API returned error status",
+		slog.Debug("GoDaddy API returned error status",
 			"module", "godaddy",
 			"method", method, "status", resp.StatusCode)
 		return fmt.Errorf("http request failed with status %d: %s", resp.StatusCode, string(bodyBytes))
