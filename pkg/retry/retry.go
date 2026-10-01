@@ -23,7 +23,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"time"
 )
 
@@ -93,9 +93,9 @@ func Do(ctx context.Context, attempts int, baseDelay time.Duration, fn func(cont
 		// 指数退避 + 全 jitter，范围 [0, delay)
 		delay := baseDelay * (1 << i) // baseDelay * 2^i
 		if delay <= 0 {
-			delay = 1 // 避免 rand.Int63n 对非正参数 panic
+			delay = 1 // 避免 rand.Int64N 对非正参数 panic
 		}
-		wait := time.Duration(rand.Int63n(int64(delay)))
+		wait := time.Duration(rand.Int64N(int64(delay)))
 
 		timer := time.NewTimer(wait)
 		select {
