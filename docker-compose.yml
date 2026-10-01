@@ -10,6 +10,7 @@
 # 安全约定（对齐 docker-patterns）：
 #   - 密钥优先放 ~/.ddns6/config.yaml，避免出现在 docker inspect / ps
 #   - 镜像以非 root (uid 10001) 运行；只读根文件系统 + tmpfs
+#   - 默认 DDNS6_LOG_FILE 为空（仅 stderr），避免只读根 FS 无法创建 ddns6.log
 #   - 收紧 capability：仅保留 Netlink 所需的 NET_ADMIN
 #   - network_mode: host 仅在 Linux 有效（macOS Docker Desktop 无效）
 # ============================================================
@@ -30,6 +31,9 @@ x-ddns6: &ddns6
     - ALL
   cap_add:
     - NET_ADMIN
+  environment:
+    # 覆盖本地默认 ddns6.log；需要落盘时可设为 /tmp/ddns6.log
+    DDNS6_LOG_FILE: ""
   env_file:
     - path: .env
       required: false
@@ -37,6 +41,7 @@ x-ddns6: &ddns6
 services:
   # ---------- 配置文件模式（推荐，默认启用） ----------
   # 将主机 ~/.ddns6 挂载到容器 HOME；密钥留在文件中，不进入 argv
+  # 主机配置须 chown 10001:10001 且 0600，否则容器用户无法读取
   ddns6-config:
     <<: *ddns6
     volumes:

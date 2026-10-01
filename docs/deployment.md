@@ -90,6 +90,8 @@ sudo journalctl -u ddns6 -f
 
 镜像采用多阶段构建：编译阶段 `golang:1.27.1-alpine`，运行阶段 `alpine:3.21`。运行用户为 `ddns6`，uid/gid 均为 `10001`，非 root。
 
+镜像与 Compose 默认将 `DDNS6_LOG_FILE` 设为空（仅 stderr）。只读根文件系统下无法在 `WORKDIR` 创建默认的 `ddns6.log`；若需落盘日志，请挂载可写路径并设置例如 `-e DDNS6_LOG_FILE=/tmp/ddns6.log`。
+
 ### 为何使用 `network_mode: host`
 
 ddns6 在 Linux 上通过 Netlink 监听 IPv6 地址变化。Bridge 网络模式下容器无法直接接收宿主机网卡事件，因此 Compose 与 `make docker-run` 均使用 `network_mode: host`。**注意：** `network_mode: host` 仅在 Linux 上有效；macOS Docker Desktop 不支持，Netlink 功能在 macOS 上不可用。
@@ -97,6 +99,14 @@ ddns6 在 Linux 上通过 Netlink 监听 IPv6 地址变化。Bridge 网络模式
 ### 方式一：挂载配置文件（推荐，Compose 默认）
 
 将主机 `~/.ddns6` 只读挂载到容器内 `HOME`（`/home/ddns6/.ddns6`），密钥保留在文件中，不进入进程命令行参数。
+
+容器内进程 uid/gid 为 `10001`。主机上 `chmod 600` 的配置文件若属其他用户，容器将无法读取；放宽 other 可读又会被 fail-closed 权限检查拒绝。部署前请将配置目录属主改为容器用户：
+
+```bash
+sudo chown -R 10001:10001 ~/.ddns6
+chmod 700 ~/.ddns6
+chmod 600 ~/.ddns6/config.yaml
+```
 
 仓库 `docker-compose.yml` **默认启用** `ddns6-config` 服务；CLI 凭据模式的各 provider 服务默认注释掉。
 
@@ -117,6 +127,7 @@ docker run -d --name ddns6 --restart unless-stopped \
   --security-opt no-new-privileges:true \
   --cap-drop ALL \
   --cap-add NET_ADMIN \
+  -e DDNS6_LOG_FILE= \
   -v ${HOME}/.ddns6:/home/ddns6/.ddns6:ro \
   ddns6 run
 ```
@@ -124,7 +135,8 @@ docker run -d --name ddns6 --restart unless-stopped \
 **docker compose：**
 
 ```bash
-# 确保主机已有 ~/.ddns6/config.yaml（权限 0600）
+# 确保主机已有 ~/.ddns6/config.yaml，且属主为容器用户 10001（权限 0700/0600）
+sudo chown -R 10001:10001 ~/.ddns6
 docker compose up -d
 ```
 

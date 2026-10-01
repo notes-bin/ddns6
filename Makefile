@@ -75,6 +75,7 @@ docker-run:
 	  --security-opt no-new-privileges:true \
 	  --cap-drop ALL \
 	  --cap-add NET_ADMIN \
+	  -e DDNS6_LOG_FILE= \
 	  -v $${HOME}/.ddns6:/home/ddns6/.ddns6:ro \
 	  ddns6 run
 

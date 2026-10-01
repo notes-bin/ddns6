@@ -43,8 +43,10 @@ COPY --from=builder --chown=ddns6:ddns6 /out/ddns6 /app/ddns6
 USER ddns6:ddns6
 
 # 只读根文件系统下可能需要临时目录（compose 可挂 tmpfs）
+# 默认禁用落盘日志：只读根 FS 无法在 WORKDIR 创建 ddns6.log
 ENV HOME=/home/ddns6 \
-    TZ=UTC
+    TZ=UTC \
+    DDNS6_LOG_FILE=
 
 ENTRYPOINT ["/app/ddns6"]
 CMD ["--help"]
