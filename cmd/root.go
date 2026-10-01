@@ -490,7 +490,7 @@ func Execute() error {
 			rootCmd.Help()
 			return nil
 		}
-		return fmt.Errorf("Command failed: %w", err)
+		return fmt.Errorf("command failed: %w", err)
 	}
 	return nil
 }

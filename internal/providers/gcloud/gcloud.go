@@ -130,7 +130,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		Rrsets []rrSet `json:"rrsets"`
 	}
 	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, fmt.Errorf("failed to decode Cloud DNS rrsets: %w", err)
+		return nil, fmt.Errorf("failed to decode cloud dns rrsets: %w", err)
 	}
 	result := make([]ddns.RecordInfo, 0)
 	for _, set := range resp.Rrsets {
@@ -200,7 +200,7 @@ func (c *Client) resolve(ctx context.Context, name, zoneHint string) (zoneName, 
 			return z.Name, rr, z.DNSName, nil
 		}
 	}
-	return "", "", "", fmt.Errorf("Cloud DNS managed zone not found for %s", name)
+	return "", "", "", fmt.Errorf("cloud dns managed zone not found for %s", name)
 }
 
 // doRequest 执行 Cloud DNS HTTP 请求。
@@ -226,7 +226,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, query url.V
 	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("Cloud DNS request failed: %w", err)
+		return nil, fmt.Errorf("cloud dns request failed: %w", err)
 	}
 	defer resp.Body.Close()
 	respBody, err := io.ReadAll(resp.Body)

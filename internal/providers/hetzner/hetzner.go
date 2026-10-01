@@ -190,7 +190,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 
 	var resp rrsetResponse
 	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, fmt.Errorf("failed to decode Hetzner rrset: %w", err)
+		return nil, fmt.Errorf("failed to decode hetzner rrset: %w", err)
 	}
 
 	result := make([]ddns.RecordInfo, 0, len(resp.RRSet.Records))
@@ -288,7 +288,7 @@ func (c *Client) findZone(ctx context.Context, fulldomain string) (int64, string
 			}
 		}
 	}
-	return 0, "", fmt.Errorf("Hetzner zone not found for %s", fulldomain)
+	return 0, "", fmt.Errorf("hetzner zone not found for %s", fulldomain)
 }
 
 // doRequest 执行 Hetzner DNS HTTP 请求。
@@ -312,13 +312,13 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body []byte
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("Hetzner API request failed: %w", err)
+		return nil, fmt.Errorf("hetzner api request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read Hetzner response: %w", err)
+		return nil, fmt.Errorf("failed to read hetzner response: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, &httpStatusError{status: resp.StatusCode, body: string(respBody)}

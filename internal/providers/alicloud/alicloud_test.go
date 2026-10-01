@@ -92,8 +92,8 @@ func TestGetDomainRecord(t *testing.T) {
 		t.Errorf("GetDomainRecord failed: %v", err)
 	}
 
-	if record.RecordId != "123456" {
-		t.Errorf("Expected record ID 123456, got %s", record.RecordId)
+	if record.RecordID != "123456" {
+		t.Errorf("Expected record ID 123456, got %s", record.RecordID)
 	}
 }
 

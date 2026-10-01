@@ -110,7 +110,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 		return err
 	}
 	if len(records) == 0 {
-		return fmt.Errorf("deSEC rrset not found for %s %s", sub, record.Type)
+		return fmt.Errorf("desec rrset not found for %s %s", sub, record.Type)
 	}
 
 	oldValue := recordValueFromID(record)
@@ -185,7 +185,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 
 	var rs rrset
 	if err := json.Unmarshal(body, &rs); err != nil {
-		return nil, fmt.Errorf("failed to decode deSEC rrset: %w", err)
+		return nil, fmt.Errorf("failed to decode desec rrset: %w", err)
 	}
 
 	result := make([]ddns.RecordInfo, 0, len(rs.Records))
@@ -217,7 +217,7 @@ func (c *Client) getRRSet(ctx context.Context, zone, sub, recordType string) ([]
 	}
 	var rs rrset
 	if err := json.Unmarshal(body, &rs); err != nil {
-		return nil, fmt.Errorf("failed to decode deSEC rrset: %w", err)
+		return nil, fmt.Errorf("failed to decode desec rrset: %w", err)
 	}
 	return rs.Records, nil
 }
@@ -241,7 +241,7 @@ func (c *Client) findZone(ctx context.Context, fulldomain string) (zone, sub str
 	}
 	var domains []domainInfo
 	if err := json.Unmarshal(body, &domains); err != nil {
-		return "", "", fmt.Errorf("failed to decode deSEC domains: %w", err)
+		return "", "", fmt.Errorf("failed to decode desec domains: %w", err)
 	}
 
 	parts := strings.Split(strings.ToLower(strings.TrimSuffix(fulldomain, ".")), ".")
@@ -257,7 +257,7 @@ func (c *Client) findZone(ctx context.Context, fulldomain string) (zone, sub str
 			}
 		}
 	}
-	return "", "", fmt.Errorf("deSEC zone not found for %s", fulldomain)
+	return "", "", fmt.Errorf("desec zone not found for %s", fulldomain)
 }
 
 // recordValueFromID 从 RecordInfo.ID 提取旧记录值。
@@ -314,13 +314,13 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body []byte
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("deSEC API request failed: %w", err)
+		return nil, fmt.Errorf("desec api request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read deSEC response: %w", err)
+		return nil, fmt.Errorf("failed to read desec response: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, &httpStatusError{status: resp.StatusCode, body: string(respBody)}

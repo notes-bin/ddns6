@@ -13,7 +13,7 @@
 //	    }
 //	    defer resp.Body.Close()
 //	    if resp.StatusCode == 429 || resp.StatusCode >= 500 {
-//	        return retry.Retryable(fmt.Errorf("HTTP %d", resp.StatusCode))
+//	        return retry.Retryable(fmt.Errorf("http %d", resp.StatusCode))
 //	    }
 //	    return nil
 //	})

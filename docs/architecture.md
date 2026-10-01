@@ -9,7 +9,7 @@ ddns6 服务入口为 `ddns.RunService`（`internal/ddns/service.go`）。启动
 ### 数据流
 
 ```
-地址变化 → GetIPv6Addr（多源并发） → 对比缓存
+地址变化 → IPv6Addr（多源并发） → 对比缓存
   ├─ 未变 → 跳过
   └─ 已变 → 并发同步各子域名
         ├─ GetRecords
@@ -19,7 +19,7 @@ ddns6 服务入口为 `ddns.RunService`（`internal/ddns/service.go`）。启动
 
 ```mermaid
 flowchart TD
-    T[触发器] --> G[GetIPv6Addr 多源竞速]
+    T[触发器] --> G[IPv6Addr 多源竞速]
     G --> C{对比 Domain.Addr 缓存}
     C -->|未变| S[跳过该子域名]
     C -->|已变| P[并发 syncAllDomains]
@@ -69,13 +69,13 @@ PPPoE 重拨等场景下，新地址可能在短时间内多次上报。Linux �
 
 ### 启动阶段（fail-fast）
 
-1. 立即调用 `GetIPv6Addr` 获取当前 IPv6；
+1. 立即调用 `IPv6Addr` 获取当前 IPv6；
 2. 调用 `syncAllDomains(..., failFast=true)` 并发同步所有子域名；
 3. 任一步失败则**终止启动**并返回 error。
 
 ### 运行阶段
 
-收到触发信号后，在独立 goroutine 中再次 `GetIPv6Addr` 并 `syncAllDomains(..., failFast=false)`：
+收到触发信号后，在独立 goroutine 中再次 `IPv6Addr` 并 `syncAllDomains(..., failFast=false)`：
 
 - 获取 IPv6 失败：仅记录 error 日志，服务继续运行；
 - 单个子域名同步失败：仅记录 error 日志，其余子域名照常处理。
@@ -114,7 +114,7 @@ PPPoE 重拨等场景下，新地址可能在短时间内多次上报。Linux �
 
 ## IPv6 多源获取
 
-默认来源由 `DefaultIPv6Fetchers()` 提供（共 **7** 个）。每次 `GetIPv6Addr` 调用时：
+默认来源由 `DefaultIPv6Fetchers()` 提供（共 **7** 个）。每次 `IPv6Addr` 调用时：
 
 1. 随机打乱 fetcher 顺序，避免长期偏倚某一上游；
 2. 并发执行，取**第一个成功**结果（竞速总超时 5 秒）；

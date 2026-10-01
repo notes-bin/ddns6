@@ -149,7 +149,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	}
 	var rs recordSet
 	if err := json.Unmarshal(body, &rs); err != nil {
-		return nil, fmt.Errorf("failed to decode Azure record set: %w", err)
+		return nil, fmt.Errorf("failed to decode azure record set: %w", err)
 	}
 	result := make([]ddns.RecordInfo, 0, len(rs.Properties.AAAARecords))
 	for _, rec := range rs.Properties.AAAARecords {
@@ -182,7 +182,7 @@ func (c *Client) upsert(ctx context.Context, info ddns.RecordInfo) error {
 	case "A":
 		payload["properties"].(map[string]any)["ARecords"] = []map[string]string{{"ipv4Address": info.Value}}
 	default:
-		return fmt.Errorf("unsupported Azure record type: %s", info.Type)
+		return fmt.Errorf("unsupported azure record type: %s", info.Type)
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -235,14 +235,14 @@ func (c *Client) findZone(ctx context.Context, fulldomain, zoneHint string) (zon
 	}
 	var list zoneList
 	if err := json.Unmarshal(body, &list); err != nil {
-		return "", "", "", fmt.Errorf("failed to decode Azure zones: %w", err)
+		return "", "", "", fmt.Errorf("failed to decode azure zones: %w", err)
 	}
 	for _, z := range list.Value {
 		if strings.EqualFold(strings.TrimSuffix(z.Name, "."), candidate) {
 			return z.ID, z.Name, sub, nil
 		}
 	}
-	return "", "", "", fmt.Errorf("Azure DNS zone not found for %s", fulldomain)
+	return "", "", "", fmt.Errorf("azure dns zone not found for %s", fulldomain)
 }
 
 // accessToken 获取或刷新 OAuth2 访问令牌。
@@ -266,7 +266,7 @@ func (c *Client) accessToken(ctx context.Context) (string, error) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("Azure token request failed: %w", err)
+		return "", fmt.Errorf("azure token request failed: %w", err)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
@@ -274,7 +274,7 @@ func (c *Client) accessToken(ctx context.Context) (string, error) {
 		return "", err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("Azure token error: status %d, body: %s", resp.StatusCode, string(body))
+		return "", fmt.Errorf("azure token error: status %d, body: %s", resp.StatusCode, string(body))
 	}
 	var tok struct {
 		AccessToken string `json:"access_token"`
@@ -311,7 +311,7 @@ func (c *Client) doJSON(ctx context.Context, method, path string, body []byte) (
 	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("Azure DNS request failed: %w", err)
+		return nil, fmt.Errorf("azure dns request failed: %w", err)
 	}
 	defer resp.Body.Close()
 	respBody, err := io.ReadAll(resp.Body)

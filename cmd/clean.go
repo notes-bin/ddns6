@@ -163,7 +163,7 @@ func handleClean(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider)
 func runCleanWithConfig(cmd *cobra.Command) error {
 	return runWithConfig(cmd, "clean", func(cmd *cobra.Command, cfg *config.Config, domains []*ddns.Domain, p ddns.DNSProvider) error {
 		if restrictedProviders[cfg.Provider] {
-			return fmt.Errorf("%s does not support 'clean' via API - %s only provides update endpoints, use its web panel to manage records", cfg.Provider, cfg.Provider)
+			return fmt.Errorf("%s does not support 'clean' via api - %s only provides update endpoints, use its web panel to manage records", cfg.Provider, cfg.Provider)
 		}
 		return handleClean(cmd, domains, p)
 	})

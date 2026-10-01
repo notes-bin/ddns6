@@ -120,7 +120,7 @@ type ErrorDetails struct {
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	zoneID, err := c.getZoneID(ctx, record.Name)
 	if err != nil {
-		return fmt.Errorf("failed to get zone ID: %w", err)
+		return fmt.Errorf("failed to get zone id: %w", err)
 	}
 
 	records, err := c.getRecords(ctx, zoneID, record.Name, record.Type, record.Value)
@@ -147,7 +147,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
 	zoneID, err := c.getZoneID(ctx, record.Name)
 	if err != nil {
-		return fmt.Errorf("failed to get zone ID: %w", err)
+		return fmt.Errorf("failed to get zone id: %w", err)
 	}
 
 	cfRecord, err := c.getRecordByID(ctx, zoneID, record.ID)
@@ -166,7 +166,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
 	zoneID, err := c.getZoneID(ctx, record.Name)
 	if err != nil {
-		return fmt.Errorf("failed to get zone ID: %w", err)
+		return fmt.Errorf("failed to get zone id: %w", err)
 	}
 
 	return c.deleteDNSRecord(ctx, zoneID, record.ID)
@@ -176,7 +176,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	zoneID, err := c.getZoneID(ctx, fulldomain)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get zone ID: %w", err)
+		return nil, fmt.Errorf("failed to get zone id: %w", err)
 	}
 
 	records, err := c.getRecords(ctx, zoneID, fulldomain, recordType, "")
@@ -201,7 +201,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 func (c *Client) GetDomainRecord(ctx context.Context, fulldomain, recordID string) (*DNSRecord, error) {
 	zoneID, err := c.getZoneID(ctx, fulldomain)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get zone ID: %w", err)
+		return nil, fmt.Errorf("failed to get zone id: %w", err)
 	}
 
 	return c.getRecordByID(ctx, zoneID, recordID)
@@ -279,11 +279,11 @@ func (c *Client) listRequest(ctx context.Context, reqURL string) ([]DNSRecord, *
 		var apiResp APIResponse
 		if err := json.NewDecoder(resp.Body).Decode(&apiResp); err == nil {
 			if len(apiResp.Errors) > 0 {
-				return nil, nil, fmt.Errorf("Cloudflare API error: %s (code %d)",
+				return nil, nil, fmt.Errorf("cloudflare api error: %s (code %d)",
 					apiResp.Errors[0].Message, apiResp.Errors[0].Code)
 			}
 		}
-		return nil, nil, fmt.Errorf("HTTP request failed with status %d", resp.StatusCode)
+		return nil, nil, fmt.Errorf("http request failed with status %d", resp.StatusCode)
 	}
 
 	var apiResp struct {
@@ -299,9 +299,9 @@ func (c *Client) listRequest(ctx context.Context, reqURL string) ([]DNSRecord, *
 
 	if !apiResp.Success {
 		if len(apiResp.Errors) > 0 {
-			return nil, nil, fmt.Errorf("Cloudflare API error: %s", apiResp.Errors[0].Message)
+			return nil, nil, fmt.Errorf("cloudflare api error: %s", apiResp.Errors[0].Message)
 		}
-		return nil, nil, fmt.Errorf("Cloudflare API request was not successful")
+		return nil, nil, fmt.Errorf("cloudflare api request was not successful")
 	}
 
 	return apiResp.Result, apiResp.ResultInfo, nil
@@ -362,7 +362,7 @@ func (c *Client) getZoneID(ctx context.Context, domain string) (string, error) {
 		return zoneID, nil
 	}
 
-	return "", fmt.Errorf("could not find zone ID for domain %s", domain)
+	return "", fmt.Errorf("could not find zone id for domain %s", domain)
 }
 
 // findZoneID 按名称查找 Zone ID。
@@ -481,11 +481,11 @@ func (c *Client) makeRequest(ctx context.Context, method, url string, body io.Re
 					"method", method, "status", resp.StatusCode,
 					"code", apiResp.Errors[0].Code,
 					"message", apiResp.Errors[0].Message)
-				return fmt.Errorf("Cloudflare API error: %s (code %d)",
+				return fmt.Errorf("cloudflare api error: %s (code %d)",
 					apiResp.Errors[0].Message, apiResp.Errors[0].Code)
 			}
 		}
-		return fmt.Errorf("HTTP request failed with status %d", resp.StatusCode)
+		return fmt.Errorf("http request failed with status %d", resp.StatusCode)
 	}
 
 	if result != nil {
@@ -499,9 +499,9 @@ func (c *Client) makeRequest(ctx context.Context, method, url string, body io.Re
 				slog.Error("Cloudflare API operation failed",
 					"module", "cloudflare",
 					"method", method, "message", apiResp.Errors[0].Message)
-				return fmt.Errorf("Cloudflare API error: %s", apiResp.Errors[0].Message)
+				return fmt.Errorf("cloudflare api error: %s", apiResp.Errors[0].Message)
 			}
-			return fmt.Errorf("Cloudflare API request was not successful")
+			return fmt.Errorf("cloudflare api request was not successful")
 		}
 
 		if apiResp.Result != nil {

@@ -30,19 +30,19 @@ const (
 )
 
 // DNSRecord 表示腾讯云 DNS 记录。
-// RecordId 在 API v20210323 中为数字类型。
+// RecordID 在 API v20210323 中为数字类型。
 //
 // 请求（CreateRecord）使用 SubDomain/RecordType/RecordLine，
 // 响应（DescribeRecordList/DescribeRecord）使用 Name/Type/Line/LineId；
 // 通过 UnmarshalJSON 映射，使同一结构体可同时用于请求与响应。
 type DNSRecord struct {
-	DomainId     int    `json:"DomainId,omitzero"`
+	DomainID     int    `json:"DomainId,omitzero"`
 	Domain       string `json:"Domain,omitempty"`
 	SubDomain    string `json:"SubDomain,omitempty"`
-	RecordId     int    `json:"RecordId,omitzero"`
+	RecordID     int    `json:"RecordId,omitzero"`
 	RecordType   string `json:"RecordType,omitempty"`
 	RecordLine   string `json:"RecordLine,omitempty"`
-	RecordLineId string `json:"RecordLineId,omitempty"`
+	RecordLineID string `json:"RecordLineId,omitempty"`
 	Value        string `json:"Value,omitempty"`
 	TTL          int    `json:"TTL,omitzero"`
 }
@@ -61,7 +61,7 @@ func (r *DNSRecord) UnmarshalJSON(data []byte) error {
 		Name   string `json:"Name"`
 		Type   string `json:"Type"`
 		Line   string `json:"Line"`
-		LineId string `json:"LineId"`
+		LineID string `json:"LineId"`
 	}{Alias: (*Alias)(r)}
 
 	if err := json.Unmarshal(data, aux); err != nil {
@@ -79,8 +79,8 @@ func (r *DNSRecord) UnmarshalJSON(data []byte) error {
 	if r.RecordLine == "" && aux.Line != "" {
 		r.RecordLine = aux.Line
 	}
-	if r.RecordLineId == "" && aux.LineId != "" {
-		r.RecordLineId = aux.LineId
+	if r.RecordLineID == "" && aux.LineID != "" {
+		r.RecordLineID = aux.LineID
 	}
 
 	return nil
@@ -88,19 +88,19 @@ func (r *DNSRecord) UnmarshalJSON(data []byte) error {
 
 // Response 为腾讯云 API 写操作的通用响应。
 type Response struct {
-	RecordId  int    `json:"RecordId"`
-	RequestId string `json:"RequestId"`
+	RecordID  int    `json:"RecordId"`
+	RequestID string `json:"RequestId"`
 }
 
 // domainListItem 为 DescribeDomainList 返回的域名项。
 type domainListItem struct {
-	DomainId int    `json:"DomainId"`
+	DomainID int    `json:"DomainId"`
 	Name     string `json:"Name"`
 }
 
 // DNSPod 腾讯云 DNS API v3 客户端。
 type DNSPod struct {
-	secretId   string
+	secretID   string
 	secretKey  string
 	apiURL     string
 	httpClient *http.Client
@@ -109,10 +109,10 @@ type DNSPod struct {
 // Option 客户端配置选项。
 type Option func(*DNSPod)
 
-// NewDNSPod 创建腾讯云 DNS 客户端。
-func NewDNSPod(secretId, secretKey string, options ...Option) *DNSPod {
+// New 创建腾讯云 DNS 客户端。
+func New(secretID, secretKey string, options ...Option) *DNSPod {
 	client := &DNSPod{
-		secretId:  secretId,
+		secretID:  secretID,
 		secretKey: secretKey,
 		apiURL:    "https://dnspod.tencentcloudapi.com",
 		httpClient: &http.Client{
@@ -206,9 +206,9 @@ func (ds *DNSPod) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 			}
 			slog.Info("record already exists with different value, updating",
 				"module", "tencent",
-				"domain", record.Name, "record_id", r.RecordId)
+				"domain", record.Name, "record_id", r.RecordID)
 			return ds.ModifyRecord(ctx, ddns.RecordInfo{
-				ID:    strconv.Itoa(r.RecordId),
+				ID:    strconv.Itoa(r.RecordID),
 				Name:  record.Name,
 				Type:  record.Type,
 				Value: record.Value,
@@ -221,7 +221,7 @@ func (ds *DNSPod) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 			for _, r := range records {
 				slog.Warn("record detail for diagnosis",
 					"module", "tencent",
-					"record_id", r.RecordId,
+					"record_id", r.RecordID,
 					"sub_domain", r.SubDomain,
 					"record_type", r.RecordType,
 					"value", r.Value)
@@ -246,15 +246,15 @@ func (ds *DNSPod) ModifyRecord(ctx context.Context, record ddns.RecordInfo) erro
 		return fmt.Errorf("failed to get root domain: %w", err)
 	}
 
-	recordId, err := strconv.Atoi(record.ID)
+	recordID, err := strconv.Atoi(record.ID)
 	if err != nil {
-		return fmt.Errorf("invalid record ID %q: %w", record.ID, err)
+		return fmt.Errorf("invalid record id %q: %w", record.ID, err)
 	}
 
 	payload := DNSRecord{
 		Domain:     domain,
 		SubDomain:  subDomain,
-		RecordId:   recordId,
+		RecordID:   recordID,
 		RecordType: record.Type,
 		RecordLine: defaultRecordLine,
 		Value:      record.Value,
@@ -282,12 +282,12 @@ func (ds *DNSPod) DeleteRecord(ctx context.Context, record ddns.RecordInfo) erro
 		return fmt.Errorf("failed to get root domain: %w", err)
 	}
 
-	recordId, err := strconv.Atoi(record.ID)
+	recordID, err := strconv.Atoi(record.ID)
 	if err != nil {
-		return fmt.Errorf("invalid record ID %q: %w", record.ID, err)
+		return fmt.Errorf("invalid record id %q: %w", record.ID, err)
 	}
 
-	payload := DNSRecord{Domain: domain, RecordId: recordId}
+	payload := DNSRecord{Domain: domain, RecordID: recordID}
 	response := new(Response)
 	err = ds.makeRequest(ctx, "DeleteRecord", payload, response)
 	if err != nil {
@@ -322,7 +322,7 @@ func (ds *DNSPod) GetRecords(ctx context.Context, fulldomain, recordType string)
 			recordName = r.SubDomain + "." + domain
 		}
 		result = append(result, ddns.RecordInfo{
-			ID:    strconv.Itoa(r.RecordId),
+			ID:    strconv.Itoa(r.RecordID),
 			Name:  recordName,
 			Type:  r.RecordType,
 			Value: r.Value,
@@ -333,18 +333,18 @@ func (ds *DNSPod) GetRecords(ctx context.Context, fulldomain, recordType string)
 }
 
 // GetDomainRecord 查询单条 DNS 记录详情。
-func (ds *DNSPod) GetDomainRecord(ctx context.Context, fulldomain, recordId string) (*DNSRecord, error) {
+func (ds *DNSPod) GetDomainRecord(ctx context.Context, fulldomain, recordID string) (*DNSRecord, error) {
 	domain, _, err := ds.getRootDomain(ctx, fulldomain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root domain: %w", err)
 	}
 
-	recordID, err := strconv.Atoi(recordId)
+	id, err := strconv.Atoi(recordID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid record ID %q: %w", recordId, err)
+		return nil, fmt.Errorf("invalid record id %q: %w", recordID, err)
 	}
 
-	payload := DNSRecord{Domain: domain, RecordId: recordID}
+	payload := DNSRecord{Domain: domain, RecordID: id}
 
 	var response struct {
 		RecordInfo DNSRecord `json:"RecordInfo"`
@@ -381,7 +381,7 @@ func (ds *DNSPod) getRootDomain(ctx context.Context, domain string) (string, str
 		for _, d := range domains {
 			domainNames = append(domainNames, d.Name)
 		}
-		return "", "", fmt.Errorf("domain %q not found in account, available domains: %v; please add it in Tencent Cloud DNSPod console", domain, domainNames)
+		return "", "", fmt.Errorf("domain %q not found in account, available domains: %v; please add it in tencent cloud dnspod console", domain, domainNames)
 	}
 
 	slog.Warn("DescribeDomainList failed, falling back to probing", "module", "tencent", "err", err)
@@ -492,7 +492,7 @@ func (ds *DNSPod) makeRequest(ctx context.Context, action string, payload any, r
 	resp, err := ds.httpClient.Do(req)
 	if err != nil {
 		slog.Error("Tencent API request failed", "module", "tencent", "action", action, "err", err)
-		return fmt.Errorf("API request failed: %w", err)
+		return fmt.Errorf("api request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -508,7 +508,7 @@ func (ds *DNSPod) makeRequest(ctx context.Context, action string, payload any, r
 		slog.Error("Tencent API returned error status",
 			"module", "tencent",
 			"action", action, "status", resp.StatusCode)
-		return fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(bodyBytes))
+		return fmt.Errorf("api request failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var apiResponse struct {
@@ -519,7 +519,7 @@ func (ds *DNSPod) makeRequest(ctx context.Context, action string, payload any, r
 	}
 
 	if len(apiResponse.Response) == 0 || string(apiResponse.Response) == "null" {
-		return fmt.Errorf("API returned null Response for action %s", action)
+		return fmt.Errorf("api returned null response for action %s", action)
 	}
 
 	var errResp struct {
@@ -533,7 +533,7 @@ func (ds *DNSPod) makeRequest(ctx context.Context, action string, payload any, r
 			"module", "tencent",
 			"action", action, "code", errResp.Error.Code,
 			"message", errResp.Error.Message)
-		return fmt.Errorf("API error: %s (%s)", errResp.Error.Message, errResp.Error.Code)
+		return fmt.Errorf("api error: %s (%s)", errResp.Error.Message, errResp.Error.Code)
 	}
 
 	if result != nil {
@@ -575,5 +575,5 @@ func (ds *DNSPod) generateSignatureV3(service, action, payload string, timestamp
 	signature := crypto.HMACSHA256Hex(secretSigning, []byte(stringToSign))
 
 	return fmt.Sprintf("%s Credential=%s/%s, SignedHeaders=%s, Signature=%s",
-		algorithm, ds.secretId, credentialScope, signedHeaders, signature)
+		algorithm, ds.secretID, credentialScope, signedHeaders, signature)
 }

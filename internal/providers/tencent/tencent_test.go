@@ -25,7 +25,7 @@ func TestAddRecord(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := tencent.NewDNSPod("testId", "testKey", tencent.WithBaseURL(ts.URL))
+	client := tencent.New("testId", "testKey", tencent.WithBaseURL(ts.URL))
 
 	err := client.AddRecord(t.Context(), ddns.RecordInfo{Name: "test.example.com", Type: "A", Value: "192.168.1.1", TTL: 600})
 	if err != nil {
@@ -45,7 +45,7 @@ func TestModifyRecord(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := tencent.NewDNSPod("testId", "testKey", tencent.WithBaseURL(ts.URL))
+	client := tencent.New("testId", "testKey", tencent.WithBaseURL(ts.URL))
 
 	err := client.ModifyRecord(t.Context(), ddns.RecordInfo{Name: "test.example.com", ID: "123456", Type: "A", Value: "192.168.1.2", TTL: 600})
 	if err != nil {
@@ -65,7 +65,7 @@ func TestDeleteRecord(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := tencent.NewDNSPod("testId", "Key", tencent.WithBaseURL(ts.URL))
+	client := tencent.New("testId", "Key", tencent.WithBaseURL(ts.URL))
 
 	err := client.DeleteRecord(t.Context(), ddns.RecordInfo{Name: "test.example.com", ID: "123456"})
 	if err != nil {
@@ -85,7 +85,7 @@ func TestGetRecords(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := tencent.NewDNSPod("testId", "testKey", tencent.WithBaseURL(ts.URL))
+	client := tencent.New("testId", "testKey", tencent.WithBaseURL(ts.URL))
 
 	records, err := client.GetRecords(t.Context(), "test.example.com", "A")
 	if err != nil {
@@ -109,15 +109,15 @@ func TestGetDomainRecord(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := tencent.NewDNSPod("testId", "testKey", tencent.WithBaseURL(ts.URL))
+	client := tencent.New("testId", "testKey", tencent.WithBaseURL(ts.URL))
 
 	record, err := client.GetDomainRecord(t.Context(), "test.example.com", "123456")
 	if err != nil {
 		t.Fatalf("GetDomainRecord failed: %v", err)
 	}
 
-	if record.RecordId != 123456 {
-		t.Errorf("Expected record ID 123456, got %d", record.RecordId)
+	if record.RecordID != 123456 {
+		t.Errorf("Expected record ID 123456, got %d", record.RecordID)
 	}
 }
 
@@ -160,7 +160,7 @@ func TestAddRecord_AlreadyExists(t *testing.T) {
 			}))
 			defer ts.Close()
 
-			client := tencent.NewDNSPod("testId", "testKey", tencent.WithBaseURL(ts.URL))
+			client := tencent.New("testId", "testKey", tencent.WithBaseURL(ts.URL))
 			err := client.AddRecord(t.Context(), ddns.RecordInfo{
 				Name: "example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600,
 			})
@@ -190,7 +190,7 @@ func TestGetRootDomain_ProbeFallback(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := tencent.NewDNSPod("testId", "testKey", tencent.WithBaseURL(ts.URL))
+	client := tencent.New("testId", "testKey", tencent.WithBaseURL(ts.URL))
 	records, err := client.GetRecords(t.Context(), "www.example.com", "AAAA")
 	if err != nil {
 		t.Fatalf("probe fallback GetRecords failed: %v", err)
@@ -215,7 +215,7 @@ func TestApiError(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := tencent.NewDNSPod("testId", "testKey", tencent.WithBaseURL(ts.URL))
+	client := tencent.New("testId", "testKey", tencent.WithBaseURL(ts.URL))
 	_, err := client.GetRecords(t.Context(), "www.example.com", "AAAA")
 	if err == nil {
 		t.Fatal("expected error, got nil")

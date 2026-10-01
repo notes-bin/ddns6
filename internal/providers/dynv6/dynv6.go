@@ -112,7 +112,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("Dynv6 API request failed: %w", err)
+		return fmt.Errorf("dynv6 api request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -121,7 +121,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		if readErr != nil {
 			return fmt.Errorf("failed to read error response body: %w", readErr)
 		}
-		return fmt.Errorf("Dynv6 API error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
+		return fmt.Errorf("dynv6 api error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	slog.Info("Dynv6 record added successfully", "module", "dynv6", "zone_id", zoneID, "name", subDomain, "ipv6", record.Value)
@@ -157,7 +157,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("Dynv6 API request failed: %w", err)
+		return fmt.Errorf("dynv6 api request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -166,7 +166,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 		if readErr != nil {
 			return fmt.Errorf("failed to read error response body: %w", readErr)
 		}
-		return fmt.Errorf("Dynv6 API error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
+		return fmt.Errorf("dynv6 api error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	slog.Info("Dynv6 record modified successfully", "module", "dynv6", "zone_id", zoneID, "record_id", record.ID, "ipv6", record.Value)
@@ -191,7 +191,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("Dynv6 API request failed: %w", err)
+		return fmt.Errorf("dynv6 api request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -200,7 +200,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 		if readErr != nil {
 			return fmt.Errorf("failed to read error response body: %w", readErr)
 		}
-		return fmt.Errorf("Dynv6 API error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
+		return fmt.Errorf("dynv6 api error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	slog.Info("Dynv6 record deleted successfully", "module", "dynv6", "zone_id", zoneID, "record_id", record.ID)
@@ -238,7 +238,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("Dynv6 API request failed: %w", err)
+		return nil, fmt.Errorf("dynv6 api request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -247,7 +247,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		if readErr != nil {
 			return nil, fmt.Errorf("failed to read error response body: %w", readErr)
 		}
-		return nil, fmt.Errorf("Dynv6 API error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("dynv6 api error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var records []Record
@@ -367,7 +367,7 @@ func (c *Client) updateZoneIP(ctx context.Context, zoneID, ipv6 string) error {
 		if readErr != nil {
 			return fmt.Errorf("failed to read error response body: %w", readErr)
 		}
-		return fmt.Errorf("Dynv6 API error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
+		return fmt.Errorf("dynv6 api error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	slog.Info("Dynv6 zone IPv6 updated", "module", "dynv6", "zone_id", zoneID, "ipv6", ipv6)

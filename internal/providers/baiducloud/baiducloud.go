@@ -243,7 +243,7 @@ func (c *Client) request(ctx context.Context, method, url string, payload any) (
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("BaiduCloud API request failed: %w", err)
+		return nil, fmt.Errorf("baiducloud api request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -253,7 +253,7 @@ func (c *Client) request(ctx context.Context, method, url string, payload any) (
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("BaiduCloud API error: status %d, body: %s", resp.StatusCode, string(respBody))
+		return nil, fmt.Errorf("baiducloud api error: status %d, body: %s", resp.StatusCode, string(respBody))
 	}
 
 	return respBody, nil

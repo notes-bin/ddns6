@@ -115,7 +115,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		return err
 	}
 	if resp.Status.Code != "1" {
-		return fmt.Errorf("DNSPod API error: %s (code: %s)", resp.Status.Message, resp.Status.Code)
+		return fmt.Errorf("dnspod api error: %s (code: %s)", resp.Status.Message, resp.Status.Code)
 	}
 
 	slog.Info("DNSPod record added successfully", "module", "dnspod", "domain", domain, "subdomain", subDomain, "ipv6", record.Value)
@@ -145,7 +145,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 		return err
 	}
 	if resp.Status.Code != "1" {
-		return fmt.Errorf("DNSPod API error: %s (code: %s)", resp.Status.Message, resp.Status.Code)
+		return fmt.Errorf("dnspod api error: %s (code: %s)", resp.Status.Message, resp.Status.Code)
 	}
 
 	slog.Info("DNSPod record modified successfully", "module", "dnspod", "domain", domain, "record_id", record.ID, "ipv6", record.Value)
@@ -170,7 +170,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 		return err
 	}
 	if resp.Status.Code != "1" {
-		return fmt.Errorf("DNSPod API error: %s (code: %s)", resp.Status.Message, resp.Status.Code)
+		return fmt.Errorf("dnspod api error: %s (code: %s)", resp.Status.Message, resp.Status.Code)
 	}
 
 	slog.Info("DNSPod record deleted successfully", "module", "dnspod", "domain", domain, "record_id", record.ID)
@@ -201,7 +201,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		return nil, err
 	}
 	if resp.Status.Code != "1" {
-		return nil, fmt.Errorf("DNSPod API error: %s (code: %s)", resp.Status.Message, resp.Status.Code)
+		return nil, fmt.Errorf("dnspod api error: %s (code: %s)", resp.Status.Message, resp.Status.Code)
 	}
 
 	result := make([]ddns.RecordInfo, 0, len(resp.Records))
@@ -235,7 +235,7 @@ func (c *Client) post(ctx context.Context, reqURL string, params url.Values, res
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("DNSPod API request failed: %w", err)
+		return fmt.Errorf("dnspod api request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -245,7 +245,7 @@ func (c *Client) post(ctx context.Context, reqURL string, params url.Values, res
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("DNSPod API error: status %d, body: %s", resp.StatusCode, string(body))
+		return fmt.Errorf("dnspod api error: status %d, body: %s", resp.StatusCode, string(body))
 	}
 
 	clean := body

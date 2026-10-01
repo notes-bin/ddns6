@@ -145,7 +145,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	}
 	var resp listRRSetsResponse
 	if err := xml.Unmarshal(body, &resp); err != nil {
-		return nil, fmt.Errorf("failed to decode Route53 rrsets: %w", err)
+		return nil, fmt.Errorf("failed to decode route53 rrsets: %w", err)
 	}
 	result := make([]ddns.RecordInfo, 0, len(resp.Sets))
 	for _, set := range resp.Sets {
@@ -208,7 +208,7 @@ func (c *Client) resolveRecord(ctx context.Context, fulldomain, zoneHint string)
 		}
 		return id, name, rr, nil
 	}
-	return "", "", "", fmt.Errorf("Route53 hosted zone not found for %s", fulldomain)
+	return "", "", "", fmt.Errorf("route53 hosted zone not found for %s", fulldomain)
 }
 
 // findHostedZone 按域名查找 Hosted Zone。
@@ -252,12 +252,12 @@ func (c *Client) doRequest(ctx context.Context, method, path string, query url.V
 	slog.Debug("Route53 API request", "module", "aws", "method", method, "path", path)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("Route53 API request failed: %w", err)
+		return nil, fmt.Errorf("route53 api request failed: %w", err)
 	}
 	defer resp.Body.Close()
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read Route53 response: %w", err)
+		return nil, fmt.Errorf("failed to read route53 response: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, &httpStatusError{status: resp.StatusCode, body: string(respBody)}

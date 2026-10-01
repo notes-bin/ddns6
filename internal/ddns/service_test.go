@@ -14,7 +14,7 @@ import (
 	"github.com/notes-bin/ddns6/pkg/ipaddr"
 )
 
-// stubFetcher 固定返回预设 IP 或错误，供 RunService / GetIPv6Addr 测试。
+// stubFetcher 固定返回预设 IP 或错误，供 RunService / IPv6Addr 测试。
 type stubFetcher struct {
 	ip  net.IP
 	err error

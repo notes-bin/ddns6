@@ -100,7 +100,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 		return err
 	}
 	if resp.Status != "SUCCESS" {
-		return fmt.Errorf("Porkbun API error: status %s", resp.Status)
+		return fmt.Errorf("porkbun api error: status %s", resp.Status)
 	}
 
 	slog.Info("Porkbun DNS record added successfully", "module", "porkbun", "domain", domain, "name", subDomain, "ipv6", record.Value)
@@ -125,7 +125,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 		return err
 	}
 	if resp.Status != "SUCCESS" {
-		return fmt.Errorf("Porkbun API error: status %s", resp.Status)
+		return fmt.Errorf("porkbun api error: status %s", resp.Status)
 	}
 
 	slog.Info("Porkbun DNS record modified successfully", "module", "porkbun", "domain", domain, "name", subDomain, "ipv6", record.Value)
@@ -145,7 +145,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 		return err
 	}
 	if resp.Status != "SUCCESS" {
-		return fmt.Errorf("Porkbun API error: status %s", resp.Status)
+		return fmt.Errorf("porkbun api error: status %s", resp.Status)
 	}
 
 	slog.Info("Porkbun DNS record deleted successfully", "module", "porkbun", "domain", domain, "name", subDomain)
@@ -170,7 +170,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		return nil, err
 	}
 	if resp.Status != "SUCCESS" {
-		return nil, fmt.Errorf("Porkbun API error: status %s", resp.Status)
+		return nil, fmt.Errorf("porkbun api error: status %s", resp.Status)
 	}
 
 	result := make([]ddns.RecordInfo, 0, len(resp.Records))
@@ -213,7 +213,7 @@ func (c *Client) post(ctx context.Context, url string, record *DNSRecord, result
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("Porkbun API request failed: %w", err)
+		return fmt.Errorf("porkbun api request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -223,7 +223,7 @@ func (c *Client) post(ctx context.Context, url string, record *DNSRecord, result
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Porkbun API error: status %d, body: %s", resp.StatusCode, string(respBody))
+		return fmt.Errorf("porkbun api error: status %d, body: %s", resp.StatusCode, string(respBody))
 	}
 
 	if result != nil {

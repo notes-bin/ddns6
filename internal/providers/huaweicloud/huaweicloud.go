@@ -89,7 +89,7 @@ type recordSetPayload struct {
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 	zoneID, err := c.getZoneID(ctx, record.Name)
 	if err != nil {
-		return fmt.Errorf("failed to get zone ID: %w", err)
+		return fmt.Errorf("failed to get zone id: %w", err)
 	}
 
 	payload := recordSetPayload{
@@ -116,7 +116,7 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
 	zoneID, err := c.getZoneID(ctx, record.Name)
 	if err != nil {
-		return fmt.Errorf("failed to get zone ID: %w", err)
+		return fmt.Errorf("failed to get zone id: %w", err)
 	}
 
 	payload := map[string]any{
@@ -142,7 +142,7 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
 	zoneID, err := c.getZoneID(ctx, record.Name)
 	if err != nil {
-		return fmt.Errorf("failed to get zone ID: %w", err)
+		return fmt.Errorf("failed to get zone id: %w", err)
 	}
 
 	url := c.baseURL + "/v2.1/zones/" + zoneID + "/recordsets/" + record.ID
@@ -161,7 +161,7 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
 	zoneID, err := c.getZoneID(ctx, fulldomain)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get zone ID: %w", err)
+		return nil, fmt.Errorf("failed to get zone id: %w", err)
 	}
 
 	// 查询租户下指定 zone 的记录集列表
@@ -298,7 +298,7 @@ func (c *Client) request(ctx context.Context, method, url string, payload any) (
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("HuaweiCloud API request failed: %w", err)
+		return nil, fmt.Errorf("huaweicloud api request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -308,7 +308,7 @@ func (c *Client) request(ctx context.Context, method, url string, payload any) (
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("HuaweiCloud API error: status %d, body: %s", resp.StatusCode, string(respBody))
+		return nil, fmt.Errorf("huaweicloud api error: status %d, body: %s", resp.StatusCode, string(respBody))
 	}
 
 	return respBody, nil
@@ -330,7 +330,7 @@ func (c *Client) requestRaw(ctx context.Context, method, url string, result any)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("HuaweiCloud API request failed: %w", err)
+		return fmt.Errorf("huaweicloud api request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -339,7 +339,7 @@ func (c *Client) requestRaw(ctx context.Context, method, url string, result any)
 		if readErr != nil {
 			return fmt.Errorf("failed to read error response body: %w", readErr)
 		}
-		return fmt.Errorf("HuaweiCloud API error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
+		return fmt.Errorf("huaweicloud api error: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	return json.NewDecoder(resp.Body).Decode(result)
