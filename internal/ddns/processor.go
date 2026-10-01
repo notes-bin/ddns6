@@ -3,7 +3,6 @@ package ddns
 import (
 	"context"
 	"fmt"
-	"slices"
 )
 
 // CollectMatchingRecords 查询 DNS 记录并收集匹配结果，供 records/clean 使用。
@@ -19,14 +18,13 @@ import (
 //
 // 去重规则：同一记录（ID+Name+Type+Value 相同）只保留第一条。
 func CollectMatchingRecords(ctx context.Context, p DNSProvider, domains []*Domain, recordType string, filterBySubdomain bool) ([]RecordInfo, error) {
-	// 按根域名分组，避免对同一 zone 重复调用 GetRecords
-	rootGroups := make(map[string][]*Domain)
+	rootGroups := make(map[string][]*Domain, len(domains))
 	for _, d := range domains {
 		rootGroups[d.Domain] = append(rootGroups[d.Domain], d)
 	}
 
-	var allRecords []RecordInfo
-	seen := make(map[string]bool)
+	allRecords := make([]RecordInfo, 0, len(domains))
+	seen := make(map[string]struct{}, len(domains))
 
 	for rootDomain, group := range rootGroups {
 		records, err := p.GetRecords(ctx, rootDomain, recordType)
@@ -34,11 +32,29 @@ func CollectMatchingRecords(ctx context.Context, p DNSProvider, domains []*Domai
 			return nil, fmt.Errorf("query records for %s: %w", rootDomain, err)
 		}
 
+		// 预计算 FQDN，避免内层循环反复 FullDomain 字符串拼接
+		type matchTarget struct {
+			fqdn string
+			sub  string
+		}
+		var targets []matchTarget
+		if filterBySubdomain {
+			targets = make([]matchTarget, len(group))
+			for i, d := range group {
+				targets[i] = matchTarget{fqdn: d.FullDomain(), sub: d.SubDomain}
+			}
+		}
+
 		for _, r := range records {
 			if filterBySubdomain {
-				if !slices.ContainsFunc(group, func(d *Domain) bool {
-					return RecordNameMatches(r.Name, d.FullDomain(), d.SubDomain)
-				}) {
+				matched := false
+				for _, t := range targets {
+					if RecordNameMatches(r.Name, t.fqdn, t.sub) {
+						matched = true
+						break
+					}
+				}
+				if !matched {
 					continue
 				}
 			}
@@ -48,10 +64,10 @@ func CollectMatchingRecords(ctx context.Context, p DNSProvider, domains []*Domai
 			}
 
 			key := r.Key()
-			if seen[key] {
+			if _, ok := seen[key]; ok {
 				continue
 			}
-			seen[key] = true
+			seen[key] = struct{}{}
 			allRecords = append(allRecords, r)
 		}
 	}

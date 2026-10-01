@@ -58,17 +58,17 @@ func IPv6Addr(ctx context.Context, fetchers ...IPv6Fetcher) (net.IP, error) {
 
 	for _, fn := range shuffled {
 		go func() {
-			slog.Debug("starting fetcher", "module", "ipaddr", "fetcher", fmt.Sprintf("%T", fn))
+			slog.Debug("starting fetcher", "module", "ipaddr", "fetcher", fn)
 			ip, err := fn.Fetch(ctx)
 			if err != nil {
 				// 取消多为竞速副作用；超时与其它错误才值得关注
 				switch {
 				case errors.Is(err, context.Canceled):
-					slog.Debug("fetcher canceled", "module", "ipaddr", "fetcher", fmt.Sprintf("%T", fn))
+					slog.Debug("fetcher canceled", "module", "ipaddr", "fetcher", fn)
 				case errors.Is(err, context.DeadlineExceeded):
-					slog.Info("fetcher timed out", "module", "ipaddr", "fetcher", fmt.Sprintf("%T", fn))
+					slog.Info("fetcher timed out", "module", "ipaddr", "fetcher", fn)
 				default:
-					slog.Warn("fetcher failed", "module", "ipaddr", "fetcher", fmt.Sprintf("%T", fn), "err", err)
+					slog.Warn("fetcher failed", "module", "ipaddr", "fetcher", fn, "err", err)
 				}
 				errCh <- err
 				return
