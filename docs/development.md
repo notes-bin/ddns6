@@ -79,7 +79,7 @@ ddns6/
 ├── pkg/
 │   ├── domainutil/                  # SplitDomain、ZoneCandidates
 │   ├── ipaddr/                      # IPv6 多源竞速
-│   └── retry/
+│   └── retry/                  # 指数退避重试
 ├── docs/                            # 用户手册（不含 superpowers 流程稿）
 ├── .github/workflows/
 │   ├── test.yml
