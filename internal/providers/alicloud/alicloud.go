@@ -308,8 +308,8 @@ func (c *Client) makeV1Request(ctx context.Context, params map[string]string) ([
 	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		slog.Debug("Alibaba Cloud API request failed", "module", "alicloud", "action", action, "err", err)
-		return nil, err
+		slog.Debug("Alibaba Cloud API request failed", "module", "alicloud", "action", action, "err", httputil.ErrForLog(err))
+		return nil, httputil.WrapRequestError("alicloud api request failed", err)
 	}
 	defer resp.Body.Close()
 
