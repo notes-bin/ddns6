@@ -20,7 +20,7 @@
 |--------|---------|---------|----------------------|---------------|------|
 | 腾讯云 DNSPod | `tencent` | `--secret-id` `--secret-key` | `secret_id` `secret_key` | 支持 | DNSPod API v3 |
 | Cloudflare | `cloudflare` | `--api-token` | `api_token` | 支持 | API Token 需 DNS:Edit 权限 |
-| 阿里云 DNS | `alicloud` | `--access-key-id` `--access-key-secret` | `access_key_id` `access_key_secret` | 支持 | 可选 `--sign-version`（`v1` 默认 / `v3`） |
+| 阿里云 DNS | `alicloud` | `--access-key-id` `--access-key-secret` | `access_key_id` `access_key_secret` | 支持 | 默认 ACS3 **v3**；可选 `--sign-version v1` |
 | GoDaddy | `godaddy` | `--api-key` `--api-secret` | `api_key` `api_secret` | 支持 | 凭据来自 GoDaddy Developer Portal |
 | 华为云 DNS | `huaweicloud` | `--access-key` `--secret-key` | `access_key` `secret_key` | 支持 | IAM 用户 Access Key |
 | DuckDNS | `duckdns` | `--token` | `token` | 受限 | 免费 DDNS，API 仅更新 |
@@ -66,7 +66,14 @@ subdomains:                  # 子域名列表
 # interface: ppp0            # 可选，Linux Netlink 监听网卡
 ```
 
-建议执行 `chmod 600 ~/.ddns6/config.yaml`。也可用 `ddns6 init <provider>` 按 flag 生成配置模板。
+建议目录与文件权限：
+
+```bash
+chmod 700 ~/.ddns6
+chmod 600 ~/.ddns6/config.yaml
+```
+
+Unix 上过宽权限会 **拒绝加载** 配置（见 [`docs/deployment.md`](deployment.md)）。也可用 `ddns6 init <provider>` 生成模板（写入即为 `0600`）。
 
 ### 腾讯云 DNSPod（tencent）
 
@@ -110,16 +117,16 @@ ddns6 run cloudflare --domain example.com --subdomain www \
 
 API Token 须包含目标 Zone 的 **DNS:Edit** 权限（见下文「注意事项」）。
 
-### 阿里云 DNS（alicloud，V3 签名）
+### 阿里云 DNS（alicloud）
 
-默认签名为 V1（HMAC-SHA1）。若需 V3（ACS3-HMAC-SHA256），在 CLI 或配置中指定 `sign_version`。
+默认签名为 **V3**（ACS3-HMAC-SHA256）。若需兼容旧版 V1（HMAC-SHA1），显式指定 `sign_version: v1`。
 
 ```yaml
 provider: "alicloud"
 auth:
   access_key_id: "YOUR_ACCESS_KEY_ID"
   access_key_secret: "YOUR_ACCESS_KEY_SECRET"
-  sign_version: "v3"
+  # sign_version: "v1"   # 可选；省略则默认 v3
 domain: "example.com"
 subdomains:
   - "www"
@@ -130,8 +137,8 @@ subdomains:
 ```bash
 ddns6 run alicloud --domain example.com --subdomain www \
   --access-key-id YOUR_ACCESS_KEY_ID \
-  --access-key-secret YOUR_ACCESS_KEY_SECRET \
-  --sign-version v3
+  --access-key-secret YOUR_ACCESS_KEY_SECRET
+# 可选：--sign-version v1
 ```
 
 Access Key 建议使用 RAM 子用户，并仅授予 DNS 相关最小权限。
@@ -154,4 +161,7 @@ Namecheap API 要求调用来源 IP 预先加入白名单。`--client-ip` / `aut
 Azure DNS 须同时提供四个字段：`subscription_id`、`tenant_id`、`client_id`、`client_secret`。在 Azure AD 中注册应用并授予 DNS Zone Contributor（或等效）角色后使用。
 
 **配置文件安全**  
-凭据仅存于配置文件或环境变量，勿提交至版本库。Docker 部署优先挂载配置文件，避免密钥出现在容器命令行参数中（详见 `docs/deployment.md`）。
+凭据仅存于配置文件或环境变量，勿提交至版本库。Unix 加载配置时对过宽权限 fail-closed。Docker 优先挂载配置目录（Compose 默认 `ddns6-config`），避免密钥出现在容器 argv（详见 `docs/deployment.md`）。
+
+**GetRecords 语义**  
+编排层对同一根域名只查询一次；各运营商实现应返回该 zone 下指定类型的记录列表，由客户端按子域名匹配。
