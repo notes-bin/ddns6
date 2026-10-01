@@ -22,7 +22,7 @@ func TestClient_AddRecord(t *testing.T) {
 			t.Error("expected Basic Auth")
 		}
 		decoded, _ := base64.StdEncoding.DecodeString(encoded)
-		user := strings.SplitN(string(decoded), ":", 2)[0]
+		user, _, _ := strings.Cut(string(decoded), ":")
 		if user != "hosted_dns_editapi" {
 			t.Errorf("expected user hosted_dns_editapi, got %s", user)
 		}

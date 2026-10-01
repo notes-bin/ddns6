@@ -455,9 +455,10 @@ func applyEnvOverrides() {
 				rootCmd.PersistentFlags().Set(f.name, val)
 			}
 		case "bool":
-			if val == "true" || val == "1" {
+			switch val {
+			case "true", "1":
 				rootCmd.PersistentFlags().Set(f.name, "true")
-			} else if val == "false" || val == "0" {
+			case "false", "0":
 				rootCmd.PersistentFlags().Set(f.name, "false")
 			}
 		}

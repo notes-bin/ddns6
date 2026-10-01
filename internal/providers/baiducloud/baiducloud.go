@@ -6,6 +6,7 @@ package baiducloud
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -276,10 +277,7 @@ func (c *Client) signRequest(req *http.Request, body []byte) {
 
 	req.Header.Set("x-bce-date", timestamp)
 	signedHeaders := "host;x-bce-date"
-	canonicalHost := req.URL.Host
-	if canonicalHost == "" {
-		canonicalHost = defaultBaseURL[8:]
-	}
+	canonicalHost := cmp.Or(req.URL.Host, defaultBaseURL[8:])
 	canonicalHeaders := fmt.Sprintf("host:%s\nx-bce-date:%s", canonicalHost, timestamp)
 	canonicalQuery := ""
 
