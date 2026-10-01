@@ -87,7 +87,7 @@ jobs:
         uses: actions/download-artifact@v4
 
       - name: 创建 Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           name: "ddns6 ${{ github.ref_name }}"
