@@ -36,7 +36,8 @@ type Client struct {
 	token      string
 	baseURL    string
 	httpClient *http.Client
-	zoneCache  sync.Map // zone 名称存在即为已知（值为 struct{}）
+	zoneCache  sync.Map   // zone 名称存在即为已知（值为 struct{}）
+	mu         sync.Mutex // 串行化 rrset 读改写，避免并发丢失记录
 }
 
 // Option 客户端配置选项。
@@ -47,7 +48,7 @@ func NewClient(token string, options ...Option) *Client {
 	c := &Client{
 		token:      token,
 		baseURL:    defaultBaseURL,
-		httpClient: &http.Client{Timeout: 15 * time.Second},
+		httpClient: httputil.NewHTTPClient(15 * time.Second),
 	}
 	for _, opt := range options {
 		opt(c)
@@ -84,6 +85,8 @@ type rrset struct {
 
 // AddRecord 添加 DNS 记录。
 func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	zone, sub := splitRecord(record)
 	existing, err := c.getRRSet(ctx, zone, sub, record.Type)
 	if err != nil {
@@ -109,6 +112,8 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 
 // ModifyRecord 修改 DNS 记录（通过 PUT 覆盖 rrset 中的目标值）。
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	zone, sub := splitRecord(record)
 	records, err := c.getRRSet(ctx, zone, sub, record.Type)
 	if err != nil {
@@ -149,6 +154,8 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 
 // DeleteRecord 删除 DNS 记录。
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	zone, sub := splitRecord(record)
 	records, err := c.getRRSet(ctx, zone, sub, record.Type)
 	if err != nil {
