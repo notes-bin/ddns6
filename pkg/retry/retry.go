@@ -97,10 +97,14 @@ func Do(ctx context.Context, attempts int, baseDelay time.Duration, fn func(cont
 		}
 		wait := time.Duration(rand.Int63n(int64(delay)))
 
+		timer := time.NewTimer(wait)
 		select {
 		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
 			return ctx.Err()
-		case <-time.After(wait):
+		case <-timer.C:
 		}
 	}
 
