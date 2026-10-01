@@ -286,9 +286,7 @@ func (c *Client) splitDomain(name, zoneHint string) (sld, tld, sub string, err e
 	}
 	tld = parts[len(parts)-1]
 	sld = parts[len(parts)-2]
-	if sub == "" {
-		sub = "@"
-	}
+	sub = cmp.Or(sub, "@")
 	return sld, tld, sub, nil
 }
 

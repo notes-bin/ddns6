@@ -2,6 +2,7 @@ package aws
 
 import (
 	"bytes"
+	"cmp"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -53,10 +54,7 @@ func signRequest(req *http.Request, accessKey, secretKey, sessionToken string, b
 	}
 
 	canonicalQuery := req.URL.RawQuery
-	canonicalURI := req.URL.EscapedPath()
-	if canonicalURI == "" {
-		canonicalURI = "/"
-	}
+	canonicalURI := cmp.Or(req.URL.EscapedPath(), "/")
 
 	canonicalRequest := strings.Join([]string{
 		req.Method,
