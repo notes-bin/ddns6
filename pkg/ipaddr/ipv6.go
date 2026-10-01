@@ -21,6 +21,7 @@ import (
 	"log/slog"
 	"math/rand"
 	"net"
+	"slices"
 	"time"
 )
 
@@ -43,8 +44,7 @@ func IPv6Addr(ctx context.Context, fetchers ...IPv6Fetcher) (net.IP, error) {
 	}
 
 	// 随机顺序，避免长期偏倚某一上游
-	shuffled := make([]IPv6Fetcher, len(fetchers))
-	copy(shuffled, fetchers)
+	shuffled := slices.Clone(fetchers)
 	rand.Shuffle(len(shuffled), func(i, j int) {
 		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
 	})
@@ -75,7 +75,7 @@ func IPv6Addr(ctx context.Context, fetchers ...IPv6Fetcher) (net.IP, error) {
 				return
 			}
 			// 拷贝后再发送，避免与 dial/缓冲底层切片别名
-			resultCh <- append(net.IP(nil), ip...)
+			resultCh <- slices.Clone(ip)
 		}()
 	}
 

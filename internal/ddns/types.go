@@ -25,6 +25,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"slices"
 	"sync"
 )
 
@@ -116,8 +117,7 @@ func (d *Domain) CheckAndSetAddr(newAddr net.IP) bool {
 	if d.addr != nil && d.addr.Equal(newAddr) {
 		return false
 	}
-	d.addr = make(net.IP, len(newAddr))
-	copy(d.addr, newAddr)
+	d.addr = slices.Clone(newAddr)
 	return true
 }
 
