@@ -9,6 +9,7 @@ package cmd
 //  4. 补充 docker-compose.yml / .env.example / README 中的对应说明
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -696,6 +697,19 @@ func createProviderFromConfig(cfg *config.Config) (ddns.DNSProvider, error) {
 }
 
 // --- flag / 域名辅助 ---
+
+// commandContext 返回命令关联的 context；未经 ExecuteContext 设置时回退到 Background。
+//
+// cobra.Command.Context() 在未 SetContext/ExecuteContext 时返回 nil，
+// 直接传给 WithTimeout 会 panic，故在此统一兜底。
+func commandContext(cmd *cobra.Command) context.Context {
+	if cmd != nil {
+		if ctx := cmd.Context(); ctx != nil {
+			return ctx
+		}
+	}
+	return context.Background()
+}
 
 // getString 读取可选字符串 flag；未注册或出错时返回空串（必填项应先走 requireFlags）。
 func getString(cmd *cobra.Command, name string) string {

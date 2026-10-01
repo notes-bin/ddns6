@@ -290,7 +290,7 @@ func TestCheckFromConfig_EmptySubdomainsAndBadInterval(t *testing.T) {
 		Interval: "not-duration",
 	}
 	out := captureStdout(t, func() {
-		_ = checkFromConfig(cfg)
+		_ = checkFromConfig(t.Context(), cfg)
 	})
 	requireContains(t, out, "subdomains: none", "parse error")
 }

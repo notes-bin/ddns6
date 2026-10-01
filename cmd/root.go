@@ -46,14 +46,17 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -480,9 +483,14 @@ func applyEnvOverrides() {
 }
 
 // Execute 是 CLI 入口，由 main 调用；对未知命令/无效 flag 打印帮助后返回 nil。
+//
+// 使用 signal.NotifyContext 注入可取消根 context，使子命令的 cmd.Context()
+// 在收到 SIGINT/SIGTERM 时取消，从而中止进行中的 API 请求。
 func Execute() error {
 	initRootCmd()
-	if err := rootCmd.Execute(); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		errStr := err.Error()
 		// 用户侧输入错误：展示帮助后优雅退出（返回 nil，避免 main 再记一遍错误）
 		if strings.Contains(errStr, "unknown") || strings.Contains(errStr, "flag") {

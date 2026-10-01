@@ -64,7 +64,7 @@ func handleRecords(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvide
 	// 未显式指定 --subdomain 时展示该域名下匹配类型的全部记录
 	filterBySubdomain := cmd.Flags().Changed("subdomain")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(commandContext(cmd), 30*time.Second)
 	defer cancel()
 
 	allRecords, err := ddns.CollectMatchingRecords(ctx, p, domains, recordType, filterBySubdomain)
