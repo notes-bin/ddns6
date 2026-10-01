@@ -46,8 +46,8 @@ func DefaultIPv6Fetchers() []ipaddr.IPv6Fetcher {
 // 运行时错误（后续 Netlink 或轮询中的失败）仅记录日志，不影响服务运行。
 //
 // 退出方式：
-//   - 收到 SIGINT 或 SIGTERM 后优雅关闭
-//   - 先取消正在进行的操作，再等待最多 5 秒让当前同步完成
+//   - 收到 SIGINT 或 SIGTERM 后优雅关闭（signal.NotifyContext）
+//   - 先取消正在进行的操作，再等待进行中的同步完成（最多 5 秒）
 //   - 然后返回 nil
 func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetchers []ipaddr.IPv6Fetcher, iface string) error {
 	slog.Info("starting DDNS update service",
@@ -56,9 +56,9 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 		"interval", interval,
 		"interface", iface)
 
-	// 可取消 context：SIGTERM 时 cancel 会传播到进行中的获取与同步
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// 可取消 context：SIGINT/SIGTERM 时取消并传播到进行中的获取与同步
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	// 启动时立即做一次完整同步，避免等待首次 Netlink 事件或轮询周期
 	slog.Info("performing initial IPv6 address fetch", "module", "ddns")
@@ -76,48 +76,43 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 	// Linux: Netlink 事件；其他平台: 定时轮询
 	triggerCh := startTrigger(ctx, interval, iface)
 
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-
 	slog.Info("ddns6 started successfully",
 		"module", "ddns",
 		"pid", os.Getpid(),
 		"domain_count", len(domains),
 		"mode", platformTriggerMode())
 
-	// 同步在独立 goroutine 中执行，保证 sigCh 始终可达
-	syncDoneCh := make(chan struct{}, 1)
+	// 跟踪进行中的同步，关机时等待其结束（或超时）
+	var syncWG sync.WaitGroup
 
 	for {
 		select {
 		case <-triggerCh:
-			go func() {
+			syncWG.Go(func() {
 				ip, err := ipaddr.IPv6Addr(ctx, fetchers...)
 				if err != nil {
 					slog.Error("failed to get IPv6 address on trigger", "module", "ddns", "err", err)
-					syncDoneCh <- struct{}{}
 					return
 				}
 				syncAllDomains(ctx, domains, ip, p, false)
-				syncDoneCh <- struct{}{}
-			}()
+			})
 
-		case <-syncDoneCh:
-			// 本轮同步结束，继续等待下一事件
-
-		case <-sigCh:
+		case <-ctx.Done():
 			slog.Info("shutdown signal received, initiating graceful shutdown...", "module", "ddns")
-			cancel()
 
+			done := make(chan struct{})
+			go func() {
+				syncWG.Wait()
+				close(done)
+			}()
 			select {
+			case <-done:
 			case <-time.After(5 * time.Second):
 				slog.Warn("graceful shutdown timed out", "module", "ddns")
 			}
 
-			signal.Stop(sigCh)
 			slog.Info("ddns6 stopped", "module", "ddns")
 			return nil
-
 		}
 	}
 }
