@@ -36,7 +36,7 @@ flowchart TD
 |------|------|------|
 | 服务编排 | `internal/ddns/service.go` | 启动、触发循环、单飞同步、信号处理、metrics |
 | 平台触发 | `service_linux.go` / `service_other.go` | Netlink 或轮询 |
-| 记录应用 | `record.go` / `match.go` | 缓存比对、`applyDNSRecords`、名称匹配 |
+| 记录应用 | `record.go` | 缓存比对、`applyDNSRecords`、名称匹配 |
 | 批量查询 | `processor.go` | `records` / `clean` 按根域名分组查询 |
 | HTTP 工具 | `internal/httputil` | 安全客户端、脱敏、有界读体 |
 | 指标 | `internal/metrics` | 可选 loopback `/metrics` |
@@ -50,7 +50,7 @@ flowchart TD
 
 | 平台 / 场景 | 机制 | 说明 |
 |-------------|------|------|
-| Linux（默认） | Netlink `RTM_NEWADDR` | 仅处理全局单播 IPv6；ULA 在 Go 中通常仍视为 GlobalUnicast，可能触发同步 |
+| Linux（默认） | Netlink `RTM_NEWADDR` | 仅处理公网 IPv6（`IsPublicIPv6`：全局单播且非私有/ULA） |
 | 非 Linux | 定时轮询 | `--interval` / `interval`，默认 **5m** |
 | Linux Netlink 失败 | 回退轮询 | 订阅失败、网卡解析失败或 channel 关闭时，用同一 `interval` |
 
@@ -95,13 +95,13 @@ SIGINT / SIGTERM → 取消 context → **最多等待 5 秒** → 超时 warn �
 
 ### 记录匹配
 
-`RecordNameMatches` 兼容各厂商记录名格式差异。同子域名多条匹配记录会全部处理。
+`RecordNameMatches` 兼容各厂商记录名格式差异。同子域名多条匹配记录会全部处理；**全部成功后才写入** `Domain.addr` 缓存，避免部分失败导致下一轮永久跳过。
 
 TTL：写入路径统一经 `RecordTTL`（零值回退默认 600）。
 
 ## IPv6 多源获取
 
-`DefaultIPv6Fetchers()` 共 **7** 个来源。每次调用随机打乱顺序，并发竞速（总超时 **5s**），取首个成功结果；失败尊重 `ctx` 取消。
+`DefaultIPv6Fetchers()` 共 **7** 个来源。每次调用随机打乱顺序，并发竞速（总超时 **5s**），取首个**公网**结果（`IsPublicIPv6`：全局单播且非私有/ULA）；失败尊重 `ctx` 取消。
 
 | 来源 | 类型 |
 |------|------|
@@ -113,7 +113,7 @@ TTL：写入路径统一经 `RecordTTL`（零值回退默认 600）。
 | `2001:4860:4860::8888` | DNS |
 | `2606:4700:4700::1111` | DNS |
 
-HTTP Fetcher 仅接受 2xx；DNS Fetcher 通过 UDP6 拨号取本地出口地址。
+HTTP Fetcher 仅接受 2xx；DNS Fetcher 通过 UDP6 拨号取本地出口地址。二者均拒绝非公网 IPv6。
 
 ## 可选 Metrics
 

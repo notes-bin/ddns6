@@ -112,7 +112,7 @@ ddns6/
 
 ### 3. 受限 API
 
-仅更新、无查询/删除时：`noListClean: true`，并加入 `restrictedProviders`。
+仅更新、无查询/删除时：设置 `noListClean: true`（`isUpdateOnlyProvider` 据此判断）。
 
 ### 4. 文档与部署
 
