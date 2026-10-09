@@ -241,15 +241,29 @@ func TestParseInterval_Custom(t *testing.T) {
 	}
 }
 
-// TestParseInterval_Invalid 验证非法间隔回退 5m 并返回错误。
+// TestParseInterval_Invalid 验证非法间隔仅返回 error（不附带假默认值）。
 func TestParseInterval_Invalid(t *testing.T) {
 	c := &Config{Interval: "invalid"}
 	d, err := c.ParseInterval()
 	if err == nil {
 		t.Error("ParseInterval() 无效格式时应返回错误")
 	}
-	if d != 5*60*1000000000 {
-		t.Errorf("ParseInterval() 无效格式时应回退到 5m, 得到 %v", d)
+	if d != 0 {
+		t.Errorf("ParseInterval() 无效格式时应返回 0, 得到 %v", d)
+	}
+}
+
+// TestParseInterval_NonPositive 验证零或负间隔返回错误。
+func TestParseInterval_NonPositive(t *testing.T) {
+	for _, s := range []string{"0s", "-5m"} {
+		c := &Config{Interval: s}
+		d, err := c.ParseInterval()
+		if err == nil {
+			t.Errorf("ParseInterval(%q) 非正数时应返回错误", s)
+		}
+		if d != 0 {
+			t.Errorf("ParseInterval(%q) 应返回 0, 得到 %v", s, d)
+		}
 	}
 }
 

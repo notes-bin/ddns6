@@ -27,9 +27,11 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/notes-bin/ddns6/internal/ddns"
 	"gopkg.in/yaml.v3"
 )
+
+// DefaultTTL 为 DNS 记录默认 TTL（秒）；与 ddns.DefaultTTL 保持同值。
+const DefaultTTL = 600
 
 // yamlScalar 将字符串编码为可安全嵌入模板的 YAML 标量（含引号）。
 func yamlScalar(s string) string {
@@ -89,13 +91,15 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("cannot read config file %s: %w", path, err)
 	}
 
-	// fail-closed：拒绝 group/other 可读的配置文件
+	// fail-closed：无法 Stat 或权限过宽时拒绝加载（含凭据的配置）
 	if runtime.GOOS != "windows" {
-		if fi, err := os.Stat(path); err == nil {
-			if fi.Mode().Perm()&0077 != 0 {
-				return nil, fmt.Errorf("config file %s has world/group-readable permissions (%03o); run 'chmod 600 %s' and retry",
-					path, fi.Mode().Perm(), path)
-			}
+		fi, err := os.Stat(path)
+		if err != nil {
+			return nil, fmt.Errorf("cannot stat config file %s: %w", path, err)
+		}
+		if fi.Mode().Perm()&0077 != 0 {
+			return nil, fmt.Errorf("config file %s has world/group-readable permissions (%03o); run 'chmod 600 %s' and retry",
+				path, fi.Mode().Perm(), path)
 		}
 	}
 
@@ -122,22 +126,25 @@ func Load() (*Config, error) {
 
 // ParseInterval 解析轮询间隔字符串为 time.Duration。
 //
-// 未设置或解析失败时返回默认 5 分钟；解析失败时同时返回错误说明。
+// 空字符串返回默认 5 分钟；非法或非正数间隔仅返回 error（不附带假默认值）。
 func (c *Config) ParseInterval() (time.Duration, error) {
 	if c.Interval == "" {
 		return 5 * time.Minute, nil
 	}
 	d, err := time.ParseDuration(c.Interval)
 	if err != nil {
-		return 5 * time.Minute, fmt.Errorf("invalid interval '%s': %w, using default 5m", c.Interval, err)
+		return 0, fmt.Errorf("invalid interval %q: %w", c.Interval, err)
+	}
+	if d <= 0 {
+		return 0, fmt.Errorf("invalid interval %q: must be positive", c.Interval)
 	}
 	return d, nil
 }
 
-// EffectiveTTL 返回生效 TTL；未设置或非正数时使用 ddns.DefaultTTL。
+// EffectiveTTL 返回生效 TTL；未设置或非正数时使用 DefaultTTL。
 func (c *Config) EffectiveTTL() int {
 	if c.TTL <= 0 {
-		return ddns.DefaultTTL
+		return DefaultTTL
 	}
 	return c.TTL
 }
@@ -218,10 +225,6 @@ func Generate(params InitParams) error {
 		return fmt.Errorf("cannot create config directory %s: %w", dir, err)
 	}
 
-	if _, err := os.Stat(path); err == nil {
-		return fmt.Errorf("config file already exists at %s", path)
-	}
-
 	tmpl, err := template.New("config").Funcs(template.FuncMap{
 		"yamlScalar": yamlScalar,
 	}).Parse(configTemplate)
@@ -232,7 +235,17 @@ func Generate(params InitParams) error {
 	if err := tmpl.Execute(&buf, params); err != nil {
 		return fmt.Errorf("cannot render config: %w", err)
 	}
-	if err := os.WriteFile(path, buf.Bytes(), 0600); err != nil {
+
+	// O_EXCL 原子创建，避免 Stat+WriteFile 竞态覆盖已有配置
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		if os.IsExist(err) {
+			return fmt.Errorf("config file already exists at %s", path)
+		}
+		return fmt.Errorf("cannot write config file %s: %w", path, err)
+	}
+	defer f.Close()
+	if _, err := f.Write(buf.Bytes()); err != nil {
 		return fmt.Errorf("cannot write config file %s: %w", path, err)
 	}
 
