@@ -62,7 +62,7 @@ var checkCmd = &cobra.Command{
 			}
 			fmt.Printf("Provider '%s' is valid\n", provider)
 
-			if factory.noListClean || restrictedProviders[provider] {
+			if factory.noListClean {
 				fmt.Printf("\nProvider '%s' does not support connectivity check via GetRecords\n", provider)
 				fmt.Println("(update-only API; use 'ddns6 run' to verify updates, or the provider web panel)")
 				return fmt.Errorf("%s does not support 'check' via api - %s only provides update endpoints", provider, provider)
@@ -154,10 +154,10 @@ func checkFromConfig(ctx context.Context, cfg *config.Config) error {
 	}
 	interval, err := cfg.ParseInterval()
 	if err != nil {
-		fmt.Printf("interval: %s (parse error: %v)\n", interval, err)
-	} else {
-		fmt.Printf("interval: %s\n", interval)
+		fmt.Printf("interval: invalid (%v)\n", err)
+		return fmt.Errorf("invalid interval: %w", err)
 	}
+	fmt.Printf("interval: %s\n", interval)
 	fmt.Printf("interface: %s\n", cfg.Interface)
 	fmt.Printf("ttl: %d\n", cfg.EffectiveTTL())
 
@@ -175,7 +175,7 @@ func checkFromConfig(ctx context.Context, cfg *config.Config) error {
 	}
 	fmt.Printf("Provider '%s' is valid\n", cfg.Provider)
 
-	if factory.noListClean || restrictedProviders[cfg.Provider] {
+	if factory.noListClean {
 		fmt.Printf("\nProvider '%s' does not support connectivity check via GetRecords\n", cfg.Provider)
 		fmt.Println("(update-only API; use 'ddns6 run' to verify updates, or the provider web panel)")
 		return fmt.Errorf("%s does not support 'check' via api - %s only provides update endpoints", cfg.Provider, cfg.Provider)

@@ -5,7 +5,7 @@ package cli
 // 新增运营商步骤：
 //  1. 在 internal/providers/<name>/ 实现 ddns.DNSProvider
 //  2. 在 providerFactories 追加一条（flags、run、fromConfig）
-//  3. 若 API 仅支持更新、不支持查询/删除，设置 noListClean 并加入 restrictedProviders
+//  3. 若 API 仅支持更新、不支持查询/删除，设置 noListClean
 //  4. 补充 docker-compose.yml / .env.example / README 中的对应说明
 
 import (
@@ -63,11 +63,15 @@ type providerFactory struct {
 	fromConfig  func(cfg *config.Config) (ddns.DNSProvider, error)
 }
 
-// restrictedProviders 标记 API 只提供更新、不支持 records/clean 的运营商名。
-var restrictedProviders = map[string]bool{
-	"duckdns": true,
-	"he":      true,
-	"noip":    true,
+// isUpdateOnlyProvider 判断运营商 API 是否仅支持更新（无 records/clean）。
+// 以 providerFactories.noListClean 为单一真相，避免与独立 map 双维护。
+func isUpdateOnlyProvider(name string) bool {
+	for _, p := range providerFactories {
+		if p.name == name {
+			return p.noListClean
+		}
+	}
+	return false
 }
 
 // serviceRunner 启动 DDNS 服务；测试可替换，避免真实网络与长阻塞。

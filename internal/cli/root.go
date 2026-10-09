@@ -47,6 +47,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -63,6 +64,9 @@ import (
 
 	"github.com/notes-bin/ddns6/internal/config"
 )
+
+// errVersion 表示已打印版本信息，Execute 应将其视为成功退出。
+var errVersion = errors.New("version requested")
 
 // Version 是构建时经 -ldflags 注入的版本号；未注入时为 "dev"。
 var Version = "dev"
@@ -115,7 +119,7 @@ var rootCmd = &cobra.Command{
 		// -V/--version 须在日志初始化前拦截，否则会先打开日志文件再退出
 		if showV, _ := cmd.Flags().GetBool("version"); showV {
 			printVersion()
-			os.Exit(0)
+			return errVersion
 		}
 
 		// 仅根命令自身（无子命令）时跳过日志，便于直接显示帮助
@@ -160,7 +164,7 @@ var rootCmd = &cobra.Command{
 		return nil
 	},
 	// 空 Run 让根命令可执行，否则 cobra 会跳过 PersistentPreRun，导致 -V 无响应；
-	// -V 已在 PersistentPreRunE 中退出，此处仅在无参时显示帮助。
+	// -V 已在 PersistentPreRunE 中返回 errVersion，此处仅在无参时显示帮助。
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},
@@ -431,6 +435,17 @@ func doInitRootCmd() {
 		}
 	}
 
+	// check 与 init 一样以参数指定 provider，需在 checkCmd 上挂载全部认证 flag
+	seenCheckFlag := make(map[string]bool)
+	for _, p := range providerFactories {
+		for _, f := range p.flags {
+			if !seenCheckFlag[f.name] {
+				seenCheckFlag[f.name] = true
+				checkCmd.Flags().String(f.name, "", f.usage)
+			}
+		}
+	}
+
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(listCmd)
@@ -484,6 +499,9 @@ func Execute() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
+		if errors.Is(err, errVersion) {
+			return nil
+		}
 		errStr := err.Error()
 		// 仅匹配 cobra 的未知命令/非法 flag，避免误伤业务错误（如 unknown provider）
 		if strings.Contains(errStr, "unknown command") ||

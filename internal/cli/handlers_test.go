@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/notes-bin/ddns6/internal/config"
 	"github.com/notes-bin/ddns6/internal/ddns"
@@ -71,12 +72,19 @@ func listCleanFlags(t *testing.T) *cobra.Command {
 }
 
 // withArgs 临时替换 os.Args，并在测试结束时恢复。
+// 同时重置根命令持久化 flag（尤其是 -V/--version），避免上次解析残留污染后续用例。
 func withArgs(t *testing.T, args ...string) {
 
 	t.Helper()
 	old := os.Args
 	t.Cleanup(func() { os.Args = old })
 	os.Args = args
+
+	initRootCmd()
+	rootCmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {
+		_ = f.Value.Set(f.DefValue)
+		f.Changed = false
+	})
 }
 
 // stubServiceRunner 替换全局 serviceRunner，测试结束时恢复，避免真实网络阻塞。

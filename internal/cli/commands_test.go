@@ -205,15 +205,28 @@ func TestExecute_CommandFailed(t *testing.T) {
 func TestCheckCmd_CLIMode(t *testing.T) {
 
 	initRootCmd()
-	for _, args := range [][]string{
-		{"ddns6", "check", "help"},
-		{"ddns6", "check", "unknown-provider", "--log-file", ""},
-		{"ddns6", "check", "cloudflare", "--log-file", ""},
-		{"ddns6", "check", "cloudflare", "--domain", "example.com", "--log-file", ""},
-	} {
-		withArgs(t, args...)
-		_ = rootCmd.Execute()
+
+	withArgs(t, "ddns6", "check", "help")
+	_ = rootCmd.Execute()
+
+	withArgs(t, "ddns6", "check", "unknown-provider", "--log-file", "")
+	requireErrContains(t, rootCmd.Execute(), "unknown provider")
+
+	withArgs(t, "ddns6", "check", "cloudflare", "--log-file", "")
+	requireErrContains(t, rootCmd.Execute(), "--domain is required")
+
+	// 认证 flag 已注册：缺 api-token 应被识别为缺失，而非 unknown flag
+	withArgs(t, "ddns6", "check", "cloudflare", "--domain", "example.com", "--log-file", "")
+	requireErrContains(t, rootCmd.Execute(), "required auth flags are missing")
+
+	// 认证 flag 可被解析并进入 API 探测（假凭据应失败于 API，而非 unknown flag）
+	withArgs(t, "ddns6", "check", "cloudflare",
+		"--domain", "example.com", "--api-token", "fake", "--log-file", "")
+	err := rootCmd.Execute()
+	if err == nil {
+		t.Fatal("假凭据应失败")
 	}
+	requireErrContains(t, err, "API test failed")
 }
 
 // TestCheckCmd_ConfigMode 验证 check 可从配置文件读取并执行。
@@ -322,7 +335,7 @@ auth:
 	requireErrContains(t, err, "unsupported provider")
 }
 
-// TestCheckFromConfig_EmptySubdomainsAndBadInterval 验证默认子域名提示与非法 interval 告警。
+// TestCheckFromConfig_EmptySubdomainsAndBadInterval 验证默认子域名提示与非法 interval 硬失败。
 func TestCheckFromConfig_EmptySubdomainsAndBadInterval(t *testing.T) {
 
 	cfg := &config.Config{
@@ -331,10 +344,12 @@ func TestCheckFromConfig_EmptySubdomainsAndBadInterval(t *testing.T) {
 		Auth:     map[string]string{"api_token": "tok"},
 		Interval: "not-duration",
 	}
+	var gotErr error
 	out := captureStdout(t, func() {
-		_ = checkFromConfig(t.Context(), cfg)
+		gotErr = checkFromConfig(t.Context(), cfg)
 	})
-	requireContains(t, out, "subdomains: none", "parse error")
+	requireContains(t, out, "subdomains: none", "interval: invalid")
+	requireErrContains(t, gotErr, "invalid interval")
 }
 
 // TestCheckCmd_RestrictedProvider 验证 duckdns/he/noip 的 check 不伪造成功。

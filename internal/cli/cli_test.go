@@ -100,6 +100,17 @@ func TestExecute_Version(t *testing.T) {
 	requireContains(t, out, "Version:")
 }
 
+// TestExecute_VersionFlag 验证 -V 打印版本后成功返回（不调用 os.Exit）。
+func TestExecute_VersionFlag(t *testing.T) {
+	withArgs(t, "ddns6", "-V")
+	out := captureStdout(t, func() {
+		if err := Execute(); err != nil {
+			t.Fatalf("Execute(-V): %v", err)
+		}
+	})
+	requireContains(t, out, "Version:")
+}
+
 // TestExecute_UnknownCommand 验证未知命令打印帮助并以非 nil error 返回（非 0 退出）。
 func TestExecute_UnknownCommand(t *testing.T) {
 	initRootCmd()

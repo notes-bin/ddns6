@@ -330,24 +330,17 @@ func TestCreateDomainConfigs_Success(t *testing.T) {
 	}
 }
 
-// TestRestrictedProviders_Contains 验证 duckdns/he/noip 均在受限表中。
-func TestRestrictedProviders_Contains(t *testing.T) {
-
-	expected := map[string]bool{"duckdns": true, "he": true, "noip": true}
-	for name := range expected {
-		if !restrictedProviders[name] {
-			t.Errorf("restrictedProviders 应包含 %q", name)
+// TestUpdateOnlyProviders 验证 duckdns/he/noip 与 noListClean 标记一致。
+func TestUpdateOnlyProviders(t *testing.T) {
+	expected := []string{"duckdns", "he", "noip"}
+	for _, name := range expected {
+		if !isUpdateOnlyProvider(name) {
+			t.Errorf("isUpdateOnlyProvider(%q) 应为 true", name)
 		}
 	}
-}
-
-// TestNotRestricted 验证常见完整 API 运营商不在受限表中。
-func TestNotRestricted(t *testing.T) {
-
-	notRestricted := []string{"tencent", "cloudflare", "alicloud", "godaddy"}
-	for _, name := range notRestricted {
-		if restrictedProviders[name] {
-			t.Errorf("%q 不应在 restrictedProviders 中", name)
+	for _, name := range []string{"tencent", "cloudflare", "alicloud", "godaddy"} {
+		if isUpdateOnlyProvider(name) {
+			t.Errorf("isUpdateOnlyProvider(%q) 应为 false", name)
 		}
 	}
 }

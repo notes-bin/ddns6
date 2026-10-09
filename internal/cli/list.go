@@ -35,7 +35,7 @@ func formatProviderList(factories []providerFactory) string {
 	fmt.Fprintln(w, "NAME\tRECORDS/CLEAN\tDESCRIPTION")
 	for _, p := range factories {
 		rc := "yes"
-		if p.noListClean || restrictedProviders[p.name] {
+		if p.noListClean {
 			rc = "no"
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\n", p.name, rc, p.short)
