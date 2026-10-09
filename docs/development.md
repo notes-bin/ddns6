@@ -6,14 +6,14 @@
 
 | 依赖 | 版本 / 说明 |
 |------|-------------|
-| Go | **1.27.1+**（与 `go.mod`、CI 一致） |
+| Go | **1.27.2+**（与 `go.mod`、CI 一致） |
 | Git | 版本号注入（`git describe`） |
 | Docker（可选） | 镜像与 Compose |
 | Make | `Makefile` 常用目标 |
 | golangci-lint / govulncheck（可选） | 与 CI 对齐；`go.mod` 已声明相关 tool |
 
 ```bash
-go version   # 应显示 go1.27.1 或更高
+go version   # 应显示 go1.27.2 或更高
 ```
 
 ## 常用命令
@@ -58,7 +58,7 @@ go tool cover -func=coverage.out | tail -n 1   # 总覆盖率须 ≥ 80%
 | `test.yml` | push / PR → `main` | `go mod verify`、`govulncheck`、`golangci-lint`、`go vet`、`go test -race -cover`，覆盖率 &lt; 80% 失败 |
 | `release.yml` | tag `v*` | 质量门禁后矩阵构建并上传 GitHub Release |
 
-- Go 版本：`1.27.1`
+- Go 版本：`1.27.2`
 - Release 产物：`ddns6_<goos>_<goarch>.tar.gz`（含二进制、`LICENSE`、`README.md`）
 
 ## 项目结构

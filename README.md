@@ -1,6 +1,6 @@
 # DDNS6
 
-[![Go Version](https://img.shields.io/badge/Go-1.27.1+-00ADD8?logo=go)](go.mod)
+[![Go Version](https://img.shields.io/badge/Go-1.27.2+-00ADD8?logo=go)](go.mod)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 [![Test](https://github.com/notes-bin/ddns6/actions/workflows/test.yml/badge.svg)](https://github.com/notes-bin/ddns6/actions/workflows/test.yml)
 [![Release](https://img.shields.io/github/v/release/notes-bin/ddns6)](https://github.com/notes-bin/ddns6/releases)
