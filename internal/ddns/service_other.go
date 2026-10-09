@@ -15,6 +15,7 @@ import (
 // 非 Linux 不支持 Netlink，使用 ticker 定期检查；interval 由 --interval 控制，默认 5 分钟。
 func startTrigger(ctx context.Context, interval time.Duration, _ string) <-chan struct{} {
 	triggerCh := make(chan struct{}, 1)
+	interval = normalizeInterval(interval)
 
 	go func() {
 		slog.Info("using polling mode",

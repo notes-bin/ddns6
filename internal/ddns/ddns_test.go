@@ -110,6 +110,9 @@ type mockProvider struct {
 	modErr   error
 	getErr   error
 	getCalls int
+	modCalls int
+	// modFailAt 为第 N 次 ModifyRecord 失败（1-based）；0 表示始终返回 modErr。
+	modFailAt int
 }
 
 func (m *mockProvider) GetRecords(_ context.Context, _, _ string) ([]RecordInfo, error) {
@@ -122,6 +125,13 @@ func (m *mockProvider) AddRecord(_ context.Context, _ RecordInfo) error {
 }
 
 func (m *mockProvider) ModifyRecord(_ context.Context, _ RecordInfo) error {
+	m.modCalls++
+	if m.modFailAt > 0 {
+		if m.modCalls >= m.modFailAt {
+			return fmt.Errorf("modify failed at call %d", m.modCalls)
+		}
+		return nil
+	}
 	return m.modErr
 }
 
@@ -217,6 +227,9 @@ func TestSyncDNSRecord_ModifyRecordError(t *testing.T) {
 	if err == nil {
 		t.Fatal("ModifyRecord 失败时 syncDNSRecord 应返回错误")
 	}
+	if d.addr != nil {
+		t.Fatalf("Modify 失败不应更新缓存, 得到 %v", d.addr)
+	}
 }
 
 // TestSyncDNSRecord_AddRecordError 验证新增失败时向上返回错误。
@@ -251,6 +264,31 @@ func TestSyncDNSRecord_MultipleRecords_AllProcessed(t *testing.T) {
 
 	if d.addr == nil || d.addr.String() != "2001:db8::3" {
 		t.Errorf("Addr 应更新为 2001:db8::3, 得到 %v", d.addr)
+	}
+	if m.modCalls != 2 {
+		t.Errorf("应修改 2 条记录, 实际 %d", m.modCalls)
+	}
+}
+
+// TestSyncDNSRecord_PartialModify_NoCache 验证多记录时后一条 Modify 失败不写 addr 缓存。
+func TestSyncDNSRecord_PartialModify_NoCache(t *testing.T) {
+	ctx := t.Context()
+	d := &Domain{Domain: "example.com", SubDomain: "www", Type: "AAAA", TTL: 600}
+	addr := net.ParseIP("2001:db8::3")
+	m := &mockProvider{
+		records: []RecordInfo{
+			{ID: "1", Name: "www.example.com", Zone: "example.com", Type: "AAAA", Value: "2001:db8::1", TTL: 600},
+			{ID: "2", Name: "www.example.com", Zone: "example.com", Type: "AAAA", Value: "2001:db8::2", TTL: 600},
+		},
+		modFailAt: 2,
+	}
+
+	err := syncDNSRecord(ctx, d, m, addr)
+	if err == nil {
+		t.Fatal("第二条 Modify 失败时应返回错误")
+	}
+	if d.addr != nil {
+		t.Fatalf("部分失败不应更新缓存, 得到 %v", d.addr)
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/notes-bin/ddns6/pkg/ipaddr"
 	"github.com/vishvananda/netlink"
 )
 
@@ -21,23 +22,13 @@ const debounceDuration = 10 * time.Second
 
 // startTrigger 启动 Netlink 地址监听器。
 //
-// 监听内核 RTM_NEWADDR；检测到新的全局单播 IPv6 后经 debounce 合并短时多次事件再触发同步。
+// 监听内核 RTM_NEWADDR；检测到新的公网 IPv6 后经 debounce 合并短时多次事件再触发同步。
 // iface 非空时只处理该接口。订阅失败（如权限不足）时回退到定时轮询。
 func startTrigger(ctx context.Context, interval time.Duration, iface string) <-chan struct{} {
 	triggerCh := make(chan struct{}, 1)
 
 	go func() {
-		updates := make(chan netlink.AddrUpdate, 128)
-		if err := netlink.AddrSubscribe(updates, ctx.Done()); err != nil {
-			slog.Warn("netlink subscribe failed, falling back to polling",
-				"module", "ddns", "err", err, "fallback_interval", interval)
-			fallbackPolling(ctx, triggerCh, interval)
-			return
-		}
-
-		slog.Info("netlink address listener started",
-			"module", "ddns", "interface", iface, "debounce", debounceDuration)
-
+		// 先解析接口再订阅，避免订阅成功后回退时遗弃 updates 导致接收 goroutine 阻塞
 		var targetIndex int
 		if iface != "" {
 			ifi, err := net.InterfaceByName(iface)
@@ -53,6 +44,20 @@ func startTrigger(ctx context.Context, interval time.Duration, iface string) <-c
 				"module", "ddns", "interface", iface, "index", targetIndex)
 		}
 
+		subCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		updates := make(chan netlink.AddrUpdate, 128)
+		if err := netlink.AddrSubscribe(updates, subCtx.Done()); err != nil {
+			slog.Warn("netlink subscribe failed, falling back to polling",
+				"module", "ddns", "err", err, "fallback_interval", interval)
+			fallbackPolling(ctx, triggerCh, interval)
+			return
+		}
+
+		slog.Info("netlink address listener started",
+			"module", "ddns", "interface", iface, "debounce", debounceDuration)
+
 		var debounceTimer *time.Timer
 		var timerC <-chan time.Time
 
@@ -62,24 +67,17 @@ func startTrigger(ctx context.Context, interval time.Duration, iface string) <-c
 				if !ok {
 					slog.Warn("netlink update channel closed, falling back to polling",
 						"module", "ddns", "fallback_interval", interval)
+					cancel()
 					fallbackPolling(ctx, triggerCh, interval)
 					return
 				}
 
-				// 忽略地址删除，只关心新增
-				if !update.NewAddr {
+				if !update.NewAddr || update.LinkAddress.IP == nil {
 					continue
 				}
 
-				if update.LinkAddress.IP == nil {
-					continue
-				}
-
-				// 忽略 IPv4 与非全局单播（link-local、ULA 等）
-				if update.LinkAddress.IP.To4() != nil {
-					continue
-				}
-				if !update.LinkAddress.IP.IsGlobalUnicast() {
+				// 忽略 IPv4、link-local、ULA 等非公网地址
+				if !ipaddr.IsPublicIPv6(update.LinkAddress.IP) {
 					continue
 				}
 
@@ -92,7 +90,6 @@ func startTrigger(ctx context.Context, interval time.Duration, iface string) <-c
 					timerC = debounceTimer.C
 				} else {
 					if !debounceTimer.Stop() {
-						// 排空已触发的 channel，避免 Reset 后立即误触发
 						select {
 						case <-debounceTimer.C:
 						default:
@@ -101,11 +98,10 @@ func startTrigger(ctx context.Context, interval time.Duration, iface string) <-c
 					debounceTimer.Reset(debounceDuration)
 				}
 
-				evtLog := slog.With(
+				slog.Debug("IPv6 address change detected, debounce timer reset",
+					"module", "ddns",
 					"interface_index", update.LinkIndex,
-					"addr", update.LinkAddress.IP.String(),
-				)
-				evtLog.Debug("IPv6 address change detected, debounce timer reset")
+					"addr", update.LinkAddress.IP.String())
 
 			case <-timerC:
 				slog.Debug("debounce timer expired, triggering DNS sync",

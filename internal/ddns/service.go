@@ -11,11 +11,44 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+	"uuid"
 
 	"github.com/notes-bin/ddns6/internal/httputil"
 	"github.com/notes-bin/ddns6/internal/metrics"
 	"github.com/notes-bin/ddns6/pkg/ipaddr"
 )
+
+// DefaultInterval 为轮询间隔默认值（非 Linux 或 Netlink 回退）。
+const DefaultInterval = 5 * time.Minute
+
+// syncIDKey 是 context 中存放 sync_id 的键类型。
+type syncIDKey struct{}
+
+// WithSyncID 为本轮同步注入 sync_id，便于并发 zone 日志对齐。
+func WithSyncID(ctx context.Context) context.Context {
+	return context.WithValue(ctx, syncIDKey{}, uuid.New().String())
+}
+
+// SyncIDFrom 取出 ctx 中的 sync_id；无则返回空串。
+func SyncIDFrom(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if id, ok := ctx.Value(syncIDKey{}).(string); ok {
+		return id
+	}
+	return ""
+}
+
+// normalizeInterval 确保轮询间隔为正；非法时回退默认值并打日志。
+func normalizeInterval(interval time.Duration) time.Duration {
+	if interval > 0 {
+		return interval
+	}
+	slog.Warn("invalid poll interval, using default",
+		"module", "ddns", "interval", interval, "default", DefaultInterval)
+	return DefaultInterval
+}
 
 // DefaultIPv6Fetchers 返回默认的 IPv6 地址获取器列表（每次调用返回新切片，避免调用方污染全局状态）。
 //
@@ -69,12 +102,15 @@ func RunService(domains []*Domain, p DNSProvider, interval time.Duration, fetche
 
 // runService 在给定 ctx 下运行主循环；测试可注入可取消 context，避免向进程发真实信号。
 func runService(ctx context.Context, domains []*Domain, p DNSProvider, interval time.Duration, fetchers []ipaddr.IPv6Fetcher, iface, metricsAddr string) error {
+	interval = normalizeInterval(interval)
+
+	var metricsWG sync.WaitGroup
 	if metricsAddr != "" {
-		go func() {
+		metricsWG.Go(func() {
 			if err := metrics.Serve(ctx, metricsAddr); err != nil {
 				slog.Error("metrics server stopped", "module", "metrics", "err", httputil.ErrForLog(err))
 			}
-		}()
+		})
 	}
 
 	// 启动时立即做一次完整同步，避免等待首次 Netlink 事件或轮询周期
@@ -129,6 +165,7 @@ func runService(ctx context.Context, domains []*Domain, p DNSProvider, interval 
 			done := make(chan struct{})
 			go func() {
 				syncWG.Wait()
+				metricsWG.Wait()
 				close(done)
 			}()
 			select {
@@ -213,8 +250,16 @@ func syncAllDomains(ctx context.Context, domains []*Domain, ip net.IP, p DNSProv
 	errCh := make(chan error, len(groups))
 	for key, group := range groups {
 		wg.Go(func() {
-			sem <- struct{}{}
-			defer func() { <-sem }()
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				failed.Store(true)
+				if failFast {
+					errCh <- ctx.Err()
+				}
+				return
+			}
 
 			if err := syncDomainGroup(ctx, key.root, key.typ, group, ip, p); err != nil {
 				failed.Store(true)
@@ -292,7 +337,7 @@ func syncDomainGroup(ctx context.Context, root, typ string, group []*Domain, ip 
 //
 // Linux 上 Netlink 不可用时回退至此；非 Linux 默认使用此模式。
 func pollingLoop(ctx context.Context, triggerCh chan<- struct{}, interval time.Duration) {
-	ticker := time.NewTicker(interval)
+	ticker := time.NewTicker(normalizeInterval(interval))
 	defer ticker.Stop()
 
 	for {
