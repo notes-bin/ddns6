@@ -164,16 +164,13 @@ func (c *Client) DeleteRecord(ctx context.Context, info ddns.RecordInfo) error {
 }
 
 // GetRecords 查询 DNS 记录。
-// 主机名为 "@" 时不传 sub_domain，可列出该域下指定类型的全部记录。
+// fulldomain 已是配置根域，整段作为 domain；不传 sub_domain，列出该域下指定类型的全部记录。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	domain, sub := domainutil.SplitDomain(fulldomain, "")
+	domain := strings.ToLower(strings.TrimSuffix(fulldomain, "."))
 	params := url.Values{
 		"login_token": {c.loginToken},
 		"format":      {"json"},
 		"domain":      {domain},
-	}
-	if sub != "@" {
-		params.Set("sub_domain", sub)
 	}
 	if recordType != "" {
 		params.Set("record_type", recordType)

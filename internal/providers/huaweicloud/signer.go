@@ -6,9 +6,8 @@ import (
 	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
-	"github.com/notes-bin/ddns6/internal/digest"
-	"github.com/notes-bin/ddns6/internal/httputil"
 	"io"
 	"maps"
 	"net/http"
@@ -16,6 +15,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/notes-bin/ddns6/internal/httputil"
 )
 
 const (
@@ -166,7 +167,8 @@ func hexEncodeSHA256Hash(body []byte) (string, error) {
 	if body == nil {
 		body = []byte("")
 	}
-	return digest.SHA256Hex(body), nil
+	sum := sha256.Sum256(body)
+	return hex.EncodeToString(sum[:]), nil
 }
 
 // authHeaderValue 组装 Authorization 头值。

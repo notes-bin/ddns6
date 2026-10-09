@@ -2,6 +2,8 @@ package gcloud
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -76,25 +78,33 @@ func TestClient_AddRecord(t *testing.T) {
 	}
 }
 
-// TestClient_ModifyRecord 验证 ModifyRecord 先删后增。
+// TestClient_ModifyRecord 验证 ModifyRecord 单次 Change 同时含 deletions 与 additions。
 func TestClient_ModifyRecord(t *testing.T) {
 	var changeCount int
+	var hasDeletion, hasAddition bool
 	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/changes") && r.Method == http.MethodPost {
 			changeCount++
+			body, _ := io.ReadAll(r.Body)
+			hasDeletion = strings.Contains(string(body), `"deletions"`)
+			hasAddition = strings.Contains(string(body), `"additions"`)
 			json.NewEncoder(w).Encode(map[string]string{"status": "pending"})
 			return
 		}
 		defaultHandler(w, r)
 	})
 	err := client.ModifyRecord(t.Context(), ddns.RecordInfo{
-		Name: "www.example.com", Zone: "example.com", Type: "AAAA", Value: "2001:db8::3", TTL: 600,
+		Name: "www.example.com", Zone: "example.com", ID: "www.example.com.|AAAA|2001:db8::1",
+		Type: "AAAA", Value: "2001:db8::3", TTL: 600,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if changeCount != 2 {
-		t.Errorf("ModifyRecord should call changes twice (delete+add), got %d", changeCount)
+	if changeCount != 1 {
+		t.Errorf("ModifyRecord should call changes once (atomic replace), got %d", changeCount)
+	}
+	if !hasDeletion || !hasAddition {
+		t.Errorf("expected both deletions and additions in one change, deletion=%v addition=%v", hasDeletion, hasAddition)
 	}
 }
 
@@ -136,5 +146,39 @@ func TestClient_ApiError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "403") {
 		t.Errorf("expected status 403 in error, got: %v", err)
+	}
+}
+
+// TestHTTPStatusError_Error 验证错误字符串包含状态码与正文。
+func TestHTTPStatusError_Error(t *testing.T) {
+	t.Parallel()
+	err := &httpStatusError{status: http.StatusBadRequest, body: "bad"}
+	got := err.Error()
+	if !strings.Contains(got, "400") || !strings.Contains(got, "bad") {
+		t.Fatalf("Error() = %q", got)
+	}
+}
+
+// TestIsNotFound 覆盖 404、非 404 与非 httpStatusError。
+func TestIsNotFound(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "404", err: &httpStatusError{status: http.StatusNotFound}, want: true},
+		{name: "403", err: &httpStatusError{status: http.StatusForbidden}, want: false},
+		{name: "普通错误", err: errors.New("boom"), want: false},
+		{name: "nil", err: nil, want: false},
+		{name: "包装 404", err: fmt.Errorf("wrap: %w", &httpStatusError{status: http.StatusNotFound}), want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := isNotFound(tt.err); got != tt.want {
+				t.Errorf("isNotFound() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

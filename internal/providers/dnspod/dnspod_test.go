@@ -29,7 +29,7 @@ func TestClient_GetRecords(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("12345,mytoken", WithBaseURL(server.URL))
-	records, err := client.GetRecords(t.Context(), "www.example.com", "AAAA")
+	records, err := client.GetRecords(t.Context(), "example.com", "AAAA")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -41,6 +41,35 @@ func TestClient_GetRecords(t *testing.T) {
 	}
 	if records[0].ID != "123" {
 		t.Errorf("expected ID 123, got %s", records[0].ID)
+	}
+}
+
+// TestClient_GetRecords_MultiPartTLD 验证多段 TLD 根域整段作为 domain。
+func TestClient_GetRecords_MultiPartTLD(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("parse form: %v", err)
+		}
+		if got := r.PostFormValue("domain"); got != "example.co.uk" {
+			t.Errorf("domain = %q, want example.co.uk", got)
+		}
+		if r.PostFormValue("sub_domain") != "" {
+			t.Errorf("sub_domain should be empty for zone list, got %q", r.PostFormValue("sub_domain"))
+		}
+		json.NewEncoder(w).Encode(recordListResponse{
+			Status:  dnspodStatus{Code: "1", Message: "成功"},
+			Records: []dnspodRecord{{ID: 1, Name: "@", Type: "AAAA", Value: "2001:db8::9", TTL: "600"}},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient("12345,mytoken", WithBaseURL(server.URL))
+	records, err := client.GetRecords(t.Context(), "example.co.uk", "AAAA")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(records) != 1 || records[0].Name != "example.co.uk" {
+		t.Fatalf("unexpected records: %+v", records)
 	}
 }
 
@@ -111,7 +140,7 @@ func TestClient_ApiError(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("12345,mytoken", WithBaseURL(server.URL))
-	_, err := client.GetRecords(t.Context(), "www.example.com", "AAAA")
+	_, err := client.GetRecords(t.Context(), "example.com", "AAAA")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}

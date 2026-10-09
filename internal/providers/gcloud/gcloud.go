@@ -101,14 +101,9 @@ func (c *Client) AddRecord(ctx context.Context, info ddns.RecordInfo) error {
 	return c.applyChange(ctx, info, "add")
 }
 
-// ModifyRecord 修改 DNS 记录。
+// ModifyRecord 修改 DNS 记录（单次 Change：deletions + additions）。
 func (c *Client) ModifyRecord(ctx context.Context, info ddns.RecordInfo) error {
-	old := info
-	old.Value = info.ValueFromID()
-	if err := c.applyChange(ctx, old, "delete"); err != nil && !isNotFound(err) {
-		return err
-	}
-	return c.applyChange(ctx, info, "add")
+	return c.applyChange(ctx, info, "replace")
 }
 
 // DeleteRecord 删除 DNS 记录。
@@ -154,7 +149,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	return result, nil
 }
 
-// applyChange 提交 additions 或 deletions 变更。
+// applyChange 提交 additions / deletions / replace（原子删+增）变更。
 func (c *Client) applyChange(ctx context.Context, info ddns.RecordInfo, action string) error {
 	zone, rrName, _, err := c.resolve(ctx, info.Name, info.Zone)
 	if err != nil {
@@ -172,6 +167,12 @@ func (c *Client) applyChange(ctx context.Context, info ddns.RecordInfo, action s
 		chg.Additions = []rrSet{set}
 	case "delete":
 		chg.Deletions = []rrSet{set}
+	case "replace":
+		// 同请求内 deletions+additions，避免非原子先删后增
+		old := set
+		old.Rrdatas = []string{info.ValueFromID()}
+		chg.Deletions = []rrSet{old}
+		chg.Additions = []rrSet{set}
 	default:
 		return fmt.Errorf("unknown change action: %s", action)
 	}

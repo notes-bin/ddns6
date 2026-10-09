@@ -10,7 +10,7 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-// TestClient_GetRecords 验证 GetRecords 解析与 Bearer 认证。
+// TestClient_GetRecords 验证 GetRecords 解析与 Bearer 认证（入参为根域）。
 func TestClient_GetRecords(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer test-token" {
@@ -28,7 +28,7 @@ func TestClient_GetRecords(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("test-token", WithBaseURL(server.URL))
-	records, err := client.GetRecords(t.Context(), "www.example.com", "AAAA")
+	records, err := client.GetRecords(t.Context(), "example.com", "AAAA")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -40,6 +40,30 @@ func TestClient_GetRecords(t *testing.T) {
 	}
 	if records[0].ID != "1" {
 		t.Errorf("expected ID 1, got %s", records[0].ID)
+	}
+}
+
+// TestClient_GetRecords_MultiPartTLD 验证多段 TLD 根域不误拆为末两段。
+func TestClient_GetRecords_MultiPartTLD(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, "/domains/example.co.uk/records") {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		json.NewEncoder(w).Encode(map[string]any{
+			"domain_records": []domainRecord{
+				{ID: 2, Type: "AAAA", Name: "@", Data: "2001:db8::9", TTL: 600},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient("test-token", WithBaseURL(server.URL))
+	records, err := client.GetRecords(t.Context(), "example.co.uk", "AAAA")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(records) != 1 || records[0].Name != "example.co.uk" {
+		t.Fatalf("unexpected records: %+v", records)
 	}
 }
 
@@ -108,7 +132,7 @@ func TestClient_APIError(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("bad-token", WithBaseURL(server.URL))
-	_, err := client.GetRecords(t.Context(), "www.example.com", "AAAA")
+	_, err := client.GetRecords(t.Context(), "example.com", "AAAA")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}

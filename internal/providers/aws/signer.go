@@ -2,14 +2,11 @@
 package aws
 
 import (
-	"bytes"
 	"cmp"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"github.com/notes-bin/ddns6/internal/httputil"
-	"io"
 	"net/http"
 	"slices"
 	"strings"
@@ -104,17 +101,4 @@ func hmacSHA256(key []byte, data string) []byte {
 func hexSHA256(data []byte) string {
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
-}
-
-// requestPayload 读取并重置请求体以便签名。
-func requestPayload(r *http.Request) ([]byte, error) {
-	if r.Body == nil {
-		return nil, nil
-	}
-	body, err := httputil.ReadBody(r.Body)
-	if err != nil {
-		return nil, err
-	}
-	r.Body = io.NopCloser(bytes.NewReader(body))
-	return body, nil
 }

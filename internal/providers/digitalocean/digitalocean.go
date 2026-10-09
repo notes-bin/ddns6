@@ -149,8 +149,9 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 }
 
 // GetRecords 查询 DNS 记录（列出 domain 下全部记录后按类型过滤；路径经 PathEscape）。
+// fulldomain 已是配置根域，整段作为注册 domain，不经 SplitDomain 取末两段。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	domain, _ := domainutil.SplitDomain(fulldomain, "")
+	domain := strings.ToLower(strings.TrimSuffix(fulldomain, "."))
 
 	url := fmt.Sprintf("%s/domains/%s/records?per_page=200", c.baseURL, url.PathEscape(domain))
 	slog.Debug("querying DigitalOcean DNS records", "module", "digitalocean", "domain", domain, "type", recordType)

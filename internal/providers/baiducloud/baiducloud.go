@@ -9,6 +9,9 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -19,7 +22,6 @@ import (
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
-	"github.com/notes-bin/ddns6/internal/digest"
 	"github.com/notes-bin/ddns6/internal/httputil"
 	"github.com/notes-bin/ddns6/pkg/domainutil"
 )
@@ -184,9 +186,10 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 	return nil
 }
 
-// GetRecords 查询 DNS 记录（列出 zone 下 resolve/list 返回的记录，再按类型与主机名过滤）。
+// GetRecords 查询 DNS 记录（列出 zone 下 resolve/list 返回的记录，再按类型过滤）。
+// fulldomain 已是配置根域，整段作为 zone，不经 SplitDomain 取末两段。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	zoneName, subDomain := splitDomain(fulldomain, "")
+	zoneName := strings.ToLower(strings.TrimSuffix(fulldomain, "."))
 
 	payload := map[string]any{
 		"domain":   zoneName,
@@ -210,9 +213,6 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	result := make([]ddns.RecordInfo, 0, len(listResp.Result))
 	for _, r := range listResp.Result {
 		if r.RDType != recordType {
-			continue
-		}
-		if subDomain != "@" && r.Domain != subDomain {
 			continue
 		}
 		recordName := zoneName
@@ -290,10 +290,16 @@ func (c *Client) signRequest(req *http.Request, body []byte) {
 	canonicalRequest := fmt.Sprintf("%s\n%s\n%s\n%s\n%s",
 		req.Method, canonicalURI, canonicalQuery, canonicalHeaders, signedHeaders)
 
-	stringToSign := fmt.Sprintf("%s\n%s", authStringPrefix, digest.SHA256Hex([]byte(canonicalRequest)))
+	sum := sha256.Sum256([]byte(canonicalRequest))
+	stringToSign := fmt.Sprintf("%s\n%s", authStringPrefix, hex.EncodeToString(sum[:]))
 
-	signingKey := digest.HMACSHA256([]byte(c.secretKey), []byte(authStringPrefix))
-	signature := digest.HMACSHA256Hex(signingKey, []byte(stringToSign))
+	mac := hmac.New(sha256.New, []byte(c.secretKey))
+	mac.Write([]byte(authStringPrefix))
+	signingKey := mac.Sum(nil)
+
+	mac = hmac.New(sha256.New, signingKey)
+	mac.Write([]byte(stringToSign))
+	signature := hex.EncodeToString(mac.Sum(nil))
 
 	authorization := fmt.Sprintf("%s/%s/%s", authStringPrefix, signedHeaders, signature)
 	req.Header.Set("Authorization", authorization)

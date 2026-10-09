@@ -10,13 +10,13 @@ import (
 	"github.com/notes-bin/ddns6/internal/ddns"
 )
 
-// TestClient_GetRecords 验证 retrieveByNameType 路径、PathEscape 与认证体。
+// TestClient_GetRecords 验证 retrieveByType 整区列出、PathEscape 与认证体。
 func TestClient_GetRecords(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Errorf("expected POST, got %s", r.Method)
 		}
-		if !strings.HasSuffix(r.URL.Path, "/retrieveByNameType/example.com/AAAA/www") {
+		if !strings.HasSuffix(r.URL.Path, "/retrieveByType/example.com/AAAA") {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
 		// 验证认证信息
@@ -35,7 +35,7 @@ func TestClient_GetRecords(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(server.URL))
-	records, err := client.GetRecords(t.Context(), "www.example.com", "AAAA")
+	records, err := client.GetRecords(t.Context(), "example.com", "AAAA")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -44,6 +44,29 @@ func TestClient_GetRecords(t *testing.T) {
 	}
 	if records[0].Value != "2001:db8::1" {
 		t.Errorf("expected 2001:db8::1, got %s", records[0].Value)
+	}
+}
+
+// TestClient_GetRecords_MultiPartTLD 验证多段 TLD 根域不误拆。
+func TestClient_GetRecords_MultiPartTLD(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, "/retrieveByType/example.co.uk/AAAA") {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		json.NewEncoder(w).Encode(apiResponse{
+			Status:  "SUCCESS",
+			Records: []dnsRecord{{Name: "example.co.uk", Type: "AAAA", Content: "2001:db8::9", TTL: "600"}},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient("test-key", "test-secret", WithBaseURL(server.URL))
+	records, err := client.GetRecords(t.Context(), "example.co.uk", "AAAA")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(records))
 	}
 }
 

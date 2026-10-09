@@ -12,6 +12,9 @@ package tencent
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -21,7 +24,6 @@ import (
 	"time"
 
 	"github.com/notes-bin/ddns6/internal/ddns"
-	"github.com/notes-bin/ddns6/internal/digest"
 	"github.com/notes-bin/ddns6/internal/httputil"
 	"github.com/notes-bin/ddns6/pkg/domainutil"
 )
@@ -123,12 +125,11 @@ func NewClient(secretID, secretKey string, options ...Option) *DNSPod {
 		apiURL:    "https://dnspod.tencentcloudapi.com",
 		httpClient: func() *http.Client {
 			c := httputil.NewHTTPClient(30 * time.Second)
-			c.Transport = &http.Transport{
-				ForceAttemptHTTP2:   false,
-				IdleConnTimeout:     90 * time.Second,
-				MaxIdleConns:        100,
-				MaxIdleConnsPerHost: 10,
-			}
+			// Clone DefaultTransport，保留 ProxyFromEnvironment 等默认行为
+			tr := http.DefaultTransport.(*http.Transport).Clone()
+			tr.ForceAttemptHTTP2 = false
+			tr.MaxIdleConnsPerHost = 10
+			c.Transport = tr
 			return c
 		}(),
 	}
@@ -584,18 +585,31 @@ func (ds *DNSPod) generateSignatureV3(service, action, payload string, timestamp
 	canonicalQuery := ""
 	canonicalHeaders := fmt.Sprintf("content-type:application/json; charset=utf-8\nhost:%s\nx-tc-action:%s\n", domain, strings.ToLower(action))
 	signedHeaders := "content-type;host;x-tc-action"
-	hashedPayload := digest.SHA256Hex([]byte(payload))
+	hashedPayload := sha256Hex([]byte(payload))
 	canonicalRequest := fmt.Sprintf("POST\n%s\n%s\n%s\n%s\n%s", canonicalURI, canonicalQuery, canonicalHeaders, signedHeaders, hashedPayload)
 
 	credentialScope := fmt.Sprintf("%s/%s/tc3_request", date, service)
-	hashedRequest := digest.SHA256Hex([]byte(canonicalRequest))
+	hashedRequest := sha256Hex([]byte(canonicalRequest))
 	stringToSign := fmt.Sprintf("%s\n%d\n%s\n%s", algorithm, timestamp, credentialScope, hashedRequest)
 
-	secretDate := digest.HMACSHA256([]byte("TC3"+ds.secretKey), []byte(date))
-	secretService := digest.HMACSHA256(secretDate, []byte(service))
-	secretSigning := digest.HMACSHA256(secretService, []byte("tc3_request"))
-	signature := digest.HMACSHA256Hex(secretSigning, []byte(stringToSign))
+	secretDate := hmacSHA256([]byte("TC3"+ds.secretKey), []byte(date))
+	secretService := hmacSHA256(secretDate, []byte(service))
+	secretSigning := hmacSHA256(secretService, []byte("tc3_request"))
+	signature := hex.EncodeToString(hmacSHA256(secretSigning, []byte(stringToSign)))
 
 	return fmt.Sprintf("%s Credential=%s/%s, SignedHeaders=%s, Signature=%s",
 		algorithm, ds.secretID, credentialScope, signedHeaders, signature)
+}
+
+// sha256Hex 计算 SHA-256 并返回小写十六进制字符串。
+func sha256Hex(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
+}
+
+// hmacSHA256 计算 HMAC-SHA256 并返回原始字节。
+func hmacSHA256(key, data []byte) []byte {
+	mac := hmac.New(sha256.New, key)
+	mac.Write(data)
+	return mac.Sum(nil)
 }

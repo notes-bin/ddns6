@@ -115,6 +115,18 @@ func TestClient_DeleteRecord(t *testing.T) {
 	}
 }
 
+// TestClient_splitDomain_MultiPartTLD 验证已知根域时多段 TLD 正确拆为 SLD+TLD。
+func TestClient_splitDomain_MultiPartTLD(t *testing.T) {
+	c := NewClient("key", "user", "127.0.0.1")
+	sld, tld, sub, err := c.splitDomain("www.example.co.uk", "example.co.uk")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sld != "example" || tld != "co.uk" || sub != "www" {
+		t.Errorf("got sld=%q tld=%q sub=%q, want example / co.uk / www", sld, tld, sub)
+	}
+}
+
 // TestClient_ApiError 验证 XML 错误响应被正确返回。
 func TestClient_ApiError(t *testing.T) {
 	const errXML = `<?xml version="1.0"?><ApiResponse Status="ERROR"><Errors><Error>Invalid API Key</Error></Errors></ApiResponse>`
@@ -127,5 +139,15 @@ func TestClient_ApiError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "Invalid API Key") {
 		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// TestHTTPStatusError_Error 验证错误字符串包含状态码与正文。
+func TestHTTPStatusError_Error(t *testing.T) {
+	t.Parallel()
+	err := &httpStatusError{status: http.StatusForbidden, body: "denied"}
+	got := err.Error()
+	if !strings.Contains(got, "403") || !strings.Contains(got, "denied") {
+		t.Fatalf("Error() = %q", got)
 	}
 }

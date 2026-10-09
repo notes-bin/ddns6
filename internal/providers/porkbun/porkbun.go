@@ -4,8 +4,7 @@
 // 必填参数：--api-key、--secret-api-key
 //
 // 域名/类型/主机名路径段均经 url.PathEscape 转义。
-// GetRecords：根域（sub="@"）用 retrieveByType 按类型整区列出；
-// 否则 retrieveByNameType 精确匹配主机。
+// GetRecords：入参已是配置根域，用 retrieveByType 按类型整区列出。
 // HTTP 客户端默认 httputil.NewHTTPClient（含 SameHostRedirect）。
 //
 // API 文档：https://porkbun.com/api/json/v3/documentation
@@ -165,17 +164,13 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 }
 
 // GetRecords 查询 DNS 记录。
-// sub 为 "@" 时 retrieveByType 按类型整区列出；否则 retrieveByNameType 精确匹配。
-// 路径中的 domain / type / name 均经 PathEscape。
+// fulldomain 已是配置根域，整段作为 domain；用 retrieveByType 按类型整区列出。
+// 路径中的 domain / type 均经 PathEscape。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	domain, subDomain := splitDomain(fulldomain, "")
+	domain := strings.ToLower(strings.TrimSuffix(fulldomain, "."))
 
-	// "@" → 整区按类型；非 "@" → 按主机名精确检索
 	url := fmt.Sprintf("%s/retrieveByType/%s/%s", c.baseURL, urlpkg.PathEscape(domain), urlpkg.PathEscape(recordType))
-	if subDomain != "@" {
-		url = fmt.Sprintf("%s/retrieveByNameType/%s/%s/%s", c.baseURL, urlpkg.PathEscape(domain), urlpkg.PathEscape(recordType), urlpkg.PathEscape(subDomain))
-	}
-	slog.Debug("querying Porkbun DNS records", "module", "porkbun", "domain", domain, "name", subDomain, "type", recordType)
+	slog.Debug("querying Porkbun DNS records", "module", "porkbun", "domain", domain, "type", recordType)
 
 	var resp apiResponse
 	err := c.post(ctx, url, nil, &resp)

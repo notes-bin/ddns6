@@ -29,7 +29,7 @@ func TestClient_GetRecords(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("test-key", "test-secret", WithBaseURL(server.URL))
-	records, err := client.GetRecords(t.Context(), "www.example.com", "AAAA")
+	records, err := client.GetRecords(t.Context(), "example.com", "AAAA")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -38,6 +38,33 @@ func TestClient_GetRecords(t *testing.T) {
 	}
 	if records[0].Value != "2001:db8::1" {
 		t.Errorf("expected 2001:db8::1, got %s", records[0].Value)
+	}
+}
+
+// TestClient_GetRecords_MultiPartTLD 验证多段 TLD 根域整段作为 zone。
+func TestClient_GetRecords_MultiPartTLD(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		json.NewDecoder(r.Body).Decode(&body)
+		if body["domain"] != "example.co.uk" {
+			t.Errorf("domain = %v, want example.co.uk", body["domain"])
+		}
+		json.NewEncoder(w).Encode(baiduListResponse{
+			Result: []dnsRecord{
+				{RecordID: "rec2", Domain: "@", RDType: "AAAA", RData: "2001:db8::9", TTL: 300, View: "default", ZoneName: "example.co.uk"},
+			},
+			TotalCount: 1,
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient("test-key", "test-secret", WithBaseURL(server.URL))
+	records, err := client.GetRecords(t.Context(), "example.co.uk", "AAAA")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(records) != 1 || records[0].Name != "example.co.uk" {
+		t.Fatalf("unexpected records: %+v", records)
 	}
 }
 

@@ -286,14 +286,15 @@ func (c *Client) call(ctx context.Context, command string, extra url.Values) (*a
 }
 
 // splitDomain 结合 zoneHint 拆分，返回 SLD、TLD 与主机标签（API 要求）。
+// root 已知时：sld 为第一段，tld 为剩余段拼接（支持 co.uk 等多段 TLD）。
 func (c *Client) splitDomain(name, zoneHint string) (sld, tld, sub string, err error) {
 	root, sub := domainutil.SplitDomain(name, zoneHint)
 	parts := strings.Split(strings.ToLower(strings.TrimSuffix(root, ".")), ".")
 	if len(parts) < 2 {
 		return "", "", "", fmt.Errorf("invalid namecheap domain: %s", name)
 	}
-	tld = parts[len(parts)-1]
-	sld = parts[len(parts)-2]
+	sld = parts[0]
+	tld = strings.Join(parts[1:], ".")
 	sub = cmp.Or(sub, "@")
 	return sld, tld, sub, nil
 }

@@ -182,24 +182,20 @@ func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error
 }
 
 // GetRecords 查询 DNS 记录。
-// 主机名为 "@"（apex）时不传 sub_domain，列出该域下指定类型的全部记录。
+// fulldomain 已是配置根域，整段作为 domain；不传 sub_domain，列出该域下指定类型的全部记录。
 func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) ([]ddns.RecordInfo, error) {
-	domain, subDomain := domainutil.SplitDomain(fulldomain, "")
+	domain := strings.ToLower(strings.TrimSuffix(fulldomain, "."))
 
 	params := url.Values{}
 	params.Set("login_token", c.loginToken)
 	params.Set("format", "json")
 	params.Set("domain", domain)
-	// subDomain 为 "@" 时不传 sub_domain，以获取该域名下全部记录
-	if subDomain != "@" {
-		params.Set("sub_domain", subDomain)
-	}
 	if recordType != "" {
 		params.Set("record_type", recordType)
 	}
 
 	url := c.baseURL + "/Record.List"
-	slog.Debug("querying DNSPod records", "module", "dnspod", "domain", domain, "subdomain", subDomain, "type", recordType)
+	slog.Debug("querying DNSPod records", "module", "dnspod", "domain", domain, "type", recordType)
 
 	var resp recordListResponse
 	if err := c.post(ctx, url, params, &resp); err != nil {

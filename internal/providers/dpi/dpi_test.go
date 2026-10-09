@@ -37,11 +37,34 @@ func TestClient_GetRecords(t *testing.T) {
 			Records: []record{{ID: 1, Name: "www", Type: "AAAA", Value: "2001:db8::1", TTL: "600"}},
 		})
 	})
-	records, err := client.GetRecords(t.Context(), "www.example.com", "AAAA")
+	records, err := client.GetRecords(t.Context(), "example.com", "AAAA")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(records) != 1 || records[0].ID != "1" {
+		t.Fatalf("unexpected records: %+v", records)
+	}
+}
+
+// TestClient_GetRecords_MultiPartTLD 验证多段 TLD 根域整段作为 domain。
+func TestClient_GetRecords_MultiPartTLD(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if got := r.PostFormValue("domain"); got != "example.co.uk" {
+			t.Errorf("domain = %q, want example.co.uk", got)
+		}
+		if r.PostFormValue("sub_domain") != "" {
+			t.Errorf("sub_domain should be empty, got %q", r.PostFormValue("sub_domain"))
+		}
+		json.NewEncoder(w).Encode(recordListResponse{
+			Status:  apiStatus{Code: "1", Message: "success"},
+			Records: []record{{ID: 2, Name: "@", Type: "AAAA", Value: "2001:db8::9", TTL: "600"}},
+		})
+	})
+	records, err := client.GetRecords(t.Context(), "example.co.uk", "AAAA")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(records) != 1 || records[0].Name != "example.co.uk" {
 		t.Fatalf("unexpected records: %+v", records)
 	}
 }
@@ -107,11 +130,21 @@ func TestClient_ApiError(t *testing.T) {
 			Status: apiStatus{Code: "6", Message: "domain banned"},
 		})
 	})
-	_, err := client.GetRecords(t.Context(), "www.example.com", "AAAA")
+	_, err := client.GetRecords(t.Context(), "example.com", "AAAA")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
 	if !strings.Contains(err.Error(), "domain banned") {
 		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// TestHTTPStatusError_Error 验证错误字符串包含状态码与正文。
+func TestHTTPStatusError_Error(t *testing.T) {
+	t.Parallel()
+	err := &httpStatusError{status: http.StatusForbidden, body: "denied"}
+	got := err.Error()
+	if !strings.Contains(got, "403") || !strings.Contains(got, "denied") {
+		t.Fatalf("Error() = %q", got)
 	}
 }

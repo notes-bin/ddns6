@@ -27,6 +27,7 @@ var _ ddns.DNSProvider = (*Client)(nil)
 
 const (
 	defaultBaseURL = "https://dynv6.com"
+	zoneApexPrefix = "zone:" // zone 级 AAAA 记录 ID 前缀，与 records CRUD 区分
 )
 
 // Client Dynv6 API 客户端。
@@ -137,9 +138,14 @@ func (c *Client) AddRecord(ctx context.Context, record ddns.RecordInfo) error {
 
 // ModifyRecord 修改 DNS 记录。
 func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error {
-	zoneID, _, err := c.resolveZone(ctx, record.Name, record.Zone)
+	zoneID, subDomain, err := c.resolveZone(ctx, record.Name, record.Zone)
 	if err != nil {
 		return fmt.Errorf("failed to resolve zone: %w", err)
+	}
+
+	// zone 级 AAAA：走 zone PATCH，不走 records CRUD
+	if strings.HasPrefix(record.ID, zoneApexPrefix) || subDomain == "" || subDomain == "@" {
+		return c.updateZoneIP(ctx, zoneID, record.Value)
 	}
 
 	dnsRec := dnsRecord{
@@ -182,9 +188,14 @@ func (c *Client) ModifyRecord(ctx context.Context, record ddns.RecordInfo) error
 
 // DeleteRecord 删除 DNS 记录。
 func (c *Client) DeleteRecord(ctx context.Context, record ddns.RecordInfo) error {
-	zoneID, _, err := c.resolveZone(ctx, record.Name, record.Zone)
+	zoneID, subDomain, err := c.resolveZone(ctx, record.Name, record.Zone)
 	if err != nil {
 		return fmt.Errorf("failed to resolve zone: %w", err)
+	}
+
+	// zone 级 AAAA：清空 zone IPv6，不要 DELETE records
+	if strings.HasPrefix(record.ID, zoneApexPrefix) || subDomain == "" || subDomain == "@" {
+		return c.updateZoneIP(ctx, zoneID, "")
 	}
 
 	reqURL := fmt.Sprintf("%s/api/v2/zones/%s/records/%s", c.baseURL, url.PathEscape(zoneID), url.PathEscape(record.ID))
@@ -227,10 +238,10 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	if err != nil {
 		return nil, err
 	}
-	// zone 级 IPv6（apex AAAA）
+	// zone 级 IPv6（apex AAAA）；ID 带前缀，供 Modify/Delete 识别
 	if zone.IPv6 != "" && (recordType == "" || recordType == "AAAA") {
 		result = append(result, ddns.RecordInfo{
-			ID: zoneID, Name: zone.Name, Type: "AAAA", Value: zone.IPv6,
+			ID: zoneApexPrefix + zoneID, Name: zone.Name, Type: "AAAA", Value: zone.IPv6,
 		})
 	}
 
