@@ -43,7 +43,7 @@ func (d *DNSFetcher) Fetch(ctx context.Context) (net.IP, error) {
 	if !ok {
 		return nil, fmt.Errorf("unexpected local address type from dial")
 	}
-	if localAddr.IP.To16() != nil && localAddr.IP.To4() == nil {
+	if IsPublicIPv6(localAddr.IP) {
 		slog.Info("got local IPv6 address via DNS",
 			"module", "ipaddr",
 			"dns_server", d.String(),
@@ -51,10 +51,10 @@ func (d *DNSFetcher) Fetch(ctx context.Context) (net.IP, error) {
 		return localAddr.IP, nil
 	}
 
-	slog.Warn("DNS dial did not return a valid IPv6 address",
+	slog.Warn("DNS dial did not return a public IPv6 address",
 		"module", "ipaddr",
 		"dns_server", d.String(),
 		"local_addr", localAddr.IP.String())
 
-	return nil, fmt.Errorf("no valid ipv6 address obtained from dial")
+	return nil, fmt.Errorf("no valid public ipv6 address obtained from dial")
 }

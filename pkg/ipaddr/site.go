@@ -72,7 +72,7 @@ func (h *HTTPIPv6Fetcher) Fetch(ctx context.Context) (net.IP, error) {
 	}
 
 	ip := net.ParseIP(string(body))
-	if ip != nil && ip.To16() != nil && ip.To4() == nil {
+	if IsPublicIPv6(ip) {
 		return ip, nil
 	}
 
@@ -80,11 +80,11 @@ func (h *HTTPIPv6Fetcher) Fetch(ctx context.Context) (net.IP, error) {
 	if len(respStr) > 100 {
 		respStr = respStr[:100] + "..."
 	}
-	slog.Warn("HTTP response is not a valid IPv6 address",
+	slog.Warn("HTTP response is not a valid public IPv6 address",
 		"module", "ipaddr",
 		"url", h.String(),
 		"response", respStr,
 	)
 
-	return nil, fmt.Errorf("no valid ipv6 address found from %s", h.url)
+	return nil, fmt.Errorf("no valid public ipv6 address found from %s", h.url)
 }

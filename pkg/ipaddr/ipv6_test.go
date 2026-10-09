@@ -241,3 +241,36 @@ func TestHTTPIPv6Fetcher_ZoneID(t *testing.T) {
 		t.Fatalf("got %s, want 2001:db8::1", got)
 	}
 }
+
+// TestHTTPIPv6Fetcher_RejectULA 验证 ULA（私有）IPv6 被拒绝。
+func TestHTTPIPv6Fetcher_RejectULA(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("fd12:3456::1"))
+	}))
+	defer server.Close()
+
+	fetcher := ipaddr.NewHTTPIPv6Fetcher(server.URL)
+	_, err := fetcher.Fetch(t.Context())
+	if err == nil {
+		t.Fatal("ULA 地址应被拒绝")
+	}
+	if !strings.Contains(err.Error(), "public ipv6") {
+		t.Errorf("错误应提及 public ipv6: %v", err)
+	}
+}
+
+// TestHTTPIPv6Fetcher_RejectIPv4 验证 IPv4 地址被拒绝。
+func TestHTTPIPv6Fetcher_RejectIPv4(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("1.2.3.4"))
+	}))
+	defer server.Close()
+
+	fetcher := ipaddr.NewHTTPIPv6Fetcher(server.URL)
+	_, err := fetcher.Fetch(t.Context())
+	if err == nil {
+		t.Fatal("IPv4 地址应被拒绝")
+	}
+}

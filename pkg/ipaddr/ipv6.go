@@ -29,6 +29,18 @@ type IPv6Fetcher interface {
 	Fetch(ctx context.Context) (net.IP, error)
 }
 
+// IsPublicIPv6 判断是否为可用于 DDNS 的公网 IPv6：
+// 必须是 IPv6（非 IPv4）、全局单播，且非私有（ULA 等）。
+func IsPublicIPv6(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	if ip.To16() == nil || ip.To4() != nil {
+		return false
+	}
+	return ip.IsGlobalUnicast() && !ip.IsPrivate()
+}
+
 // fetchTimeout 为单次 IPv6Addr 竞速的总超时。
 const fetchTimeout = 5 * time.Second
 
