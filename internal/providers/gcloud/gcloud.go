@@ -133,7 +133,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to decode cloud dns rrsets: %w", err)
 	}
-	result := make([]ddns.RecordInfo, 0)
+	result := make([]ddns.RecordInfo, 0, len(resp.Rrsets))
 	for _, set := range resp.Rrsets {
 		for _, v := range set.Rrdatas {
 			result = append(result, ddns.RecordInfo{

@@ -163,7 +163,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 	if err := json.Unmarshal(body, &list); err != nil {
 		return nil, fmt.Errorf("failed to decode azure record sets: %w", err)
 	}
-	result := make([]ddns.RecordInfo, 0)
+	result := make([]ddns.RecordInfo, 0, len(list.Value))
 	for _, rs := range list.Value {
 		name := zoneName
 		rr := rs.Name

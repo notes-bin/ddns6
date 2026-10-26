@@ -1,6 +1,8 @@
 package config
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -318,7 +320,7 @@ func TestGenerate_Success(t *testing.T) {
 	}
 
 	path := filepath.Join(tmpDir, ".ddns6", "config.yaml")
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
 		t.Fatal("Generate() 应创建 config.yaml")
 	}
 }

@@ -212,7 +212,7 @@ func (c *Client) GetRecords(ctx context.Context, fulldomain, recordType string) 
 		return nil, fmt.Errorf("failed to decode hetzner rrsets: %w", err)
 	}
 
-	result := make([]ddns.RecordInfo, 0)
+	result := make([]ddns.RecordInfo, 0, len(resp.RRSets))
 	for _, set := range resp.RRSets {
 		rrName := set.Name
 		for _, rec := range set.Records {

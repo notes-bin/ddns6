@@ -19,7 +19,9 @@ package config
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -85,7 +87,7 @@ func Load() (*Config, error) {
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, fmt.Errorf("config file not found at %s (use 'ddns6 init' to create one)", path)
 		}
 		return nil, fmt.Errorf("cannot read config file %s: %w", path, err)
@@ -239,7 +241,7 @@ func Generate(params InitParams) error {
 	// O_EXCL 原子创建，避免 Stat+WriteFile 竞态覆盖已有配置
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
-		if os.IsExist(err) {
+		if errors.Is(err, fs.ErrExist) {
 			return fmt.Errorf("config file already exists at %s", path)
 		}
 		return fmt.Errorf("cannot write config file %s: %w", path, err)

@@ -117,7 +117,11 @@ var rootCmd = &cobra.Command{
   3. 查看详情:  ddns6 run --help`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// -V/--version 须在日志初始化前拦截，否则会先打开日志文件再退出
-		if showV, _ := cmd.Flags().GetBool("version"); showV {
+		showV, err := cmd.Flags().GetBool("version")
+		if err != nil {
+			return fmt.Errorf("invalid --version flag: %w", err)
+		}
+		if showV {
 			printVersion()
 			return errVersion
 		}
@@ -147,7 +151,10 @@ var rootCmd = &cobra.Command{
 
 		opts := new(slog.HandlerOptions)
 
-		debug, _ := cmd.Flags().GetBool("debug")
+		debug, err := cmd.Flags().GetBool("debug")
+		if err != nil {
+			return fmt.Errorf("invalid --debug flag: %w", err)
+		}
 		if debug {
 			opts.Level = slog.LevelDebug
 			opts.AddSource = true

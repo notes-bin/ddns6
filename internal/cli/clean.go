@@ -124,6 +124,7 @@ func handleClean(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	var failed int
+	var firstErr error
 
 	for _, r := range toDelete {
 		sem <- struct{}{}
@@ -141,6 +142,9 @@ func handleClean(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider)
 				fmt.Fprintf(os.Stderr, "Error deleting %s (ID: %s): %v\n", r.Name, r.ID, err)
 				mu.Lock()
 				failed++
+				if firstErr == nil {
+					firstErr = err
+				}
 				mu.Unlock()
 				return
 			}
@@ -158,7 +162,7 @@ func handleClean(cmd *cobra.Command, domains []*ddns.Domain, p ddns.DNSProvider)
 	fmt.Println(".")
 
 	if failed > 0 {
-		return fmt.Errorf("%d record(s) failed to delete", failed)
+		return fmt.Errorf("%d record(s) failed to delete: %w", failed, firstErr)
 	}
 	return nil
 }
